@@ -262,10 +262,21 @@ func receive_attack(atk: Dictionary, attacker: Node3D) -> String:
 			return "perfect_dodge"
 		return "dodged"
 
-	if state == State.DEFENSE and element == Combat.Element.WIND:
-		Fx.burst(fx_parent, global_position + Vector3(0, 0.8, 0), Color(0.6, 0.95, 1.0, 0.5), 1.8)
-		Juice.play("wind", global_position, 1.3)
-		return "deflected"
+	if state == State.DEFENSE and facing_ok:
+		if element == Combat.Element.WIND:
+			Fx.burst(fx_parent, global_position + Vector3(0, 0.8, 0), Color(0.6, 0.95, 1.0, 0.5), 1.8)
+			Juice.play("wind", global_position, 1.3)
+			return "deflected"
+		if element == Combat.Element.WATER:
+			# Water absorbs one frontal strike and chills its attacker.
+			if attacker and attacker.has_method("apply_chill"):
+				attacker.apply_chill(2.0, 0.55)
+			Fx.ring(fx_parent, global_position, Color(0.48, 0.85, 1.0, 0.75), 2.0)
+			return "ice_block"
+		if element == Combat.Element.EARTH:
+			# Earth is sustain-focused: dampen damage rather than granting immunity.
+			_take_damage(dmg * 0.5, -to_attacker * 1.2, 0.2)
+			return "earth_guard"
 
 	if (state == State.GUARD or state == State.DEFENSE) and facing_ok:
 		guard_absorbed = true
@@ -547,7 +558,8 @@ func _on_jump_pressed() -> void:
 func _toggle_element() -> void:
 	if element_cooldown > 0.0 or state != State.MOVE:
 		return
-	element = Combat.Element.FIRE if element == Combat.Element.WIND else Combat.Element.WIND
+	var idx := Combat.PLAYABLE_ELEMENTS.find(element)
+	element = Combat.PLAYABLE_ELEMENTS[(idx + 1) % Combat.PLAYABLE_ELEMENTS.size()]
 	element_cooldown = 0.5
 	announced.emit("%s element" % Combat.ELEMENT_NAMES[element], Combat.ELEMENT_COLORS[element])
 
@@ -730,41 +742,86 @@ func _tick_cast(delta: float) -> Vector3:
 	return Vector3.ZERO
 
 
+func _heal(amount: float) -> float:
+	var before := hp
+	hp = minf(max_hp, hp + amount)
+	var restored := hp - before
+	if restored > 0.0:
+		health_changed.emit(hp, max_hp)
+		Fx.popup(fx_parent, global_position + Vector3(0, 1.9, 0), "+%d" % roundi(restored), Combat.ELEMENT_COLORS[Combat.Element.EARTH])
+	return restored
+
+
 func _release_element(tier: int) -> void:
 	var fwd := _forward()
 	var mult := 1.5 if counter_window > 0.0 else 1.0
 	var color: Color = Combat.ELEMENT_COLORS[element]
-	var radius: float
-	var arc: float
-	var dmg: float
-	var knock: float
-	if element == Combat.Element.FIRE:
-		radius = 3.0 + tier * 0.8
-		arc = 70.0 + tier * 20.0
-		dmg = [0.0, 18.0, 30.0, 55.0][tier]
-		knock = 2.0 + tier
-		Fx.burst(fx_parent, global_position + fwd * radius * 0.5 + Vector3(0, 0.7, 0), Color(color, 0.8), radius * 0.6, 0.35, Vector3(1, 0.5, 1))
-		Juice.play("fire", global_position, 1.1 - tier * 0.08)
-	else:
-		radius = 5.0 + tier * 2.0
-		arc = 40.0 + tier * 10.0
-		dmg = [0.0, 8.0, 14.0, 24.0][tier]
-		knock = 6.0 + tier * 4.0
-		for i in 3:
-			Fx.burst(fx_parent, global_position + fwd * (1.2 + i * radius * 0.3) + Vector3(0, 0.8, 0), Color(color, 0.5), 0.8 + i * 0.3, 0.3)
-		Juice.play("wind", global_position, 1.0 + tier * 0.1)
+	var radius := 0.0
+	var arc := 0.0
+	var dmg := 0.0
+	var knock := 0.0
+	var stagger := 0
+	match element:
+		Combat.Element.FIRE:
+			radius = 3.0 + tier * 0.8
+			arc = 70.0 + tier * 20.0
+			dmg = [0.0, 18.0, 30.0, 55.0][tier]
+			knock = 2.0 + tier
+			stagger = maxi(0, tier - 1)
+			Fx.burst(fx_parent, global_position + fwd * radius * 0.5 + Vector3(0, 0.7, 0), Color(color, 0.8), radius * 0.6, 0.35, Vector3(1, 0.5, 1))
+			Juice.play("fire", global_position, 1.1 - tier * 0.08)
+		Combat.Element.WIND:
+			radius = 5.0 + tier * 2.0
+			arc = 40.0 + tier * 10.0
+			dmg = [0.0, 8.0, 14.0, 24.0][tier]
+			knock = 6.0 + tier * 4.0
+			stagger = tier
+			for i in 3:
+				Fx.burst(fx_parent, global_position + fwd * (1.2 + i * radius * 0.3) + Vector3(0, 0.8, 0), Color(color, 0.5), 0.8 + i * 0.3, 0.3)
+			Juice.play("wind", global_position, 1.0 + tier * 0.1)
+		Combat.Element.WATER:
+			# Water is crowd control, not a second damage-focused fire spell.
+			radius = 3.5 + tier * 0.8
+			arc = 100.0 + tier * 15.0
+			dmg = [0.0, 6.0, 10.0, 15.0][tier]
+			knock = 0.5
+			Fx.ring(fx_parent, global_position + fwd * 1.2, Color(color, 0.75), radius, 0.4)
+			Juice.play("wind", global_position, 0.65)
+		Combat.Element.EARTH:
+			# Prototype heals the caster; party healing comes with multiplayer.
+			var restored := _heal([0.0, 18.0, 32.0, 48.0][tier])
+			Fx.ring(fx_parent, global_position, Color(color, 0.7), 1.5 + tier * 0.6)
+			announced.emit("Earth restored %d HP" % roundi(restored), color)
+			_affect_physics_props(Combat.Element.EARTH, 2.0 + tier, 3.0 * tier, fwd, 360.0)
+			return
 	Juice.shake(0.1 * tier)
 	for j in _jinn_in_reach():
 		if Combat.in_arc(global_position, fwd, j.global_position, radius + j.radius, arc):
 			j.take_damage({
 				"amount": dmg * mult, "element": element, "from": global_position,
-				"knockback": knock, "stagger": tier if element == Combat.Element.WIND else maxi(0, tier - 1),
+				"knockback": knock, "stagger": stagger,
+				"chill_seconds": 1.0 + tier * 0.7 if element == Combat.Element.WATER else 0.0,
 				"counter": counter_window > 0.0,
 			})
+	_affect_physics_props(element, radius, (8.0 + 6.0 * tier), fwd, arc)
+
+
+## Server-friendly element/rigid-body interface. Only nearby props are touched.
+func _affect_physics_props(e: int, radius: float, force: float, forward: Vector3, arc: float) -> void:
+	for node in get_tree().get_nodes_in_group("elemental_props"):
+		var prop := node as ElementalProp
+		if prop == null:
+			continue
+		if Combat.in_arc(global_position, forward, prop.global_position, radius, arc):
+			prop.receive_element(e, Combat.flat(prop.global_position - global_position) + Vector3.UP * 0.25, force)
 
 
 func _start_mobility(tier: int) -> void:
-	var cost := 22.0 if element == Combat.Element.WIND else 25.0
+	var cost := 22.0
+	match element:
+		Combat.Element.FIRE: cost = 25.0
+		Combat.Element.WATER: cost = 18.0
+		Combat.Element.EARTH: cost = 20.0
 	if stamina < cost * 0.5:
 		announced.emit("Out of stamina", Color(1, 0.6, 0.5))
 		charge_cancelled = true
@@ -778,13 +835,28 @@ func _start_mobility(tier: int) -> void:
 	dodge_started_at = now
 	perfect_used = false
 	_enter(State.MOBILITY)
-	Juice.play("wind" if element == Combat.Element.WIND else "fire", global_position, 1.4)
+	if element == Combat.Element.WIND or element == Combat.Element.WATER:
+		Juice.play("wind", global_position, 1.4)
+	elif element == Combat.Element.FIRE:
+		Juice.play("fire", global_position, 1.4)
 	PerfLogger.record_latency(last_input_usec)
 
 
 func _tick_mobility() -> Vector3:
-	var duration := 0.35 if element == Combat.Element.WIND else 0.3
-	var base := 15.0 if element == Combat.Element.WIND else 13.0
+	# Water slide / Earth sand-wave are greybox bursts until equipment and terrain
+	# material systems exist; no persistent ice or sand geometry is created.
+	var duration := 0.35
+	var base := 15.0
+	match element:
+		Combat.Element.FIRE:
+			duration = 0.3
+			base = 13.0
+		Combat.Element.WATER:
+			duration = 0.5
+			base = 11.0
+		Combat.Element.EARTH:
+			duration = 0.65
+			base = 9.0
 	var spd := base * (1.0 + 0.15 * (cast_tier - 1))
 	var color: Color = Combat.ELEMENT_COLORS[element]
 	if Engine.get_physics_frames() % 3 == 0:
@@ -802,7 +874,7 @@ func _tick_mobility() -> Vector3:
 
 
 func _start_defense() -> void:
-	var cost := 20.0 if element == Combat.Element.WIND else 25.0
+	var cost := 25.0 if element == Combat.Element.FIRE else 20.0
 	if stamina < cost * 0.5:
 		announced.emit("Out of stamina", Color(1, 0.6, 0.5))
 		return
@@ -814,28 +886,35 @@ func _start_defense() -> void:
 
 func _tick_defense() -> Vector3:
 	var color: Color = Combat.ELEMENT_COLORS[element]
-	if element == Combat.Element.WIND:
-		if not cast_done:
-			cast_done = true
-			Fx.ring(fx_parent, global_position, Color(color, 0.6), 3.0)
-			Juice.play("wind", global_position, 1.5)
-			for j in _jinn_in_reach():
-				if global_position.distance_to(j.global_position) < 3.0 + j.radius:
-					j.take_damage({"amount": 4.0, "element": Combat.Element.WIND, "from": global_position, "knockback": 7.0, "stagger": 1})
-		if state_time >= 0.5:
-			_enter(State.GUARD if dodge_held else State.MOVE)
-	else:
-		if not cast_done and state_time >= 0.25:
-			cast_done = true
-			Fx.burst(fx_parent, global_position + Vector3(0, 0.6, 0), Color(color, 0.7), 2.6, 0.35, Vector3(1, 0.5, 1))
-			Juice.play("fire", global_position, 1.2)
-			for j in _jinn_in_reach():
-				if global_position.distance_to(j.global_position) < 2.6 + j.radius:
-					j.take_damage({"amount": 20.0, "element": Combat.Element.FIRE, "from": global_position, "knockback": 4.0, "stagger": 1})
-		if state_time >= 0.55:
-			_enter(State.GUARD if dodge_held else State.MOVE)
+	match element:
+		Combat.Element.WIND:
+			if not cast_done:
+				cast_done = true
+				Fx.ring(fx_parent, global_position, Color(color, 0.6), 3.0)
+				Juice.play("wind", global_position, 1.5)
+				for j in _jinn_in_reach():
+					if global_position.distance_to(j.global_position) < 3.0 + j.radius:
+						j.take_damage({"amount": 4.0, "element": Combat.Element.WIND, "from": global_position, "knockback": 7.0, "stagger": 1})
+		Combat.Element.FIRE:
+			if not cast_done and state_time >= 0.25:
+				cast_done = true
+				Fx.burst(fx_parent, global_position + Vector3(0, 0.6, 0), Color(color, 0.7), 2.6, 0.35, Vector3(1, 0.5, 1))
+				Juice.play("fire", global_position, 1.2)
+				for j in _jinn_in_reach():
+					if global_position.distance_to(j.global_position) < 2.6 + j.radius:
+						j.take_damage({"amount": 20.0, "element": Combat.Element.FIRE, "from": global_position, "knockback": 4.0, "stagger": 1})
+		Combat.Element.WATER:
+			if not cast_done:
+				cast_done = true
+				Fx.ring(fx_parent, global_position, Color(color, 0.75), 1.8, 0.45)
+		Combat.Element.EARTH:
+			if not cast_done:
+				cast_done = true
+				_heal(8.0)
+				Fx.ring(fx_parent, global_position, Color(color, 0.7), 1.6, 0.5)
+	if state_time >= 0.55:
+		_enter(State.GUARD if dodge_held else State.MOVE)
 	return Vector3.ZERO
-
 
 # --- Traversal --------------------------------------------------------------
 

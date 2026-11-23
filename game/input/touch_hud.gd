@@ -251,6 +251,19 @@ func _draw_hud() -> void:
 	if jinn and is_instance_valid(jinn) and not jinn.is_dead():
 		_bar(Vector2(s.x / 2 - 200, 28), 400.0, jinn.hp / jinn.max_hp, Color(0.6, 0.35, 0.9), "JINN")
 
+	# Zelda-style focus diamond. Pure presentation: no targeting authority here.
+	if player and player.lock_target and is_instance_valid(player.lock_target) and player.camera_rig:
+		var cam := player.camera_rig.camera
+		var world_at := player.lock_target.global_position + Vector3(0, 1.6, 0)
+		if cam and not cam.is_position_behind(world_at):
+			var screen_at := cam.unproject_position(world_at)
+			if Rect2(Vector2.ZERO, s).has_point(screen_at):
+				var col := Color(0.95, 0.82, 0.54, 0.9)
+				for i in 4:
+					var a := float(i) * PI * 0.5 - PI * 0.25
+					var b := a + PI * 0.5
+					_canvas.draw_line(screen_at + Vector2(cos(a), sin(a)) * 24.0, screen_at + Vector2(cos(b), sin(b)) * 24.0, col, 2.0, true)
+
 	# Pause button.
 	var pc := _pause_center()
 	_canvas.draw_circle(pc, PAUSE_R, Color(0, 0, 0, 0.4))

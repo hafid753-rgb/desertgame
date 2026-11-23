@@ -9,6 +9,8 @@ uniform float wobble = 0.07;
 uniform float flash = 0.0;
 uniform float dissolve = 0.0;
 uniform float burn = 0.0;
+uniform float warning = 0.0;
+uniform vec4 warning_color : source_color = vec4(0.9, 0.3, 0.2, 1.0);
 
 float hash(vec3 p) {
 	p = fract(p * 0.3183099 + 0.1);
@@ -42,6 +44,8 @@ void fragment() {
 	}
 	vec3 col = mix(core_color.rgb, rim_color.rgb, fres + n * 0.15);
 	col = mix(col, vec3(1.0, 0.45, 0.1), burn * fres);
+	// Tint the silhouette as the attack winds up, not just the eyes.
+	col = mix(col, warning_color.rgb, warning * (0.25 + 0.75 * fres));
 	col = mix(col, vec3(1.0), flash);
 	ALBEDO = col;
 }

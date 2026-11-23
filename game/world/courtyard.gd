@@ -20,6 +20,7 @@ const BOUND := 58.0
 const MESA_H := 20.0
 
 var _materials: Dictionary = {}
+var _sand_shader: Shader = preload("res://game/world/sand_ripple.gdshader")
 
 
 func _ready() -> void:
@@ -52,6 +53,7 @@ func _ready() -> void:
 	for p in [Vector3(9.5, 0, -9), Vector3(10.2, 0, -8.2), Vector3(-10, 0, 9.5)]:
 		_cylinder(0.32, 0.7, p + Vector3(0, 0.35, 0), Color(0.68, 0.4, 0.25))
 	_outside()
+	_spawn_physics_props()
 
 
 func _outside() -> void:
@@ -89,7 +91,7 @@ func _dune(center: Vector3, size: Vector3) -> void:
 	mi.mesh = sm
 	mi.scale = size
 	mi.position = center
-	mi.material_override = _mat(Color(0.8, 0.65, 0.44))
+	mi.material_override = _sand_mat(Color(0.8, 0.65, 0.44))
 	add_child(mi)
 	var pts := PackedVector3Array()
 	for v in sm.get_mesh_arrays()[Mesh.ARRAY_VERTEX]:
@@ -180,7 +182,7 @@ func _box(size: Vector3, pos: Vector3, color: Color, collide: bool = true) -> vo
 	mesh.size = size
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	mi.material_override = _mat(color)
+	mi.material_override = _sand_mat(color) if color == SAND else _mat(color)
 	mi.position = pos
 	add_child(mi)
 	if collide:
@@ -222,3 +224,27 @@ func _mat(color: Color) -> StandardMaterial3D:
 	m.roughness = 1.0
 	_materials[key] = m
 	return m
+
+## One cached material per sand tint; shared by all dune meshes.
+func _sand_mat(tint: Color) -> ShaderMaterial:
+	var key := "sand_" + tint.to_html()
+	if _materials.has(key):
+		return _materials[key] as ShaderMaterial
+	var m := ShaderMaterial.new()
+	m.shader = _sand_shader
+	m.set_shader_parameter("sand_color", tint)
+	_materials[key] = m
+	return m
+
+## Three interactable objects at the southern gate, away from combat tests.
+## Wind pushes, fire ignites wooden crates, ice stops motion.
+func _spawn_physics_props() -> void:
+	for item in [
+		{"at": Vector3(3.5, 1.0, 18.0), "wood": true},
+		{"at": Vector3(5.3, 1.0, 19.0), "wood": true},
+		{"at": Vector3(7.2, 1.0, 20.0), "wood": false},
+	]:
+		var prop := ElementalProp.new()
+		prop.wooden = item["wood"]
+		prop.position = item["at"]
+		add_child(prop)

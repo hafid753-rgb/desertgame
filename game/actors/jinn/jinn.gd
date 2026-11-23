@@ -40,10 +40,14 @@ var stagger_time: float = 0.0
 var knock_velocity: Vector3 = Vector3.ZERO
 var burn_time: float = 0.0
 var burn_tick: float = 0.0
+var chill_time: float = 0.0
+var chill_multiplier: float = 1.0
 var fx_parent: Node
 var damage_taken_total: float = 0.0
 
 var _smoke_mat: ShaderMaterial
+var _veil_mat: ShaderMaterial
+var _veil: MeshInstance3D
 var _eye_mat: StandardMaterial3D
 var _ring: MeshInstance3D
 var _ring_mat: StandardMaterial3D
@@ -91,6 +95,13 @@ func force_attack(name: String) -> void:
 	_begin_telegraph(name)
 
 
+## Water slows movement without changing telegraph durations. Server-friendly
+## numeric status effect; no physical particle simulation required.
+func apply_chill(seconds: float, speed_multiplier: float = 0.6) -> void:
+	chill_time = maxf(chill_time, seconds)
+	chill_multiplier = minf(chill_multiplier, speed_multiplier)
+
+
 func take_damage(info: Dictionary) -> void:
 	if state == S.DEAD:
 		return
@@ -100,6 +111,10 @@ func take_damage(info: Dictionary) -> void:
 	if element == Combat.Element.FIRE:
 		amount *= 1.3
 		burn_time = 3.0
+	elif element == Combat.Element.WATER:
+		# Water extinguishes burn and reduces movement temporarily.
+		burn_time = 0.0
+		apply_chill(float(info.get("chill_seconds", 2.0)), 0.6)
 	if state == S.STAGGER:
 		amount *= 1.25
 	hp = maxf(0.0, hp - amount)
@@ -115,6 +130,8 @@ func take_damage(info: Dictionary) -> void:
 		col = Color(1, 0.55, 0.2)
 	elif element == Combat.Element.WIND:
 		col = Color(0.6, 0.95, 1.0)
+	elif element == Combat.Element.WATER:
+		col = Combat.ELEMENT_COLORS[Combat.Element.WATER]
 	if info.get("counter", false):
 		col = Color(1, 0.95, 0.4)
 	Fx.popup(fx_parent, global_position + Vector3(0, 2.3, 0), str(roundi(amount)), col, 72 if amount >= 25 else 56)
@@ -130,6 +147,10 @@ func take_damage(info: Dictionary) -> void:
 
 func _physics_process(delta: float) -> void:
 	state_time += delta
+	if chill_time > 0.0:
+		chill_time = maxf(0.0, chill_time - delta)
+		if chill_time <= 0.0:
+			chill_multiplier = 1.0
 	if target == null or not is_instance_valid(target):
 		target = get_tree().get_first_node_in_group("player") as Player
 	_tick_burn(delta)
@@ -155,6 +176,8 @@ func _physics_process(delta: float) -> void:
 				_enter(S.CIRCLE if ai_enabled else S.IDLE)
 		S.DEAD:
 			_smoke_mat.set_shader_parameter("dissolve", clampf(state_time / 1.2, 0.0, 1.0))
+			if _veil_mat:
+				_veil_mat.set_shader_parameter("dissolve", clampf(state_time / 0.85, 0.0, 1.0))
 			if _mask:
 				_mask.scale = Vector3.ONE * maxf(0.01, 1.0 - state_time / 1.0)
 			if state_time > 1.3:
@@ -189,7 +212,7 @@ func _tick_chase(delta: float) -> Vector3:
 	if to.length() < 3.2:
 		_enter(S.CIRCLE)
 		return Vector3.ZERO
-	return to.normalized() * CHASE_SPEED
+	return to.normalized() * CHASE_SPEED * chill_multiplier
 
 
 func _tick_circle(delta: float) -> Vector3:
@@ -205,7 +228,7 @@ func _tick_circle(delta: float) -> Vector3:
 		radial = 1.0
 	elif dist < 2.6:
 		radial = -0.7
-	var h := (tangent + to.normalized() * radial).normalized() * CIRCLE_SPEED
+	var h := (tangent + to.normalized() * radial).normalized() * CIRCLE_SPEED * chill_multiplier
 	if dist > 6.0:
 		_enter(S.CHASE)
 	elif state_time >= circle_time and ai_enabled:
@@ -238,6 +261,7 @@ func _begin_telegraph(name: String) -> void:
 	_enter(S.TELEGRAPH)
 	var col: Color = ATTACKS[name]["color"]
 	_eye_mat.albedo_color = col
+	_smoke_mat.set_shader_parameter("warning_color", col)
 	Juice.play("tel_" + name, global_position)
 	_ring_mat.albedo_color = Color(col, 0.35)
 
@@ -273,7 +297,7 @@ func _tick_attack(_delta: float) -> Vector3:
 				Fx.burst(fx_parent, global_position + _forward() * 1.3 + Vector3(0, 1.0, 0), Color(0.2, 0.1, 0.3, 0.7), 1.4, 0.2, Vector3(1.5, 0.4, 1))
 				_try_hit(atk)
 		"lunge":
-			var dash: float = atk["dash_speed"]
+			var dash: float = atk["dash_speed"] * chill_multiplier
 			h = _forward() * dash
 			if not attack_hit_done:
 				_try_hit(atk)
@@ -398,12 +422,16 @@ func _animate(delta: float) -> void:
 
 	_flash = maxf(0.0, _flash - delta * 6.0)
 	_smoke_mat.set_shader_parameter("flash", _flash * 0.8)
+	_smoke_mat.set_shader_parameter("warning", tel_p * 0.40)
+	if _veil_mat:
+		_veil_mat.set_shader_parameter("agitation", tel_p * 1.5 if state == S.TELEGRAPH else 0.0)
 	if _mask_mat:
 		_mask_mat.set_shader_parameter("flash", _flash * 0.6)
 
 
 func _build_visual() -> void:
 	_visual = Node3D.new()
+	_visual.name = "Visual"
 	add_child(_visual)
 	_smoke_mat = ShaderMaterial.new()
 	_smoke_mat.shader = preload("res://game/actors/jinn/jinn_smoke.gdshader")
@@ -415,6 +443,10 @@ func _build_visual() -> void:
 			_visual.add_child(mi)
 	_arm_r = parts.get("ArmR")
 	_arm_l = parts.get("ArmL")
+	# Eight tapering smoke ribbons add Ico-like, dissolving silhouettes without
+	# reusing any Sony assets. One mesh / one transparent draw surface.
+	_veil = _build_spirit_veil()
+	_visual.add_child(_veil)
 	if parts.has("Mask"):
 		_mask = parts["Mask"]
 		_mask_mat = CharacterArt.toon_material(Color(0.05, 0.03, 0.06), 0.008)
@@ -450,3 +482,49 @@ func _build_visual() -> void:
 	_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_ring.visible = false
 	add_child(_ring)
+
+## A single procedural ribbon mesh: 8 strips x 6 divisions, ~100 triangles.
+## No per-frame geometry allocation, just inexpensive vertex displacement.
+func _build_spirit_veil() -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var strips := 8
+	var steps := 6
+	for strand in strips:
+		var angle := TAU * float(strand) / float(strips)
+		for segment in steps:
+			var y0 := float(segment) / float(steps)
+			var y1 := float(segment + 1) / float(steps)
+			var v00 := _veil_vertex(angle, y0, 0.0)
+			var v10 := _veil_vertex(angle, y0, 1.0)
+			var v01 := _veil_vertex(angle, y1, 0.0)
+			var v11 := _veil_vertex(angle, y1, 1.0)
+			_veil_point(st, v00, Vector2(0.0, y0))
+			_veil_point(st, v10, Vector2(1.0, y0))
+			_veil_point(st, v11, Vector2(1.0, y1))
+			_veil_point(st, v00, Vector2(0.0, y0))
+			_veil_point(st, v11, Vector2(1.0, y1))
+			_veil_point(st, v01, Vector2(0.0, y1))
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	_veil_mat = ShaderMaterial.new()
+	_veil_mat.shader = preload("res://game/actors/jinn/spirit_veil.gdshader")
+	mi.material_override = _veil_mat
+	mi.name = "SpiritVeil"
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+
+func _veil_vertex(angle: float, h: float, side: float) -> Vector3:
+	var twist := angle + h * 0.38
+	var across := (side - 0.5) * (0.55 - 0.25 * h)
+	var r := 0.29 + 0.13 * sin(angle * 3.0) - 0.11 * h
+	return Vector3(cos(twist) * r - sin(twist) * across,
+		0.02 + 1.65 * h,
+		sin(twist) * r + cos(twist) * across)
+
+
+func _veil_point(st: SurfaceTool, pos: Vector3, uv: Vector2) -> void:
+	st.set_uv(uv)
+	st.set_normal(pos.normalized())
+	st.add_vertex(pos)

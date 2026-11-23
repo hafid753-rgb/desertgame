@@ -3,13 +3,20 @@ extends RefCounted
 ## Shared combat rules. Kept free of node references so the same code can run
 ## on a headless server later.
 
-enum Element { NONE, WIND, FIRE }
+enum Element { NONE, WIND, FIRE, WATER, EARTH }
 
-const ELEMENT_NAMES := {Element.NONE: "Steel", Element.WIND: "Wind", Element.FIRE: "Fire"}
+## Order deliberately excludes NONE: players cycle four elemental disciplines.
+const PLAYABLE_ELEMENTS: Array[int] = [Element.WIND, Element.FIRE, Element.WATER, Element.EARTH]
+const ELEMENT_NAMES := {
+	Element.NONE: "Steel", Element.WIND: "Wind", Element.FIRE: "Fire",
+	Element.WATER: "Water/Ice", Element.EARTH: "Earth",
+}
 const ELEMENT_COLORS := {
 	Element.NONE: Color(0.95, 0.95, 0.9),
 	Element.WIND: Color(0.55, 0.9, 1.0),
 	Element.FIRE: Color(1.0, 0.45, 0.12),
+	Element.WATER: Color(0.43, 0.7, 1.0),
+	Element.EARTH: Color(0.75, 0.82, 0.49),
 }
 
 ## Physics layers.

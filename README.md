@@ -13,6 +13,11 @@ it is banished. Outside the open gate: dunes, a ruined wall, a 10 m pillar, and 
 - **Phone:** install `hafid-the-room.apk` (Android 7.0 or newer; allow "install unknown apps").
 - **PC:** open this folder in Godot **4.6.3** and press F5.
 - **Tests:** `godot --headless --path . --fixed-fps 60 res://tests/combat_test.tscn` (45 checks: combat, traversal, species, menu; exit code 0 = pass).
+- **Elements:** Wind and Fire remain the existing attacks. **Water/Ice** chills
+  jinn and creates a short frontal ice barrier. **Earth** restores HP and
+  reduces incoming damage during elemental defense. Element selection cycles
+  Wind → Fire → Water/Ice → Earth; the other two mobility moves are greybox
+  placeholders until we implement actual equipment and terrain interactions.
 - **Characters:** `pip install bpy` then `python tools/blender/build_characters.py` rebuilds
   `game/art/characters/*.glb` (Cat, Fennec, Lizard in their daraas, the masked jinn, sword and shield).
   Render a lineup with `godot --path . res://tools/portrait.tscn`.
@@ -34,7 +39,7 @@ it is banished. Outside the open gate: dunes, a ruined wall, a 10 m pillar, and 
 | SPC held + ATK | | | Elemental attack (Wind gust or Fire strike) |
 | SPC held + DGE | | | Elemental mobility (wind dash / fire burst) |
 | DGE held + tap SPC | | | Elemental defense (wind deflect / fire riposte) |
-| ELM (top right) | E | Y | Switch Wind ↔ Fire (out of combat) |
+| ELM (top right) | E | Y | Cycle Wind → Fire → Water/Ice → Earth (out of combat) |
 | JMP | Space | A | Jump. On a wall: LEAP off |
 | Push into a wall | push W into a wall | push stick | Climb (uses stamina; reach the top to mantle) |
 | DGE while climbing | | | DROP (let go) |
@@ -95,6 +100,17 @@ On Android that is `/data/data/dev.overcode.hafid/files/`; the same numbers show
 
 ## Status
 
-Prototype v0.2. Placeholder art and generated sounds. No networking, terrain streaming,
-village or Jinn King yet. Traversal modes besides the wind glide (ice board, fire shoes,
-sand wave) come later.
+Prototype v0.3 (elemental expansion). Placeholder art and generated sounds.
+No networking, terrain streaming, village, player equipment system or Jinn King yet.
+Ice-slide and earth-wave bursts in this build are NOT the final gear-gated
+traversal system: skis/board, fire shoes and special daraa need real equipment
+and ground-material detection. Earth healing is self-only until allies exist.
+
+This package was modified without a Godot runtime in the build environment:
+Python-based source checks completed, but **the Godot integration suite and Android
+build are NOT verified**. Run the headless tests and playtest on a real device
+before treating these changes as working gameplay.
+
+
+## v0.4 research prototype additions
+See `docs/implementation-v0.4.md` for the spectral jinn, Zelda-style lock-on indicator, Journey-like sand and physics props. Godot runtime checks are pending.
