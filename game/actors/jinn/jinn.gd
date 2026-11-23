@@ -233,6 +233,7 @@ func _begin_telegraph(name: String) -> void:
 	_enter(S.TELEGRAPH)
 	var col: Color = ATTACKS[name]["color"]
 	_eye_mat.albedo_color = col
+	Juice.play("tel_" + name, global_position)
 	_ring_mat.albedo_color = Color(col, 0.35)
 
 
@@ -307,6 +308,8 @@ func _stagger(duration: float) -> void:
 
 func _die() -> void:
 	_enter(S.DEAD)
+	Juice.play("banish", global_position)
+	Juice.shake(0.3)
 	collision_layer = 0
 	_eye_mat.albedo_color = Color(0.2, 0.2, 0.2)
 	Fx.burst(fx_parent, global_position + Vector3(0, 1.0, 0), Color(0.3, 0.15, 0.45, 0.8), 2.2, 0.8)

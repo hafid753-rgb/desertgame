@@ -1,39 +1,82 @@
 extends Node
-## Renders the room to PNGs for review: godot --path . res://tools/screenshot.tscn
-## Output: user://shots/*.png (path printed).
+## Renders review screenshots: godot --path . res://tools/screenshot.tscn
+## Output: user://shots/*.png (paths printed).
 
 var main: Node3D
+var p: Player
+
 
 func _ready() -> void:
+	Juice.enabled_hitstop = false
 	main = preload("res://game/main.tscn").instantiate()
 	add_child(main)
-	for i in 20:
-		await get_tree().process_frame
+	await _wait(20)
+	p = main.player
 	main.jinn.ai_enabled = false
-	main.jinn.global_position = Vector3(0.5, 0, 2.5)
-	main.player.global_position = Vector3(0, 0.05, 6)
-	main.player.reset_physics_interpolation()
-	for i in 30:
-		await get_tree().process_frame
-	await _shot("01_overview")
+
+	# 1. Combat: lock-on + telegraph.
 	main.jinn.global_position = Vector3(0.5, 0, 0.5)
-	main.player.toggle_lock()
-	GameInput.press("special")
-	for i in 40:
-		await get_tree().process_frame
+	p.global_position = Vector3(0, 0.05, 4)
+	p.reset_physics_interpolation()
+	await _wait(20)
+	p.toggle_lock()
 	main.jinn.force_attack("burst")
-	for i in 25:
-		await get_tree().process_frame
-	await _shot("02_lock_telegraph_charge")
+	await _wait(30)
+	await _shot("01_combat_lock_telegraph")
+	p.toggle_lock()
+
+	# 2. Outside: look at the mesa and pillar from beyond the gate.
+	main.jinn.global_position = Vector3(-6, 0, -6)
+	p.global_position = Vector3(-6, 0.05, 15)
+	p.rotation.y = 2.54
+	main.camera_rig.yaw = 2.54
+	main.camera_rig.pitch = -0.05
+	p.reset_physics_interpolation()
+	await _wait(40)
+	await _shot("02_outside_mesa_pillar")
+
+	# 3. Climbing the pillar.
+	p.global_position = Vector3(12, 0.05, 22.6)
+	p.rotation.y = PI
+	main.camera_rig.yaw = PI
+	main.camera_rig.pitch = -0.05
+	p.reset_physics_interpolation()
+	await _wait(5)
+	GameInput.touch_move = Vector2(0.25, -1)
+	await _wait(60)
+	main.camera_rig.yaw = PI * 0.75
+	await _wait(10)
+	await _shot("03_climbing_pillar")
+	GameInput.touch_move = Vector2.ZERO
+
+	# 4. Gliding with the daraa.
+	p.global_position = Vector3(20, 9, 8)
+	p.velocity = Vector3.ZERO
+	p.rotation.y = 0.0
+	main.camera_rig.yaw = 0.4
+	main.camera_rig.pitch = -0.2
+	p.reset_physics_interpolation()
+	await _wait(8)
+	GameInput.press("special")
+	await _wait(3)
 	GameInput.release("special")
-	GameInput.press("attack")
-	for i in 6:
-		await get_tree().process_frame
-	GameInput.release("attack")
-	for i in 4:
-		await get_tree().process_frame
-	await _shot("03_attack")
+	GameInput.touch_move = Vector2(0, -1)
+	await _wait(40)
+	await _shot("04_glide_daraa")
+	GameInput.touch_move = Vector2.ZERO
+
+	# 5. Pause menu.
+	main.hud.set_paused(true)
+	await _wait(3)
+	await _shot("05_pause_menu")
+	main.hud.set_paused(false)
 	get_tree().quit()
+
+
+func _wait(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
 
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw

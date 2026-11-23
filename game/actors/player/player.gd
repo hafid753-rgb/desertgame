@@ -1,20 +1,21 @@
 class_name Player
 extends CharacterBody3D
-## The playable character. All combat rules live here so they can later be
-## moved to the server unchanged: inputs in, state out.
+## The playable character. All rules live here so they can later move to the
+## server unchanged: inputs in, state out. See README for the control table.
 ##
-## Controls (see docs/controls.md):
-##   Attack tap = combo, hold = heavy.  Dodge tap = dodge, hold = block,
-##   block started <=150 ms before a hit = parry.  Hold Special = charge
-##   element tiers; while holding: Attack = elemental attack, Dodge =
-##   elemental mobility.  Block + tap Special = elemental defense.
+## Combat:  Attack tap = combo, hold = heavy.  Dodge tap = dodge, hold = block;
+##          block started <=150 ms before a hit = parry.  Hold Special = charge;
+##          while holding: Attack = elemental attack, Dodge = elemental mobility.
+##          Block + tap Special = elemental defense.
+## Travel:  Jump.  Push into a wall = climb (stamina).  Climb past the top =
+##          mantle.  In the air, tap Special = open the daraa and glide.
 
 signal health_changed(hp: float, max_hp: float)
 signal stamina_changed(stamina: float, max_stamina: float)
 signal announced(text: String, color: Color)
 signal died
 
-enum State { MOVE, ATTACK, HEAVY_CHARGE, GUARD, DODGE, CAST, MOBILITY, DEFENSE, HITSTUN, DEAD }
+enum State { MOVE, ATTACK, HEAVY_CHARGE, GUARD, DODGE, CAST, MOBILITY, DEFENSE, HITSTUN, DEAD, AIR, CLIMB, MANTLE, GLIDE }
 
 const GRAVITY := 24.0
 const BASE_SPEED := 4.6
@@ -37,6 +38,22 @@ const DODGE_COST := 20.0
 const IFRAME_START := 0.03
 const IFRAME_END := 0.32
 const LOCK_RANGE := 18.0
+const VERTICAL_REACH := 1.8
+
+# Traversal
+const JUMP_VELOCITY := 7.2
+const COYOTE_TIME := 0.12
+const AIR_CONTROL := 0.7
+const CLIMB_SPEED := 1.7
+const CLIMB_COST := 10.0
+const CLIMB_IDLE_COST := 1.5
+const CLIMB_START_PUSH := 0.18
+const WALL_JUMP_COST := 12.0
+const REGRAB_DELAY := 0.6
+const MANTLE_TIME := 0.35
+const GLIDE_FALL := 1.6
+const GLIDE_SPEED := 6.0
+const GLIDE_COST := 7.0
 
 const COMBO: Array[Dictionary] = [
 	{"windup": 0.10, "active": 0.10, "recovery": 0.26, "damage": 10.0, "range": 2.3, "arc": 110.0, "cost": 7.0, "lunge": 2.5, "stagger": 0},
@@ -53,6 +70,7 @@ var hp: float = 100.0
 var max_stamina: float = BASE_STAMINA
 var stamina: float = BASE_STAMINA
 var move_speed: float = BASE_SPEED
+var climb_mult: float = 1.0
 var element: int = Combat.Element.WIND
 
 var state: int = State.MOVE
@@ -82,6 +100,7 @@ var charge_cancelled: bool = true
 var cast_tier: int = 0
 var cast_done: bool = false
 var mobility_hits: Array = []
+var _last_tier_sound: int = 0
 
 var stamina_delay: float = 0.0
 var sprint_time: float = 0.0
@@ -93,19 +112,36 @@ var element_cooldown: float = 0.0
 var last_input_usec: int = 0
 var spawn_point: Vector3 = Vector3.ZERO
 
+# Traversal state
+var jump_requested: bool = false
+var air_time: float = 0.0
+var last_floor_time: float = 0.0
+var wall_push_time: float = 0.0
+var regrab_at: float = 0.0
+var climb_normal: Vector3 = Vector3.BACK
+var climb_velocity: Vector3 = Vector3.ZERO
+var mantle_from: Vector3 = Vector3.ZERO
+var mantle_to: Vector3 = Vector3.ZERO
+var air_horizontal: Vector3 = Vector3.ZERO
+var highest_y: float = 0.0
+
 var camera_rig: CameraRig
 var lock_target: Node3D = null
 var model: CreatureModel
 var fx_parent: Node
 
-## Stats for the playtest report.
-var stats: Dictionary = {"parries": 0, "perfect_dodges": 0, "hits_taken": 0, "blocks": 0, "casts": 0, "special_cancels": 0}
+## Session stats for the playtest report and the pause screen.
+var stats: Dictionary = {
+	"parries": 0, "perfect_dodges": 0, "hits_taken": 0, "blocks": 0, "casts": 0,
+	"special_cancels": 0, "deaths": 0, "climb_m": 0.0, "glide_s": 0.0, "max_height_m": 0.0,
+}
 
 
 func _ready() -> void:
 	add_to_group("player")
 	collision_layer = Combat.LAYER_PLAYER
 	collision_mask = Combat.LAYER_WORLD | Combat.LAYER_JINN
+	floor_snap_length = 0.3
 	var shape := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.36
@@ -127,6 +163,7 @@ func set_species(id: String) -> void:
 	max_stamina = BASE_STAMINA * float(species["stamina"])
 	stamina = max_stamina
 	move_speed = BASE_SPEED * float(species["speed"])
+	climb_mult = float(species["climb"])
 	if model:
 		model.queue_free()
 	model = CreatureModel.new()
@@ -157,7 +194,6 @@ func charge_tier() -> int:
 
 
 func charge_progress() -> float:
-	## 0..3 continuous, for UI.
 	if not is_charging():
 		return 0.0
 	var t := now - special_start
@@ -178,7 +214,11 @@ func is_invulnerable() -> bool:
 		return state_time >= IFRAME_START and state_time <= IFRAME_END
 	if state == State.MOBILITY:
 		return element == Combat.Element.WIND or state_time < 0.25
-	return false
+	return state == State.MANTLE
+
+
+func is_airborne() -> bool:
+	return state == State.AIR or state == State.GLIDE
 
 
 func state_name() -> String:
@@ -205,6 +245,8 @@ func receive_attack(atk: Dictionary, attacker: Node3D) -> String:
 		return "none"
 	var dmg: float = atk.get("damage", 10.0)
 	var from := attacker.global_position if attacker else global_position + _forward()
+	if absf(from.y - global_position.y) > VERTICAL_REACH:
+		return "none"
 	var to_attacker := Combat.flat(from - global_position).normalized()
 	var facing_ok := _forward().angle_to(to_attacker) < deg_to_rad(100.0)
 
@@ -215,11 +257,14 @@ func receive_attack(atk: Dictionary, attacker: Node3D) -> String:
 			stats["perfect_dodges"] += 1
 			announced.emit("PERFECT DODGE", Color(0.6, 1.0, 1.0))
 			Fx.ring(fx_parent, global_position, Color(0.6, 1.0, 1.0, 0.6), 2.5)
+			Juice.play("perfect", global_position)
+			Juice.hitstop(0.1)
 			return "perfect_dodge"
 		return "dodged"
 
 	if state == State.DEFENSE and element == Combat.Element.WIND:
 		Fx.burst(fx_parent, global_position + Vector3(0, 0.8, 0), Color(0.6, 0.95, 1.0, 0.5), 1.8)
+		Juice.play("wind", global_position, 1.3)
 		return "deflected"
 
 	if (state == State.GUARD or state == State.DEFENSE) and facing_ok:
@@ -230,6 +275,9 @@ func receive_attack(atk: Dictionary, attacker: Node3D) -> String:
 			stats["parries"] += 1
 			announced.emit("PARRY!", Color(1.0, 0.95, 0.5))
 			Fx.burst(fx_parent, global_position + _forward() * 0.6 + Vector3(0, 0.8, 0), Color(1, 0.95, 0.6, 0.9), 1.2, 0.2)
+			Juice.play("parry", global_position)
+			Juice.hitstop(0.12)
+			Juice.shake(0.3)
 			return "parried"
 		var cost := dmg * 1.1
 		if stamina >= cost:
@@ -237,6 +285,8 @@ func receive_attack(atk: Dictionary, attacker: Node3D) -> String:
 			stats["blocks"] += 1
 			knock_velocity = -to_attacker * 2.5
 			Fx.burst(fx_parent, global_position + _forward() * 0.5 + Vector3(0, 0.8, 0), Color(1, 1, 1, 0.6), 0.6, 0.15)
+			Juice.play("block", global_position)
+			Juice.shake(0.12)
 			return "blocked"
 		_spend(stamina)
 		_take_damage(dmg * 0.5, -to_attacker * 4.0, 0.9)
@@ -299,6 +349,8 @@ func _physics_process(delta: float) -> void:
 	element_cooldown = maxf(0.0, element_cooldown - delta)
 	if lock_target and (not is_instance_valid(lock_target) or lock_target.is_dead()):
 		_set_lock(null)
+	if is_on_floor():
+		last_floor_time = now
 
 	for e in GameInput.consume_events():
 		_handle_input(e)
@@ -327,21 +379,46 @@ func _physics_process(delta: float) -> void:
 			horizontal = _tick_defense()
 		State.HITSTUN:
 			if state_time >= hitstun_time:
-				_enter(State.MOVE)
+				_enter(State.AIR if not is_on_floor() else State.MOVE)
 		State.DEAD:
 			if state_time > 2.5:
 				respawn()
+		State.AIR:
+			horizontal = _tick_air(delta)
+		State.GLIDE:
+			horizontal = _tick_glide(delta)
+		State.CLIMB:
+			_tick_climb(delta)
+		State.MANTLE:
+			_tick_mantle()
+			_tick_stamina(delta)
+			_animate(delta, Vector3.ZERO)
+			return
 
-	knock_velocity = knock_velocity.lerp(Vector3.ZERO, 1.0 - exp(-8.0 * delta))
-	velocity.x = horizontal.x + knock_velocity.x
-	velocity.z = horizontal.z + knock_velocity.z
-	if is_on_floor():
-		velocity.y = -0.5
+	if state == State.CLIMB:
+		velocity = climb_velocity
 	else:
-		velocity.y -= GRAVITY * delta
+		knock_velocity = knock_velocity.lerp(Vector3.ZERO, 1.0 - exp(-8.0 * delta))
+		velocity.x = horizontal.x + knock_velocity.x
+		velocity.z = horizontal.z + knock_velocity.z
+		if jump_requested:
+			velocity.y = JUMP_VELOCITY
+			jump_requested = false
+		elif is_on_floor() and velocity.y <= 0.0:
+			velocity.y = -0.5
+		else:
+			velocity.y -= GRAVITY * delta
+			if state == State.GLIDE:
+				velocity.y = maxf(velocity.y, -GLIDE_FALL)
+	var was_airborne := is_airborne()
+	var fall_speed := -velocity.y
 	move_and_slide()
 	if global_position.y < -10.0:
 		respawn()
+	if was_airborne and is_on_floor() and state_time > 0.05:
+		_land(fall_speed)
+	highest_y = maxf(highest_y, global_position.y)
+	stats["max_height_m"] = maxf(float(stats["max_height_m"]), global_position.y)
 
 	_tick_stamina(delta)
 	PerfLogger.player_state = state_name()
@@ -382,6 +459,10 @@ func _handle_input(e: Dictionary) -> void:
 				if is_charging():
 					stats["special_cancels"] += 1
 				charge_cancelled = true
+		"jump":
+			if pressed:
+				last_input_usec = t_usec
+				_on_jump_pressed()
 		"lock":
 			if pressed:
 				toggle_lock()
@@ -421,22 +502,46 @@ func _on_dodge_pressed() -> void:
 		State.MOVE, State.HEAVY_CHARGE:
 			_start_guard()
 		State.ATTACK:
-			# Dodge cancels an attack once its active frames are over.
 			if state_time >= float(current_attack["windup"]) + float(current_attack["active"]):
 				_start_guard()
 			else:
 				buffered_dodge_t = now
+		State.CLIMB:
+			_let_go(false)
+		State.GLIDE:
+			_enter(State.AIR)
 		_:
 			buffered_dodge_t = now
 
 
 func _on_special_pressed() -> void:
 	special_start = now
-	if state == State.GUARD:
-		charge_cancelled = true
-		_start_defense()
-		return
+	_last_tier_sound = 0
+	match state:
+		State.GUARD:
+			charge_cancelled = true
+			_start_defense()
+			return
+		State.AIR:
+			charge_cancelled = true
+			_start_glide()
+			return
+		State.GLIDE:
+			charge_cancelled = true
+			_enter(State.AIR)
+			return
 	charge_cancelled = state != State.MOVE
+
+
+func _on_jump_pressed() -> void:
+	match state:
+		State.MOVE:
+			if now - last_floor_time <= COYOTE_TIME:
+				_jump()
+		State.CLIMB:
+			_let_go(true)
+		State.GLIDE:
+			_enter(State.AIR)
 
 
 func _toggle_element() -> void:
@@ -447,7 +552,7 @@ func _toggle_element() -> void:
 	announced.emit("%s element" % Combat.ELEMENT_NAMES[element], Combat.ELEMENT_COLORS[element])
 
 
-# --- States -----------------------------------------------------------------
+# --- Ground states ----------------------------------------------------------
 
 func _enter(s: int) -> void:
 	state = s
@@ -468,6 +573,10 @@ func _enter(s: int) -> void:
 func _tick_move(delta: float) -> Vector3:
 	var input := GameInput.get_move()
 	var dir := _move_vector()
+	if not is_on_floor() and now - last_floor_time > COYOTE_TIME:
+		air_horizontal = Combat.flat(velocity)
+		_enter(State.AIR)
+		return air_horizontal
 	if input.length() > 0.92 and not is_charging() and lock_target == null:
 		sprint_time += delta
 	else:
@@ -478,6 +587,18 @@ func _tick_move(delta: float) -> Vector3:
 		_spend(SPRINT_COST * delta)
 	var h := dir * spd
 	_face_target_or(h, delta, 12.0)
+	_play_charge_ticks()
+	# Push into a wall for a moment to start climbing.
+	if dir.length() > 0.5 and not is_charging() and now >= regrab_at:
+		var wall := _wall_ray(dir.normalized())
+		if not wall.is_empty() and dir.normalized().dot(-wall["normal"]) > 0.7:
+			wall_push_time += delta
+			if wall_push_time >= CLIMB_START_PUSH:
+				_start_climb(wall["normal"])
+		else:
+			wall_push_time = 0.0
+	else:
+		wall_push_time = 0.0
 	return h
 
 
@@ -494,10 +615,11 @@ func _start_attack(atk: Dictionary, heavy: bool) -> void:
 	queued_attack = false
 	_soft_aim()
 	_enter(State.ATTACK)
+	Juice.play("swing", global_position, 0.8 if heavy else 1.0 + combo_step * 0.08)
 	PerfLogger.record_latency(last_input_usec)
 
 
-func _tick_attack(delta: float) -> Vector3:
+func _tick_attack(_delta: float) -> Vector3:
 	var windup: float = current_attack["windup"]
 	var active: float = current_attack["active"]
 	var recovery: float = current_attack["recovery"]
@@ -514,7 +636,6 @@ func _tick_attack(delta: float) -> Vector3:
 			queued_attack = false
 			_start_attack(COMBO[combo_step], false)
 			return h
-		# Still holding Attack past HEAVY_HOLD: wind up a heavy strike.
 		if attack_held and not is_heavy and now - attack_press_time >= HEAVY_HOLD:
 			_enter(State.HEAVY_CHARGE)
 			return h
@@ -528,9 +649,7 @@ func _melee_hit(atk: Dictionary) -> void:
 	var mult := 1.5 if counter_window > 0.0 else 1.0
 	var dmg: float = float(atk["damage"]) * mult
 	var hit_any := false
-	for j in get_tree().get_nodes_in_group("jinn"):
-		if j.is_dead():
-			continue
+	for j in _jinn_in_reach():
 		if Combat.in_arc(global_position, _forward(), j.global_position, float(atk["range"]) + j.radius, float(atk["arc"])):
 			j.take_damage({
 				"amount": dmg, "element": Combat.Element.NONE, "from": global_position,
@@ -539,6 +658,9 @@ func _melee_hit(atk: Dictionary) -> void:
 			hit_any = true
 	if hit_any:
 		Fx.burst(fx_parent, global_position + _forward() * 1.4 + Vector3(0, 0.9, 0), Color(1, 1, 0.9, 0.8), 0.7, 0.12)
+		Juice.play("hit", global_position, 0.85 if is_heavy else 1.0)
+		Juice.hitstop(0.09 if is_heavy else 0.045)
+		Juice.shake(0.25 if is_heavy else 0.1)
 
 
 func _start_guard() -> void:
@@ -559,6 +681,7 @@ func _start_dodge() -> void:
 	dodge_started_at = now
 	perfect_used = false
 	_enter(State.DODGE)
+	Juice.play("dodge", global_position)
 
 
 func _tick_dodge() -> Vector3:
@@ -568,6 +691,13 @@ func _tick_dodge() -> Vector3:
 	if state_time >= DODGE_TIME:
 		_enter(State.MOVE)
 	return dodge_dir * spd
+
+
+func _play_charge_ticks() -> void:
+	var tier := charge_tier()
+	if tier > _last_tier_sound:
+		_last_tier_sound = tier
+		Juice.play("tier%d" % tier, null)
 
 
 func _start_cast(tier: int) -> void:
@@ -614,6 +744,7 @@ func _release_element(tier: int) -> void:
 		dmg = [0.0, 18.0, 30.0, 55.0][tier]
 		knock = 2.0 + tier
 		Fx.burst(fx_parent, global_position + fwd * radius * 0.5 + Vector3(0, 0.7, 0), Color(color, 0.8), radius * 0.6, 0.35, Vector3(1, 0.5, 1))
+		Juice.play("fire", global_position, 1.1 - tier * 0.08)
 	else:
 		radius = 5.0 + tier * 2.0
 		arc = 40.0 + tier * 10.0
@@ -621,9 +752,9 @@ func _release_element(tier: int) -> void:
 		knock = 6.0 + tier * 4.0
 		for i in 3:
 			Fx.burst(fx_parent, global_position + fwd * (1.2 + i * radius * 0.3) + Vector3(0, 0.8, 0), Color(color, 0.5), 0.8 + i * 0.3, 0.3)
-	for j in get_tree().get_nodes_in_group("jinn"):
-		if j.is_dead():
-			continue
+		Juice.play("wind", global_position, 1.0 + tier * 0.1)
+	Juice.shake(0.1 * tier)
+	for j in _jinn_in_reach():
 		if Combat.in_arc(global_position, fwd, j.global_position, radius + j.radius, arc):
 			j.take_damage({
 				"amount": dmg * mult, "element": element, "from": global_position,
@@ -647,6 +778,7 @@ func _start_mobility(tier: int) -> void:
 	dodge_started_at = now
 	perfect_used = false
 	_enter(State.MOBILITY)
+	Juice.play("wind" if element == Combat.Element.WIND else "fire", global_position, 1.4)
 	PerfLogger.record_latency(last_input_usec)
 
 
@@ -658,8 +790,8 @@ func _tick_mobility() -> Vector3:
 	if Engine.get_physics_frames() % 3 == 0:
 		Fx.burst(fx_parent, global_position + Vector3(0, 0.6, 0), Color(color, 0.45), 0.7, 0.3)
 	if element == Combat.Element.FIRE:
-		for j in get_tree().get_nodes_in_group("jinn"):
-			if j.is_dead() or mobility_hits.has(j):
+		for j in _jinn_in_reach():
+			if mobility_hits.has(j):
 				continue
 			if global_position.distance_to(j.global_position) < 1.3 + j.radius:
 				mobility_hits.append(j)
@@ -686,8 +818,9 @@ func _tick_defense() -> Vector3:
 		if not cast_done:
 			cast_done = true
 			Fx.ring(fx_parent, global_position, Color(color, 0.6), 3.0)
-			for j in get_tree().get_nodes_in_group("jinn"):
-				if not j.is_dead() and global_position.distance_to(j.global_position) < 3.0 + j.radius:
+			Juice.play("wind", global_position, 1.5)
+			for j in _jinn_in_reach():
+				if global_position.distance_to(j.global_position) < 3.0 + j.radius:
 					j.take_damage({"amount": 4.0, "element": Combat.Element.WIND, "from": global_position, "knockback": 7.0, "stagger": 1})
 		if state_time >= 0.5:
 			_enter(State.GUARD if dodge_held else State.MOVE)
@@ -695,12 +828,180 @@ func _tick_defense() -> Vector3:
 		if not cast_done and state_time >= 0.25:
 			cast_done = true
 			Fx.burst(fx_parent, global_position + Vector3(0, 0.6, 0), Color(color, 0.7), 2.6, 0.35, Vector3(1, 0.5, 1))
-			for j in get_tree().get_nodes_in_group("jinn"):
-				if not j.is_dead() and global_position.distance_to(j.global_position) < 2.6 + j.radius:
+			Juice.play("fire", global_position, 1.2)
+			for j in _jinn_in_reach():
+				if global_position.distance_to(j.global_position) < 2.6 + j.radius:
 					j.take_damage({"amount": 20.0, "element": Combat.Element.FIRE, "from": global_position, "knockback": 4.0, "stagger": 1})
 		if state_time >= 0.55:
 			_enter(State.GUARD if dodge_held else State.MOVE)
 	return Vector3.ZERO
+
+
+# --- Traversal --------------------------------------------------------------
+
+func _jump() -> void:
+	jump_requested = true
+	air_horizontal = _move_vector() * move_speed * (SPRINT_MULT if sprinting else 1.0)
+	last_floor_time = -10.0
+	_enter(State.AIR)
+	Juice.play("jump", global_position)
+
+
+func _tick_air(delta: float) -> Vector3:
+	var dir := _move_vector()
+	var target := dir * move_speed
+	if air_horizontal.length() > target.length() and dir.dot(air_horizontal) > 0.0:
+		target = dir.normalized() * air_horizontal.length() if dir.length() > 0.1 else air_horizontal
+	air_horizontal = air_horizontal.lerp(target, 1.0 - exp(-AIR_CONTROL * 4.0 * delta))
+	_face_target_or(air_horizontal, delta, 8.0)
+	# Grab a wall we are flying into.
+	if now >= regrab_at and dir.length() > 0.4 and stamina > 1.0:
+		var wall := _wall_ray(dir.normalized())
+		if not wall.is_empty() and dir.normalized().dot(-wall["normal"]) > 0.6:
+			_start_climb(wall["normal"])
+	return air_horizontal
+
+
+func _land(fall_speed: float) -> void:
+	if state == State.AIR or state == State.GLIDE:
+		_enter(State.MOVE)
+	if fall_speed > 6.0:
+		Juice.play("land", global_position, 1.0, -4.0 + minf(6.0, fall_speed * 0.3))
+		Fx.ring(fx_parent, global_position, Color(0.9, 0.8, 0.6, 0.5), 1.2, 0.25)
+	# Long unbroken falls hurt (gliding avoids it).
+	if fall_speed > 17.0:
+		var dmg := (fall_speed - 17.0) * 6.0
+		_take_damage(dmg, Vector3.ZERO, 0.5)
+
+
+func _start_glide() -> void:
+	if stamina < 3.0:
+		announced.emit("Out of stamina", Color(1, 0.6, 0.5))
+		return
+	air_horizontal = _forward() * GLIDE_SPEED if air_horizontal.length() < 1.0 else air_horizontal
+	_enter(State.GLIDE)
+	Juice.play("glide", global_position)
+
+
+func _tick_glide(delta: float) -> Vector3:
+	var dir := _move_vector()
+	var heading := air_horizontal.normalized() if air_horizontal.length() > 0.1 else _forward()
+	if dir.length() > 0.1:
+		heading = heading.slerp(dir.normalized(), 1.0 - exp(-2.5 * delta)).normalized()
+	var speed := lerpf(air_horizontal.length(), GLIDE_SPEED * (1.0 + 0.3 * dir.length()), 1.0 - exp(-2.0 * delta))
+	air_horizontal = heading * speed
+	_face_target_or(air_horizontal, delta, 6.0)
+	_spend(GLIDE_COST * delta)
+	stats["glide_s"] += delta
+	if stamina <= 0.0:
+		announced.emit("Out of stamina", Color(1, 0.6, 0.5))
+		_enter(State.AIR)
+	if Engine.get_physics_frames() % 6 == 0:
+		var side := heading.cross(Vector3.UP) * (0.9 if Engine.get_physics_frames() % 12 == 0 else -0.9)
+		Fx.burst(fx_parent, global_position + Vector3(0, 1.0, 0) + side - heading * 0.6, Color(0.75, 0.92, 1.0, 0.2), 0.25, 0.5)
+	if now >= regrab_at and dir.length() > 0.4:
+		var wall := _wall_ray(dir.normalized())
+		if not wall.is_empty() and dir.normalized().dot(-wall["normal"]) > 0.6:
+			_start_climb(wall["normal"])
+	return air_horizontal
+
+
+func _start_climb(normal: Vector3) -> void:
+	if stamina < 1.0:
+		return
+	climb_normal = Combat.flat(normal).normalized()
+	wall_push_time = 0.0
+	velocity = Vector3.ZERO
+	rotation.y = Combat.yaw_for(-climb_normal)
+	_set_lock(null)
+	_enter(State.CLIMB)
+	Juice.play("grab", global_position)
+
+
+func _tick_climb(delta: float) -> void:
+	var input := GameInput.get_move()
+	rotation.y = lerp_angle(rotation.y, Combat.yaw_for(-climb_normal), 1.0 - exp(-12.0 * delta))
+	var right := (-climb_normal).cross(Vector3.UP).normalized()
+	var spd := CLIMB_SPEED * climb_mult
+	var up_in := -input.y
+	climb_velocity = right * input.x * spd + Vector3.UP * up_in * spd - climb_normal * 0.8
+	var moving := input.length() > 0.15
+	_spend((CLIMB_COST if moving else CLIMB_IDLE_COST) * delta)
+	if up_in > 0.0:
+		stats["climb_m"] += up_in * spd * delta
+	if stamina <= 0.0:
+		announced.emit("Out of stamina", Color(1, 0.6, 0.5))
+		_let_go(false)
+		return
+	# Keep the wall under our hands; follow its normal around corners.
+	var chest := _wall_ray(-climb_normal)
+	if chest.is_empty():
+		var head_low := _wall_ray(-climb_normal, 0.3)
+		if head_low.is_empty():
+			_let_go(false)
+		return
+	climb_normal = Combat.flat(chest["normal"]).normalized()
+	# Reached the top: the head ray finds no wall but the chest ray does.
+	if up_in > 0.1 and _wall_ray(-climb_normal, 1.55).is_empty():
+		_try_mantle()
+		return
+	# Back on the ground and pulling down: step off.
+	if is_on_floor() and up_in < -0.5:
+		_enter(State.MOVE)
+
+
+func _try_mantle() -> void:
+	var space := get_world_3d().direct_space_state
+	var from := global_position + Vector3.UP * 2.4 - climb_normal * 0.7
+	var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 2.6, Combat.LAYER_WORLD)
+	var hit := space.intersect_ray(q)
+	if hit.is_empty() or hit["normal"].y < 0.7:
+		return
+	mantle_from = global_position
+	mantle_to = hit["position"] + Vector3(0, 0.05, 0)
+	_enter(State.MANTLE)
+	Juice.play("grab", global_position, 1.2)
+
+
+func _tick_mantle() -> void:
+	var p := clampf(state_time / MANTLE_TIME, 0.0, 1.0)
+	var up := clampf(p / 0.6, 0.0, 1.0)
+	var fwd := clampf((p - 0.4) / 0.6, 0.0, 1.0)
+	var pos := mantle_from
+	pos.y = lerpf(mantle_from.y, mantle_to.y, up)
+	pos.x = lerpf(mantle_from.x, mantle_to.x, fwd)
+	pos.z = lerpf(mantle_from.z, mantle_to.z, fwd)
+	global_position = pos
+	velocity = Vector3.ZERO
+	if p >= 1.0:
+		last_floor_time = now
+		_enter(State.MOVE)
+
+
+func _let_go(jump_off: bool) -> void:
+	regrab_at = now + REGRAB_DELAY
+	if jump_off and stamina >= WALL_JUMP_COST * 0.5:
+		_spend(WALL_JUMP_COST)
+		air_horizontal = climb_normal * 4.0
+		velocity.y = 5.0
+		Juice.play("jump", global_position)
+	else:
+		air_horizontal = climb_normal * 1.2
+		velocity.y = 0.0
+	_enter(State.AIR)
+
+
+## Ray from the player's body along `dir` against the world. `height_offset`
+## raises the ray above chest height (0.9 m). Returns {} or the hit with a
+## mostly vertical surface.
+func _wall_ray(dir: Vector3, height_offset: float = 0.0) -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var from := global_position + Vector3.UP * (0.9 + height_offset)
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * 0.75, Combat.LAYER_WORLD)
+	var hit := space.intersect_ray(q)
+	if hit.is_empty() or absf(hit["normal"].y) > 0.3:
+		return {}
+	return hit
 
 
 # --- Damage & stamina -------------------------------------------------------
@@ -712,7 +1013,10 @@ func _take_damage(amount: float, knock: Vector3, stun: float) -> void:
 	knock_velocity = knock
 	model.flash(Color(1, 0.2, 0.2))
 	Fx.popup(fx_parent, global_position + Vector3(0, 1.8, 0), str(roundi(amount)), Color(1, 0.4, 0.35))
+	Juice.play("hurt", global_position)
+	Juice.shake(0.35)
 	if hp <= 0.0:
+		stats["deaths"] += 1
 		_enter(State.DEAD)
 		died.emit()
 		announced.emit("Defeated", Color(1, 0.4, 0.4))
@@ -737,7 +1041,9 @@ func _tick_stamina(delta: float) -> void:
 	if stamina_delay > 0.0:
 		stamina_delay -= delta
 		return
-	if sprinting or stamina >= max_stamina:
+	if sprinting or stamina >= max_stamina or state in [State.CLIMB, State.GLIDE, State.MANTLE]:
+		return
+	if state == State.AIR:
 		return
 	var rate := STAMINA_REGEN * (0.4 if state == State.GUARD else 1.0)
 	_restore_stamina(rate * delta)
@@ -755,6 +1061,14 @@ func _move_vector() -> Vector3:
 	return Basis(Vector3.UP, yaw) * Vector3(input.x, 0.0, input.y)
 
 
+func _jinn_in_reach() -> Array:
+	var out: Array = []
+	for j in get_tree().get_nodes_in_group("jinn"):
+		if not j.is_dead() and absf(j.global_position.y - global_position.y) <= VERTICAL_REACH:
+			out.append(j)
+	return out
+
+
 func _face_target_or(dir: Vector3, delta: float, rate: float) -> void:
 	var look := Vector3.ZERO
 	if lock_target and is_instance_valid(lock_target):
@@ -770,9 +1084,7 @@ func _soft_aim() -> void:
 	var target: Node3D = lock_target
 	if target == null:
 		var best_d := 3.5
-		for j in get_tree().get_nodes_in_group("jinn"):
-			if j.is_dead():
-				continue
+		for j in _jinn_in_reach():
 			var to := Combat.flat(j.global_position - global_position)
 			if to.length() < best_d and _forward().angle_to(to.normalized()) < deg_to_rad(75.0):
 				best_d = to.length()
@@ -811,6 +1123,8 @@ func _animate(delta: float, horizontal: Vector3) -> void:
 		t = clampf(state_time / total, 0.0, 1.0)
 		if is_heavy:
 			anim_state = "HEAVY"
+	elif state == State.CLIMB:
+		t = climb_velocity.y
 	model.animate(delta, {
 		"move": clampf(horizontal.length() / (move_speed * SPRINT_MULT), 0.0, 1.0),
 		"state": anim_state,

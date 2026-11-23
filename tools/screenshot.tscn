@@ -3,4 +3,5 @@
 [ext_resource type="Script" path="res://tools/screenshot.gd" id="1"]
 
 [node name="Shot" type="Node"]
+process_mode = 3
 script = ExtResource("1")

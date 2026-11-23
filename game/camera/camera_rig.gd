@@ -18,6 +18,11 @@ var distance: float = 4.8
 var height: float = 1.45
 var focus: Vector3 = Vector3.ZERO
 var _current_distance: float = 4.8
+var _shake: float = 0.0
+
+
+func shake(amount: float) -> void:
+	_shake = clampf(maxf(_shake, amount), 0.0, 0.6)
 
 
 func _ready() -> void:
@@ -71,3 +76,9 @@ func _process(delta: float) -> void:
 		look_at_point = focus.lerp(lock_target.global_position + Vector3(0, 1.1, 0), 0.35)
 	if camera.global_position.distance_to(look_at_point) > 0.01:
 		camera.look_at(look_at_point, Vector3.UP)
+	if _shake > 0.001:
+		var s := _shake * _shake
+		camera.rotate_object_local(Vector3.RIGHT, randf_range(-1.0, 1.0) * s * 0.08)
+		camera.rotate_object_local(Vector3.UP, randf_range(-1.0, 1.0) * s * 0.08)
+		camera.global_position += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * s * 0.25
+		_shake = maxf(0.0, _shake - delta * 2.2)

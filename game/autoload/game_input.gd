@@ -4,7 +4,7 @@ extends Node
 ## player consumes once per physics tick, so a touch tap shorter than one frame
 ## is never lost and input latency can be measured from the event time.
 
-const BUTTONS: Array[String] = ["attack", "dodge", "special", "lock", "cycle_target", "element", "species"]
+const BUTTONS: Array[String] = ["attack", "dodge", "special", "jump", "lock", "cycle_target", "element", "species", "pause"]
 
 var held: Dictionary = {}
 var touch_move: Vector2 = Vector2.ZERO
@@ -87,7 +87,9 @@ func _setup_input_map() -> void:
 	_add("look_up", [_axis(JOY_AXIS_RIGHT_Y, -1.0)])
 	_add("look_down", [_axis(JOY_AXIS_RIGHT_Y, 1.0)])
 	_add("attack", [_key(KEY_J), _mouse(MOUSE_BUTTON_LEFT), _joy(JOY_BUTTON_X)])
-	_add("dodge", [_key(KEY_K), _key(KEY_SPACE), _joy(JOY_BUTTON_B)])
+	_add("dodge", [_key(KEY_K), _key(KEY_CTRL), _joy(JOY_BUTTON_B)])
+	_add("jump", [_key(KEY_SPACE), _joy(JOY_BUTTON_A)])
+	_add("pause", [_key(KEY_ESCAPE), _key(KEY_P), _joy(JOY_BUTTON_START)])
 	_add("special", [_key(KEY_L), _key(KEY_SHIFT), _joy(JOY_BUTTON_RIGHT_SHOULDER)])
 	_add("lock", [_key(KEY_TAB), _mouse(MOUSE_BUTTON_MIDDLE), _joy(JOY_BUTTON_LEFT_SHOULDER)])
 	_add("cycle_target", [_key(KEY_Q), _joy(JOY_BUTTON_RIGHT_STICK)])

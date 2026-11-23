@@ -12,6 +12,7 @@ var failures: int = 0
 
 
 func _ready() -> void:
+	Juice.enabled_hitstop = false
 	main = preload("res://game/main.tscn").instantiate()
 	main.jinn_enabled = false
 	add_child(main)
@@ -38,6 +39,12 @@ func _run_all() -> void:
 	await _test_species_stamina()
 	await _test_jinn_ai_attacks()
 	await _test_species_switch()
+	await _test_jump()
+	await _test_climb_wall_and_mantle()
+	await _test_glide()
+	await _test_fall_damage()
+	await _test_mesa_only_lizard()
+	await _test_pause_menu()
 
 
 # --- Tests ------------------------------------------------------------------
@@ -209,6 +216,107 @@ func _test_species_switch() -> void:
 	player.set_species("cat")
 
 
+func _test_jump() -> void:
+	await _reset(Vector3(0, 0, -40))
+	player.global_position = Vector3(6, 0.05, 4)
+	await _frames(10)
+	var y0 := player.global_position.y
+	await _tap("jump", 2)
+	var peak := y0
+	for i in 60:
+		await get_tree().physics_frame
+		peak = maxf(peak, player.global_position.y)
+	_check("jump peaks ~1.1 m", peak - y0 > 0.9 and peak - y0 < 1.3, "%.2f m" % (peak - y0))
+	_check("lands back in MOVE", player.state == Player.State.MOVE, player.state_name())
+
+
+func _test_climb_wall_and_mantle() -> void:
+	await _reset(Vector3(0, 0, -40))
+	player.global_position = Vector3(3, 0.05, -9.5)
+	player.reset_physics_interpolation()
+	await _frames(5)
+	GameInput.touch_move = Vector2(0, -1)
+	var climbed := false
+	for i in 300:
+		await get_tree().physics_frame
+		if player.state == Player.State.CLIMB:
+			climbed = true
+		if climbed and player.state == Player.State.MOVE:
+			break
+	GameInput.touch_move = Vector2.ZERO
+	await _frames(10)
+	_check("pushing into a wall starts a climb", climbed, player.state_name())
+	_check("climb + mantle ends standing on the 3.6 m wall", player.global_position.y > 3.4 and player.is_on_floor(), "y %.2f %s" % [player.global_position.y, player.state_name()])
+	_check("climbing spends stamina", player.stamina < player.max_stamina, "%.1f" % player.stamina)
+
+
+func _test_glide() -> void:
+	await _reset(Vector3(0, 0, -40))
+	player.global_position = Vector3(25, 14, 0)
+	player.velocity = Vector3.ZERO
+	player.reset_physics_interpolation()
+	await _frames(12)
+	_check("falling = AIR state", player.state == Player.State.AIR, player.state_name())
+	await _tap("special", 2)
+	await _frames(20)
+	_check("tap Special in the air opens the daraa", player.state == Player.State.GLIDE, player.state_name())
+	var worst := 0.0
+	for i in 40:
+		await get_tree().physics_frame
+		worst = minf(worst, player.velocity.y)
+	_check("glide caps fall speed at 1.6 m/s", worst >= -1.65, "%.2f" % worst)
+	for i in 600:
+		await get_tree().physics_frame
+		if player.state == Player.State.MOVE:
+			break
+	_check("glide lands safely", player.state == Player.State.MOVE and is_equal_approx(player.hp, 100.0), "%s hp %.0f" % [player.state_name(), player.hp])
+
+
+func _test_fall_damage() -> void:
+	await _reset(Vector3(0, 0, -40))
+	player.global_position = Vector3(25, 12, 0)
+	player.velocity = Vector3.ZERO
+	player.reset_physics_interpolation()
+	for i in 120:
+		await get_tree().physics_frame
+	_check("a 12 m drop without gliding hurts", player.hp < 100.0, "hp %.1f" % player.hp)
+
+
+func _test_mesa_only_lizard() -> void:
+	var tops := {}
+	for sp in ["cat", "fennec", "lizard"]:
+		await _reset(Vector3(0, 0, -40))
+		player.set_species(sp)
+		player.global_position = Vector3(-17, 0.05, 25.3)
+		player.rotation.y = PI
+		player.camera_rig.yaw = PI
+		player.reset_physics_interpolation()
+		await _frames(5)
+		GameInput.touch_move = Vector2(0, -1)
+		var best := 0.0
+		for i in 1200:
+			await get_tree().physics_frame
+			best = maxf(best, player.global_position.y)
+			if player.global_position.y > 19.5 and player.state == Player.State.MOVE:
+				break
+			if player.state == Player.State.AIR and player.regrab_at > player.now - 0.1 and player.stamina <= 0.0:
+				break
+		GameInput.touch_move = Vector2.ZERO
+		tops[sp] = best
+	player.set_species("cat")
+	_check("Cat cannot top the 20 m mesa in one climb", float(tops["cat"]) < 19.0, str(tops))
+	_check("Fennec cannot top the 20 m mesa in one climb", float(tops["fennec"]) < 19.0, str(tops))
+	_check("Lizard tops the 20 m mesa", float(tops["lizard"]) > 19.9, str(tops))
+
+
+func _test_pause_menu() -> void:
+	await _reset(Vector3(0, 0, -40))
+	main.hud.set_paused(true)
+	_check("pause stops the game tree", get_tree().paused, "")
+	main.hud.set_paused(false)
+	_check("resume restarts it", not get_tree().paused, "")
+
+
 # --- Helpers ----------------------------------------------------------------
 
 func _reset(jinn_offset: Vector3) -> void:
@@ -248,7 +356,7 @@ func _frames(n: int) -> void:
 
 func _check(name: String, ok: bool, detail: String) -> void:
 	if ok:
-		results.append("PASS  %s" % name)
+		results.append("PASS  %s%s" % [name, ("  [%s]" % detail) if detail != "" else ""])
 	else:
 		failures += 1
 		results.append("FAIL  %s  (%s)" % [name, detail])

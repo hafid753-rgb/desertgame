@@ -14,6 +14,7 @@ var head: Node3D
 var tail: Node3D
 var sword: MeshInstance3D
 var element_glow: MeshInstance3D
+var daraa: Node3D
 
 var _mats: Array[StandardMaterial3D] = []
 var _glow_mat: StandardMaterial3D
@@ -62,6 +63,17 @@ func build(data: Dictionary) -> void:
 	_mesh(_box(Vector3(0.22, 0.05, 0.06)), Vector3(0, 0, -0.08), Color(0.55, 0.38, 0.2), hand_r)  # guard
 	var shield := _mesh(_cylinder(0.26, 0.05), Vector3(-0.05, 0, -0.05), Color(0.55, 0.32, 0.16), hand_l)
 	shield.rotation = Vector3(0, 0, PI / 2)
+	# The daraa: a flowing robe that opens like a sail for wind gliding.
+	daraa = Node3D.new()
+	daraa.position = Vector3(0, 0.95, 0.05)
+	add_child(daraa)
+	var robe := Color(0.36, 0.62, 0.9)
+	for side in [-1.0, 1.0]:
+		var wing := _mesh(_box(Vector3(0.95, 0.03, 0.75)), Vector3(0.55 * side, 0.1, 0.08), robe, daraa)
+		wing.rotation = Vector3(0.1, 0, -0.18 * side)
+	_mesh(_box(Vector3(0.5, 0.03, 0.85)), Vector3(0, 0.12, 0.12), Color(0.95, 0.96, 1.0), daraa)
+	daraa.visible = false
+	daraa.scale = Vector3(0.2, 1, 0.2)
 	element_glow = _mesh(_sphere(0.16, 0.32), Vector3(0, 0, 0), Color(1, 1, 1, 0.0), hand_r)
 	_glow_mat = element_glow.material_override as StandardMaterial3D
 	_glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -121,8 +133,37 @@ func animate(delta: float, info: Dictionary) -> void:
 			hl = Vector3(-0.2, 0.85, -0.55)
 		"HITSTUN":
 			head.position.z = 0.08
+		"CLIMB":
+			var cv: float = info.get("t", 0.0)
+			_walk_phase += delta * absf(cv) * 6.0
+			var reach := sin(_walk_phase) * 0.18
+			hr = Vector3(0.32, 1.25 + reach, -0.3)
+			hl = Vector3(-0.32, 1.25 - reach, -0.3)
+			fr = Vector3(0.18, 0.15 - reach, -0.25)
+			fl = Vector3(-0.18, 0.15 + reach, -0.25)
+		"MANTLE":
+			hr = Vector3(0.3, 0.9, -0.4)
+			hl = Vector3(-0.3, 0.9, -0.4)
+			fr = Vector3(0.17, 0.35, 0)
+			fl = Vector3(-0.17, 0.35, 0)
+		"AIR":
+			hr = Vector3(0.5, 0.9, 0)
+			hl = Vector3(-0.5, 0.9, 0)
+			fr = Vector3(0.17, 0.2, 0.08)
+			fl = Vector3(-0.17, 0.05, -0.08)
+		"GLIDE":
+			hr = Vector3(0.95, 1.0, 0.05)
+			hl = Vector3(-0.95, 1.0, 0.05)
+			fr = Vector3(0.15, 0.1, 0.25)
+			fl = Vector3(-0.15, 0.1, 0.25)
 	if charge > 0.0:
 		hr = hr.lerp(Vector3(0.3, 0.95, -0.25), 0.6)
+
+	var gliding := state == "GLIDE"
+	daraa.visible = gliding or daraa.scale.x > 0.25
+	daraa.scale = daraa.scale.lerp(Vector3.ONE if gliding else Vector3(0.2, 1, 0.2), 1.0 - exp(-14.0 * delta))
+	if gliding:
+		daraa.rotation.x = sin(_walk_phase * 3.0) * 0.06
 
 	var k := 1.0 - exp(-20.0 * delta)
 	hand_r.position = hand_r.position.lerp(hr, k)

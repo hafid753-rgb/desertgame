@@ -1,8 +1,11 @@
 class_name Courtyard
 extends StaticBody3D
 ## Greybox arena: an abandoned Saharan courtyard, 24 x 24 m, mud-brick walls
-## with triangular merlons, a gate, a well and two palms. Built from boxes so
-## it can be replaced by the artist's modular kit without touching gameplay.
+## (walkable on top) with triangular merlons, an open gate, a well and palms.
+## Outside the gate: dunes, a ruined wall, a 10 m pillar and a 20 m mesa.
+## Climb budgets on a full bar: Cat ~15.5 m, Fennec ~17 m, Lizard ~19 m, plus
+## ~2.5 m of mantle reach, so only the Lizard tops the mesa in one go. Built from primitives so the artist's
+## modular kit can replace it without touching gameplay.
 
 const MUD := Color(0.7, 0.47, 0.3)
 const MUD_DARK := Color(0.62, 0.41, 0.26)
@@ -12,6 +15,9 @@ const PALM := Color(0.36, 0.5, 0.22)
 const WOOD := Color(0.42, 0.28, 0.16)
 const HALF := 12.0
 const WALL_H := 3.6
+const WALL_T := 1.6
+const BOUND := 58.0
+const MESA_H := 20.0
 
 var _materials: Dictionary = {}
 
@@ -19,19 +25,19 @@ var _materials: Dictionary = {}
 func _ready() -> void:
 	collision_layer = Combat.LAYER_WORLD
 	collision_mask = 0
-	# Floor (extends beyond the walls so the camera never sees the void).
-	_box(Vector3(80, 1, 80), Vector3(0, -0.5, 0), SAND)
-	# Walls with a gate gap on the south side.
-	_box(Vector3(HALF * 2 + 1, WALL_H, 1), Vector3(0, WALL_H / 2, -HALF), MUD)
-	_box(Vector3(1, WALL_H, HALF * 2 + 1), Vector3(-HALF, WALL_H / 2, 0), MUD)
-	_box(Vector3(1, WALL_H, HALF * 2 + 1), Vector3(HALF, WALL_H / 2, 0), MUD)
-	_box(Vector3(HALF - 1.6, WALL_H, 1), Vector3(-(HALF + 1.6) / 2, WALL_H / 2, HALF), MUD)
-	_box(Vector3(HALF - 1.6, WALL_H, 1), Vector3((HALF + 1.6) / 2, WALL_H / 2, HALF), MUD)
-	# Gate frame and a closed wooden door (decorative studs).
-	_box(Vector3(4.2, 1.0, 1.3), Vector3(0, WALL_H + 0.2, HALF), MUD_DARK)
-	_box(Vector3(0.6, WALL_H + 0.7, 1.3), Vector3(-1.9, (WALL_H + 0.7) / 2, HALF), MUD_DARK)
-	_box(Vector3(0.6, WALL_H + 0.7, 1.3), Vector3(1.9, (WALL_H + 0.7) / 2, HALF), MUD_DARK)
-	_box(Vector3(3.2, WALL_H - 0.4, 0.2), Vector3(0, (WALL_H - 0.4) / 2, HALF + 0.3), WOOD)
+	# Floor (extends far so the camera never sees the void; fog hides the edge).
+	_box(Vector3(BOUND * 2 + 10, 1, BOUND * 2 + 10), Vector3(0, -0.5, 0), SAND)
+	# Walls, thick enough to walk along the top, with a gate gap on the south side.
+	_box(Vector3(HALF * 2 + WALL_T, WALL_H, WALL_T), Vector3(0, WALL_H / 2, -HALF), MUD)
+	_box(Vector3(WALL_T, WALL_H, HALF * 2 + WALL_T), Vector3(-HALF, WALL_H / 2, 0), MUD)
+	_box(Vector3(WALL_T, WALL_H, HALF * 2 + WALL_T), Vector3(HALF, WALL_H / 2, 0), MUD)
+	_box(Vector3(HALF - 1.6, WALL_H, WALL_T), Vector3(-(HALF + 1.6) / 2, WALL_H / 2, HALF), MUD)
+	_box(Vector3(HALF - 1.6, WALL_H, WALL_T), Vector3((HALF + 1.6) / 2, WALL_H / 2, HALF), MUD)
+	# Open gate: two pillars and a lintel (the door has rotted away).
+	_box(Vector3(4.2, 1.0, WALL_T + 0.3), Vector3(0, WALL_H + 0.2, HALF), MUD_DARK)
+	_box(Vector3(0.6, WALL_H + 0.7, WALL_T + 0.3), Vector3(-1.9, (WALL_H + 0.7) / 2, HALF), MUD_DARK)
+	_box(Vector3(0.6, WALL_H + 0.7, WALL_T + 0.3), Vector3(1.9, (WALL_H + 0.7) / 2, HALF), MUD_DARK)
+	_box(Vector3(1.2, 0.15, 2.4), Vector3(2.8, 0.4, HALF + 1.6), WOOD, false)  # fallen door plank
 	# Corner towers.
 	for x in [-HALF, HALF]:
 		for z in [-HALF, HALF]:
@@ -45,6 +51,67 @@ func _ready() -> void:
 	_box(Vector3(3, 0.5, 0.8), Vector3(-9.5, 0.25, 2), STONE)
 	for p in [Vector3(9.5, 0, -9), Vector3(10.2, 0, -8.2), Vector3(-10, 0, 9.5)]:
 		_cylinder(0.32, 0.7, p + Vector3(0, 0.35, 0), Color(0.68, 0.4, 0.25))
+	_outside()
+
+
+func _outside() -> void:
+	# Climbing practice: ruined wall, pillar, mesa.
+	_box(Vector3(6, 2.2, 0.8), Vector3(5, 1.1, 20), MUD_DARK)
+	_box(Vector3(3, 10, 3), Vector3(12, 5, 25), STONE)
+	_box(Vector3(9, MESA_H, 9), Vector3(-17, MESA_H / 2, 31), Color(0.66, 0.46, 0.32))
+	_sign("Pillar 10 m", Vector3(12, 2.5, 22.3))
+	_sign("Mesa 20 m — only the Lizard makes it in one climb", Vector3(-17, 2.5, 25.0))
+	_palm(Vector3(-13, MESA_H, 31), 0.05)  # a lone palm on the mesa as a goal
+	# Dunes.
+	for d in [
+		[Vector3(18, 0, 40), Vector3(9, 2.2, 6)], [Vector3(-2, 0, 44), Vector3(12, 3.0, 7)],
+		[Vector3(-30, 0, 12), Vector3(7, 2.0, 10)], [Vector3(30, 0, -8), Vector3(8, 2.6, 12)],
+		[Vector3(0, 0, -34), Vector3(14, 3.2, 8)], [Vector3(-28, 0, -26), Vector3(9, 2.4, 9)],
+	]:
+		_dune(d[0], d[1])
+	# Invisible boundary.
+	for side in [Vector3(BOUND, 0, 0), Vector3(-BOUND, 0, 0), Vector3(0, 0, BOUND), Vector3(0, 0, -BOUND)]:
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(1, 40, BOUND * 2) if side.x != 0.0 else Vector3(BOUND * 2, 40, 1)
+		col.shape = shape
+		col.position = side + Vector3(0, 20, 0)
+		add_child(col)
+
+
+func _dune(center: Vector3, size: Vector3) -> void:
+	var sm := SphereMesh.new()
+	sm.radius = 1.0
+	sm.height = 2.0
+	sm.radial_segments = 16
+	sm.rings = 8
+	var mi := MeshInstance3D.new()
+	mi.mesh = sm
+	mi.scale = size
+	mi.position = center
+	mi.material_override = _mat(Color(0.8, 0.65, 0.44))
+	add_child(mi)
+	var pts := PackedVector3Array()
+	for v in sm.get_mesh_arrays()[Mesh.ARRAY_VERTEX]:
+		if v.y >= -0.05:
+			pts.append(v * size)
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = pts
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	col.position = center
+	add_child(col)
+
+
+func _sign(text: String, pos: Vector3) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = 48
+	l.outline_size = 10
+	l.pixel_size = 0.01
+	l.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	l.position = pos
+	add_child(l)
 
 
 func _merlons() -> void:
@@ -59,11 +126,12 @@ func _merlons() -> void:
 	var count := int(HALF * 2 / step)
 	for i in count + 1:
 		var t := -HALF + i * step
-		xforms.append(Transform3D(Basis(), Vector3(t, WALL_H + 0.35, -HALF)))
-		xforms.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-HALF, WALL_H + 0.35, t)))
-		xforms.append(Transform3D(Basis(Vector3.UP, PI / 2), Vector3(HALF, WALL_H + 0.35, t)))
+		var o := WALL_T * 0.5 - 0.15  # on the outer edge, leaving a walkway
+		xforms.append(Transform3D(Basis.from_scale(Vector3(1, 1, 0.3)), Vector3(t, WALL_H + 0.35, -HALF - o)))
+		xforms.append(Transform3D(Basis(Vector3.UP, PI / 2) * Basis.from_scale(Vector3(1, 1, 0.3)), Vector3(-HALF - o, WALL_H + 0.35, t)))
+		xforms.append(Transform3D(Basis(Vector3.UP, PI / 2) * Basis.from_scale(Vector3(1, 1, 0.3)), Vector3(HALF + o, WALL_H + 0.35, t)))
 		if absf(t) > 2.4:
-			xforms.append(Transform3D(Basis(), Vector3(t, WALL_H + 0.35, HALF)))
+			xforms.append(Transform3D(Basis.from_scale(Vector3(1, 1, 0.3)), Vector3(t, WALL_H + 0.35, HALF + o)))
 	mm.instance_count = xforms.size()
 	for i in xforms.size():
 		mm.set_instance_transform(i, xforms[i])

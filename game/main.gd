@@ -28,9 +28,11 @@ func _ready() -> void:
 	camera_rig.follow = player
 	add_child(camera_rig)
 	player.camera_rig = camera_rig
+	Juice.camera = camera_rig
 
 	hud = TouchHud.new()
 	hud.player = player
+	hud.main = self
 	add_child(hud)
 	player.announced.connect(hud.announce)
 
