@@ -144,10 +144,10 @@ func _ready() -> void:
 	floor_snap_length = 0.3
 	var shape := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.36
-	cap.height = 1.3
+	cap.radius = 0.34
+	cap.height = 1.75
 	shape.shape = cap
-	shape.position = Vector3(0, 0.65, 0)
+	shape.position = Vector3(0, 0.875, 0)
 	add_child(shape)
 	set_species(species_id)
 	if fx_parent == null:

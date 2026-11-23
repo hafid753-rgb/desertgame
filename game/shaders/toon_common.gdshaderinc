@@ -3,8 +3,8 @@
 uniform vec4 tint : source_color = vec4(1.0);
 uniform vec4 shadow_tint : source_color = vec4(0.42, 0.36, 0.55, 1.0);
 uniform float band_softness : hint_range(0.0, 0.5) = 0.06;
-uniform float rim_strength : hint_range(0.0, 2.0) = 0.3;
-uniform float spec_strength : hint_range(0.0, 2.0) = 0.18;
+uniform float rim_strength : hint_range(0.0, 2.0) = 0.22;
+uniform float spec_strength : hint_range(0.0, 2.0) = 0.08;
 // Vertex colours are authored as display (sRGB) colours in Blender.
 uniform bool vertex_color_linear = false;
 uniform float flash = 0.0;

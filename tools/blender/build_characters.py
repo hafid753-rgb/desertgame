@@ -162,19 +162,19 @@ def export(path):
 SPECIES = {
     "cat": {
         "fur": (0.95, 0.55, 0.2), "fur_dark": (0.7, 0.4, 0.2), "accent": (0.97, 0.87, 0.74),
-        "inner_ear": (0.98, 0.62, 0.62), "eye": (0.07, 0.05, 0.09), "nose": (0.85, 0.42, 0.45), "pad": (0.96, 0.6, 0.62),
+        "inner_ear": (0.98, 0.62, 0.62), "eye": (0.07, 0.05, 0.09), "nose": (0.85, 0.42, 0.45), "pad": (0.96, 0.6, 0.62), "iris": (0.45, 0.75, 0.3),
         "robe": (0.42, 0.66, 0.92), "robe_dark": (0.3, 0.5, 0.78), "embroidery": (1.0, 0.83, 0.35),
         "ears": "cat", "head": "round", "tail": "cat",
     },
     "fennec": {
         "fur": (0.92, 0.76, 0.52), "fur_dark": (0.76, 0.58, 0.36), "accent": (0.96, 0.9, 0.8),
-        "inner_ear": (1.0, 0.86, 0.78), "eye": (0.07, 0.05, 0.09), "nose": (0.12, 0.08, 0.08), "pad": (0.35, 0.25, 0.22),
+        "inner_ear": (1.0, 0.86, 0.78), "eye": (0.07, 0.05, 0.09), "nose": (0.12, 0.08, 0.08), "pad": (0.35, 0.25, 0.22), "iris": (0.85, 0.55, 0.2),
         "robe": (0.9, 0.9, 0.88), "robe_dark": (0.74, 0.76, 0.8), "embroidery": (0.2, 0.3, 0.62),
         "ears": "fennec", "head": "fox", "tail": "fennec",
     },
     "lizard": {
         "fur": (0.36, 0.66, 0.36), "fur_dark": (0.22, 0.46, 0.26), "accent": (0.9, 0.88, 0.5),
-        "inner_ear": (0.9, 0.5, 0.3), "eye": (0.98, 0.82, 0.2), "nose": (0.18, 0.3, 0.18), "pad": (0.85, 0.85, 0.5),
+        "inner_ear": (0.9, 0.5, 0.3), "eye": (0.98, 0.82, 0.2), "nose": (0.18, 0.3, 0.18), "pad": (0.85, 0.85, 0.5), "iris": (0.98, 0.82, 0.2),
         "robe": (0.2, 0.26, 0.55), "robe_dark": (0.14, 0.18, 0.42), "embroidery": (0.98, 0.95, 0.88),
         "ears": "none", "head": "lizard", "tail": "lizard",
     },
@@ -232,142 +232,240 @@ def merge(dst, src):
     dst.faces += [[i + off for i in f] for f in src.faces]
 
 
+def box_part(part, center, size, color, taper_tip=None):
+    m = T(center, scale=size)
+    part.add_mesh(prim("cube"), lambda c, n: color, m)
+
+
+# ===========================================================================
+# Adventurer proportions (v0.4): ~1.75 m tall, head about 1/6 of the height,
+# floating hands and feet kept. Pivots are in Godot space.
+# ===========================================================================
+HEAD_C = (0, 1.6, 0)     # head pivot
+BODY_C = (0, 0.8, 0)     # robe pivot (hips)
+TAIL_C = (0, 0.62, 0.22)
+HAND_C = (0.5, 0.92, -0.05)
+FOOT_C = (0.13, 0.07, 0.0)
+
+
+def superellipse(a, hw, hd, n=2.6):
+    c, s_ = math.cos(a), math.sin(a)
+    x = hw * math.copysign(abs(c) ** (2.0 / n), c)
+    z = hd * math.copysign(abs(s_) ** (2.0 / n), s_)
+    return x, z
+
+
+def loft(sections, segs, color_fn, fold_fn=None, cap_top=True, cap_bottom=True):
+    """sections: [(y, half_width, half_depth, z_offset)], bottom to top.
+    Returns a Part whose rings are superellipses with optional folds."""
+    p = Part()
+    rings = []
+    for (y, hw, hd, zo) in sections:
+        ring = []
+        for i in range(segs):
+            a = i / segs * math.tau
+            x, z = superellipse(a, hw, hd)
+            k = 1.0 + (fold_fn(y, a) if fold_fn else 0.0)
+            co = Vector((x * k, y, z * k + zo))
+            ring.append(len(p.verts))
+            p.verts.append(co)
+            n = Vector((x, 0, z)).normalized() if (x or z) else Vector((0, 1, 0))
+            p.normals.append(n)
+            p.colors.append(color_fn(co, a))
+        rings.append(ring)
+    for r in range(len(rings) - 1):
+        a, b = rings[r], rings[r + 1]
+        for i in range(segs):
+            j = (i + 1) % segs
+            p.faces.append([b[i], b[j], a[j], a[i]])
+    for cap, ring, flip in ((cap_bottom, rings[0], True), (cap_top, rings[-1], False)):
+        if not cap:
+            continue
+        y = p.verts[ring[0]].y
+        zo = sum(p.verts[i].z for i in ring) / len(ring)
+        c = len(p.verts)
+        p.verts.append(Vector((0, y, zo)))
+        p.normals.append(Vector((0, -1 if flip else 1, 0)))
+        p.colors.append(p.colors[ring[0]])
+        for i in range(segs):
+            j = (i + 1) % segs
+            p.faces.append([ring[i], ring[j], c] if flip else [ring[j], ring[i], c])
+    return p
+
+
+def build_robe(s):
+    """A real daraa: one wide piece of cloth falling from the shoulders over
+    the arms to the shins, open at the sides, with deep vertical drape folds,
+    gold hem and side trim, and an embroidered chest pocket."""
+    robe, robe_dark, emb, fur = s["robe"], s["robe_dark"], s["embroidery"], s["fur"]
+    oy = BODY_C[1]
+    # (world y, half width, half depth, z offset)
+    prof = [
+        (0.24, 0.44, 0.27, 0.03), (0.32, 0.43, 0.26, 0.03), (0.5, 0.41, 0.25, 0.02),
+        (0.7, 0.38, 0.23, 0.01), (0.9, 0.31, 0.19, 0.0), (1.05, 0.33, 0.19, -0.01),
+        (1.17, 0.34, 0.18, -0.01), (1.26, 0.33, 0.16, 0.0), (1.32, 0.3, 0.15, 0.0),
+        (1.37, 0.18, 0.12, 0.0), (1.42, 0.1, 0.09, 0.0),
+    ]
+    # Interpolate extra rings for smooth folds.
+    dense = []
+    for i in range(len(prof) - 1):
+        a, b = prof[i], prof[i + 1]
+        for t in (0.0, 0.5):
+            dense.append(tuple(lerp(a[k], b[k], t) for k in range(4)))
+    dense.append(prof[-1])
+    sections = [(y - oy, hw, hd, zo) for (y, hw, hd, zo) in dense]
+
+    def folds(y, a):
+        wy = y + oy
+        depth = max(0.0, min(1.0, (1.25 - wy) / 0.9))
+        # Main drape: big folds where the cloth falls off the arms (sides),
+        # smaller pleats front and back.
+        side = abs(math.cos(a)) ** 3
+        return depth * (0.07 * side * math.sin(a * 6 + 0.4) + 0.025 * math.sin(a * 13 + 1.1))
+
+    def col(co, a):
+        wy = co.y + oy
+        x = co.x
+        if wy > 1.39:
+            return fur  # neck
+        if wy < 0.31:
+            return emb  # gold hem band
+        if wy < 0.35:
+            return robe_dark
+        if 0.86 < wy < 0.95:
+            return (0.42, 0.24, 0.12)  # leather belt
+        # Side seams of the open daraa: thin gold line down each side.
+        shade = 0.5 + 0.5 * math.sin(a * 6 + 0.4)
+        depth = max(0.0, min(1.0, (1.2 - wy) / 0.8))
+        return mix(robe, robe_dark, 0.35 * shade * depth)
+    p = loft(sections, 56, col, folds)
+
+    def pocket(u, v):
+        if u < 0.1 or u > 0.9 or v < 0.05 or v > 0.95:
+            return emb
+        cu = u - 0.5
+        for cv in (0.22, 0.5, 0.78):
+            d = abs(cu) / 0.28 + abs(v - cv) / 0.1
+            if 0.45 < d < 1.0:
+                return emb
+        if abs(cu) < 0.035 and 0.12 < v < 0.88:
+            return emb
+        return None
+    merge(p, project_patch(p, (0.12, 1.06 - oy), (0.13, 0.18), (22, 34), pocket))
+    # Brass belt buckle.
+    merge(p, project_patch(p, (0, 0.905 - oy), (0.07, 0.07), (8, 8),
+                           lambda u, v: (0.85, 0.65, 0.25) if (abs(u - 0.5) > 0.25 or abs(v - 0.5) > 0.25) else None, offset=0.008))
+
+    def neck(u, v):
+        x = (u - 0.5) * 0.22
+        y = 1.2 + v * 0.2 - oy
+        return emb if abs(abs(x) - (1.4 - oy - y) * 0.45) < 0.01 else None
+    merge(p, project_patch(p, (0, 1.3 - oy), (0.22, 0.2), (44, 40), neck))
+    return p
+
+
 def build_head(s):
     p = Part()
     fur, dark, acc = s["fur"], s["fur_dark"], s["accent"]
-    blush = (0.98, 0.6, 0.6)
-    if s["head"] == "lizard":
-        elems = [("ELLIPSOID", (0, 0.02, 0), 0.34, (0.95, 0.85, 1.05)),
-                 ("ELLIPSOID", (0, -0.05, -0.3), 0.24, (0.85, 0.65, 1.2)),
-                 ("BALL", (0.16, 0.12, -0.08), 0.15, None), ("BALL", (-0.16, 0.12, -0.08), 0.15, None)]
-    elif s["head"] == "fox":
-        elems = [("ELLIPSOID", (0, 0, 0), 0.36, (1.05, 0.95, 1.0)),
-                 ("BALL", (0.18, -0.1, -0.1), 0.15, None), ("BALL", (-0.18, -0.1, -0.1), 0.15, None),
-                 ("ELLIPSOID", (0, -0.1, -0.3), 0.14, (0.9, 0.8, 1.5))]
+    kind = s["head"]
+    if kind == "lizard":
+        elems = [("ELLIPSOID", (0, 0.02, 0.02), 0.2, (0.95, 0.85, 1.05)),
+                 ("ELLIPSOID", (0, -0.03, -0.18), 0.14, (0.8, 0.62, 1.35))]
+    elif kind == "fox":
+        elems = [("ELLIPSOID", (0, 0.01, 0), 0.2, (1.0, 0.92, 1.0)),
+                 ("ELLIPSOID", (0, -0.05, -0.17), 0.085, (0.95, 0.75, 1.9)),
+                 ("BALL", (0.1, -0.06, -0.06), 0.09, None), ("BALL", (-0.1, -0.06, -0.06), 0.09, None)]
     else:
-        elems = [("ELLIPSOID", (0, 0, 0), 0.37, (1.1, 0.95, 1.0)),
-                 ("BALL", (0.17, -0.11, -0.13), 0.16, None), ("BALL", (-0.17, -0.11, -0.13), 0.16, None),
-                 ("BALL", (0, -0.1, -0.25), 0.13, None)]
-    head = meta_mesh("head_" + s["head"], elems, resolution=0.042)
-
-    def head_col(co, n):
-        x, y, z = co
-        if s["head"] == "lizard":
-            if y < -0.08 and z < -0.05:
-                return acc
-            if hash3(round(x * 14), round(y * 14), round(z * 14)) > 0.72 and y > 0.0:
-                return dark
-            return fur
-        # Soft cheek blush under the eyes.
-        for sx in (-1, 1):
-            d = math.dist((x, y, z), (0.2 * sx, -0.08, -0.27))
-            if d < 0.07:
-                return mix(acc, blush, 0.75)
-        if z < -0.16 and y < -0.02:
-            return acc
-        if s["head"] == "round" and y > 0.15 and abs(x) < 0.16 and math.sin(x * 40 + 1.57) > 0.55:
-            return dark  # three forehead stripes
-        if s["head"] == "fox" and y > 0.12 and z < -0.1 and abs(x) < 0.07:
-            return mix(fur, acc, 0.6)  # pale blaze
-        return fur
-    p.add_mesh(head, head_col)
-
-    # Cheek fur tufts (cat, fennec).
-    if s["head"] != "lizard":
-        for sx in (-1, 1):
-            for k, (dy, rot) in enumerate([(-0.04, 0.9), (-0.12, 1.25)]):
-                m = T((0.33 * sx, dy, -0.05), rot=(0, 0, -rot * sx)) @ UP_CONE
-                p.add_mesh(prim("cone", r1=0.055, r2=0.0, h=0.13, seg=6), lambda c, n: fur,
-                           m @ Matrix.Translation((0, 0, 0.05)) @ Matrix.Diagonal((1, 0.5, 1, 1)))
-    # Nose + mouth.
-    nose_pos = (0, -0.06, -0.5) if s["head"] == "lizard" else ((0, -0.05, -0.47) if s["head"] == "fox" else (0, -0.05, -0.375))
-    p.add_mesh(prim("sphere", r=0.04, u=10, v=6), lambda c, n: s["nose"], T(nose_pos, scale=(1.2, 0.8, 0.8)))
-    if s["head"] == "lizard":
-        for i, zz in enumerate([0.12, 0.0, -0.12]):  # crest
-            m = T((0, 0.31 - i * 0.02, zz)) @ UP_CONE
-            p.add_mesh(prim("cone", r1=0.05, r2=0.0, h=0.14, seg=6), lambda c, n: s["inner_ear"], m @ Matrix.Translation((0, 0, 0.06)) @ Matrix.Diagonal((0.5, 1, 1, 1)))
-    return p
-
-
-def build_eyes(s):
-    """Separate part so the game can blink by scaling Y."""
-    p = Part()
-    if s["head"] == "lizard":
-        for sx in (-1, 1):
-            p.add_mesh(prim("sphere", r=0.09, u=12, v=8), lambda c, n: s["eye"], T((0.22 * sx, 0.0, -0.08), scale=(0.7, 1, 1)))
-            p.add_mesh(prim("sphere", r=0.045, u=8, v=6), lambda c, n: (0.05, 0.05, 0.05), T((0.28 * sx, 0.0, -0.1), scale=(0.35, 1.5, 0.5)))
-            p.add_mesh(prim("sphere", r=0.018, u=8, v=6), lambda c, n: (1, 1, 1), T((0.29 * sx, 0.04, -0.13)))
-    else:
-        for sx in (-1, 1):
-            p.add_mesh(prim("sphere", r=0.075, u=12, v=8), lambda c, n: s["eye"], T((0.135 * sx, -0.11, -0.315), scale=(1.0, 1.35, 0.55)))
-            p.add_mesh(prim("sphere", r=0.024, u=8, v=6), lambda c, n: (1, 1, 1), T((0.135 * sx + 0.026, -0.065, -0.355)))
-            p.add_mesh(prim("sphere", r=0.011, u=6, v=4), lambda c, n: (1, 1, 1), T((0.135 * sx - 0.02, -0.15, -0.35)))
-    return p
-
-
-def build_ear(s, sx):
-    """Ear with its pivot at the base so the game can twitch it."""
-    p = Part()
-    big = s["ears"] == "fennec"
-    r, h = (0.17, 0.5) if big else (0.12, 0.28)
-    m = Matrix.Rotation(-(0.42 if big else 0.32) * sx, 4, "Z") @ UP_CONE
-    p.add_mesh(prim("cone", r1=r, r2=0.0, h=h, seg=12), lambda c, n: s["fur"],
-               m @ Matrix.Translation((0, 0, h * 0.5)) @ Matrix.Diagonal((1, 0.45, 1, 1)))
-    p.add_mesh(prim("cone", r1=r * 0.62, r2=0.0, h=h * 0.78, seg=10), lambda c, n: s["inner_ear"],
-               m @ Matrix.Translation((0, -0.035, h * 0.43)) @ Matrix.Diagonal((1, 0.3, 1, 1)))
-    if big:  # inner fur tuft
-        p.add_mesh(prim("cone", r1=r * 0.3, r2=0.0, h=h * 0.4, seg=6), lambda c, n: s["accent"],
-                   m @ Matrix.Translation((0, -0.05, h * 0.22)) @ Matrix.Diagonal((1, 0.4, 1, 1)))
-    return p
-
-
-def build_body(s):
-    """Torso in a daraa (Mauritanian robe): hanging sleeves, soft folds, and
-    crisp embroidery built as geometry on the chest."""
-    p = Part()
-    body = meta_mesh("body_robe", [
-        ("ELLIPSOID", (0, 0.05, 0), 0.32, (1.0, 1.2, 0.92)),
-        ("ELLIPSOID", (0, -0.24, 0), 0.37, (1.1, 0.6, 1.02)),
-        ("BALL", (0, 0.3, 0), 0.16, None),
-        ("ELLIPSOID", (0.3, 0.12, 0.02), 0.13, (0.9, 1.5, 0.9)),   # sleeves
-        ("ELLIPSOID", (-0.3, 0.12, 0.02), 0.13, (0.9, 1.5, 0.9)),
-    ], resolution=0.046)
-    robe, robe_dark, emb, fur = s["robe"], s["robe_dark"], s["embroidery"], s["fur"]
+        elems = [("ELLIPSOID", (0, 0.01, 0), 0.21, (1.05, 0.95, 1.0)),
+                 ("ELLIPSOID", (0, -0.06, -0.15), 0.085, (1.15, 0.8, 1.2)),
+                 ("BALL", (0.1, -0.07, -0.08), 0.09, None), ("BALL", (-0.1, -0.07, -0.08), 0.09, None)]
+    head = meta_mesh("head2_" + kind, elems, resolution=0.026)
 
     def col(co, n):
         x, y, z = co
-        if y > 0.34:
+        if kind == "lizard":
+            if y < -0.06 and z < 0.0:
+                return acc
+            if hash3(round(x * 22), round(y * 22), round(z * 22)) > 0.75 and y > 0.02:
+                return dark
             return fur
-        if y < -0.4:
-            return robe_dark
-        if -0.4 <= y < -0.35:
-            return emb
-        # Soft vertical folds on the skirt.
-        if y < -0.05:
-            f = 0.5 + 0.5 * math.sin(math.atan2(x, z) * 7)
-            return mix(robe, robe_dark, 0.45 * f * min(1.0, (-0.05 - y) * 4))
-        return robe
-    p.add_mesh(body, col)
+        if z < -0.1 and y < -0.04:
+            return acc  # muzzle and chin
+        if kind == "round" and y > 0.1 and abs(x) < 0.09 and math.sin(x * 70 + 1.57) > 0.55:
+            return dark  # forehead stripes
+        if kind == "fox" and z < -0.06 and y > -0.02 and abs(x) < 0.035:
+            return mix(fur, acc, 0.6)
+        if kind == "fox" and y < -0.03:
+            return acc  # pale cheeks and throat
+        return fur
+    p.add_mesh(head, col)
+    # Brow ridge gives a determined look instead of a baby face.
+    if kind != "lizard":
+        for sx in (-1, 1):
+            p.add_mesh(prim("sphere", r=0.04, u=10, v=6), lambda c, n: fur,
+                       T((0.07 * sx, 0.065, -0.16), rot=(0, 0, 0.18 * sx), scale=(1.4, 0.4, 0.6)))
+    nose = {"round": (0, -0.02, -0.262), "fox": (0, -0.05, -0.335), "lizard": (0, -0.02, -0.36)}[kind]
+    p.add_mesh(prim("sphere", r=0.022, u=8, v=6), lambda c, n: s["nose"], T(nose, scale=(1.3, 0.8, 0.9)))
+    if kind == "lizard":
+        for i, zz in enumerate([0.1, 0.03, -0.04, -0.11]):
+            m = T((0, 0.19 - abs(zz) * 0.2, zz)) @ UP_CONE
+            p.add_mesh(prim("cone", r1=0.03, r2=0.0, h=0.09, seg=6), lambda c, n: s["inner_ear"],
+                       m @ Matrix.Translation((0, 0, 0.04)) @ Matrix.Diagonal((0.5, 1, 1, 1)))
+    else:
+        for sx in (-1, 1):  # cheek ruff
+            m = T((0.19 * sx, -0.07, 0.0), rot=(0, 0, -1.1 * sx)) @ UP_CONE
+            p.add_mesh(prim("cone", r1=0.035, r2=0.0, h=0.08, seg=6), lambda c, n: fur,
+                       m @ Matrix.Translation((0, 0, 0.03)) @ Matrix.Diagonal((1, 0.5, 1, 1)))
+    return p
 
-    # Embroidered pocket: frame + chain of diamonds + small cross on top.
-    def pocket(u, v):
-        if u < 0.1 or u > 0.9 or v < 0.06 or v > 0.94:
-            return emb
-        cu = u - 0.5
-        for cv in (0.25, 0.5, 0.75):
-            if abs(cu) / 0.26 + abs(v - cv) / 0.1 < 1.0:
-                return emb if abs(cu) / 0.26 + abs(v - cv) / 0.1 > 0.45 else None
-        if abs(cu) < 0.04 and 0.1 < v < 0.9:
-            return emb
-        return None
-    merge(p, project_patch(p, (0.08, -0.02), (0.16, 0.27), (24, 40), pocket))
 
-    # V-neck trim.
-    def neck(u, v):
-        x = (u - 0.5) * 0.24
-        y = 0.18 + v * 0.16
-        return emb if abs(abs(x) - (0.34 - y) * 0.55) < 0.011 else None
-    merge(p, project_patch(p, (0, 0.26), (0.24, 0.16), (40, 28), neck))
+EYE_Y = {"round": 0.03, "fox": 0.03, "lizard": 0.06}
+
+
+def build_eyes(s):
+    """Almond eyes: white sclera, coloured iris, pupil, glint. Separate part
+    (pivot at eye height) so the game blinks it by scaling Y."""
+    p = Part()
+    kind = s["head"]
+    iris = s["iris"]
+    if kind == "lizard":
+        for sx in (-1, 1):
+            p.add_mesh(prim("sphere", r=0.05, u=12, v=8), lambda c, n: iris, T((0.13 * sx, 0, -0.07), scale=(0.75, 1, 1)))
+            p.add_mesh(prim("sphere", r=0.03, u=8, v=6), lambda c, n: (0.04, 0.04, 0.04), T((0.165 * sx, 0, -0.08), scale=(0.3, 1.4, 0.4)))
+            p.add_mesh(prim("sphere", r=0.01, u=6, v=4), lambda c, n: (1, 1, 1), T((0.17 * sx, 0.02, -0.1)))
+        return p
+    slit = kind == "round"
+    for sx in (-1, 1):
+        base = Vector((0.075 * sx, 0.0, -0.172))
+        p.add_mesh(prim("sphere", r=0.045, u=12, v=8), lambda c, n: (0.97, 0.96, 0.92),
+                   T(base, rot=(0, 0, -0.18 * sx), scale=(1.25, 0.82, 0.45)))
+        p.add_mesh(prim("sphere", r=0.03, u=10, v=8), lambda c, n: iris, T(base + Vector((-0.004 * sx, -0.002, -0.012)), scale=(1, 1.05, 0.4)))
+        p.add_mesh(prim("sphere", r=0.017, u=8, v=6), lambda c, n: (0.03, 0.02, 0.03),
+                   T(base + Vector((-0.004 * sx, -0.002, -0.022)), scale=(0.45 if slit else 1.0, 1.25 if slit else 1.0, 0.4)))
+        p.add_mesh(prim("sphere", r=0.008, u=6, v=4), lambda c, n: (1, 1, 1), T(base + Vector((0.01 * sx, 0.012, -0.028))))
+    return p
+
+
+def ear_layout(s):
+    if s["ears"] == "fennec":
+        return 0.12, 0.34, (0.12, 0.13, 0.02), 0.45
+    return 0.075, 0.17, (0.12, 0.13, 0.0), 0.35
+
+
+def build_ear(s, sx):
+    p = Part()
+    r, h, _, tilt = ear_layout(s)
+    m = Matrix.Rotation(-tilt * sx, 4, "Z") @ UP_CONE
+    p.add_mesh(prim("cone", r1=r, r2=0.0, h=h, seg=12), lambda c, n: s["fur"],
+               m @ Matrix.Translation((0, 0, h * 0.5)) @ Matrix.Diagonal((1, 0.45, 1, 1)))
+    p.add_mesh(prim("cone", r1=r * 0.62, r2=0.0, h=h * 0.78, seg=10), lambda c, n: s["inner_ear"],
+               m @ Matrix.Translation((0, -0.025, h * 0.43)) @ Matrix.Diagonal((1, 0.3, 1, 1)))
+    if s["ears"] == "fennec":
+        p.add_mesh(prim("cone", r1=r * 0.3, r2=0.0, h=h * 0.4, seg=6), lambda c, n: s["accent"],
+                   m @ Matrix.Translation((0, -0.035, h * 0.22)) @ Matrix.Diagonal((1, 0.4, 1, 1)))
+    if s["ears"] == "cat":  # dark ear tips
+        p.add_mesh(prim("cone", r1=r * 0.35, r2=0.0, h=h * 0.3, seg=8), lambda c, n: s["fur_dark"],
+                   m @ Matrix.Translation((0, 0.003, h * 0.86)) @ Matrix.Diagonal((1, 0.47, 1, 1)))
     return p
 
 
@@ -375,76 +473,71 @@ def build_tail(s):
     p = Part()
     kind = s["tail"]
     pts = []
-    n = 7 if kind != "lizard" else 9
+    n = 16
     for i in range(n):
         t = i / (n - 1)
         if kind == "lizard":
-            pos = (0, -0.25 + 0.15 * math.sin(t * 2.2), 0.05 + t * 0.85)
-            r = lerp(0.13, 0.035, t)
+            pos = (0, -0.45 + 0.08 * math.sin(t * 3.0), 0.05 + t * 0.95)
+            r = lerp(0.1, 0.025, t)
         elif kind == "fennec":
-            pos = (0, t * 0.45, 0.05 + t * 0.32)
-            r = lerp(0.07, 0.12, math.sin(t * math.pi * 0.85))
+            pos = (0, -0.15 + t * 0.25, 0.05 + t * 0.55)
+            r = lerp(0.06, 0.11, math.sin(t * math.pi * 0.85))
         else:
-            pos = (0, t * 0.55, 0.05 + math.sin(t * 2.0) * 0.28)
-            r = lerp(0.07, 0.055, t)
+            pos = (0, -0.1 + t * 0.55, 0.05 + math.sin(t * 2.2) * 0.4)
+            r = lerp(0.05, 0.035, t)
         pts.append((pos, r, t))
-    me = meta_mesh("tail_" + kind, [("BALL", pp, r, None) for pp, r, _ in pts])
+    me = meta_mesh("tail2_" + kind, [("BALL", pp, r, None) for pp, r, _ in pts], resolution=0.03)
 
     def col(co, nrm):
-        # nearest sample along the chain
         best = min(pts, key=lambda q: (Vector(q[0]) - co).length)
         t = best[2]
-        if kind == "fennec" and t > 0.8:
-            return (0.12, 0.08, 0.07)  # dark tail tip
-        if kind == "cat" and math.sin(t * 22) > 0.4:
+        if kind == "fennec" and t > 0.82:
+            return (0.12, 0.08, 0.07)
+        if kind == "cat" and math.sin(t * 26) > 0.45:
             return s["fur_dark"]
-        if kind == "lizard" and nrm.y > 0.6 and hash3(co.x * 9, co.y * 9, co.z * 9) > 0.6:
+        if kind == "lizard" and nrm.y > 0.5 and hash3(co.x * 9, co.y * 9, co.z * 9) > 0.6:
             return s["fur_dark"]
         return s["fur"]
     p.add_mesh(me, col)
-    if kind == "lizard":
-        for i in range(4):
-            t = 0.15 + i * 0.18
-            pos = Vector((0, -0.25 + 0.15 * math.sin(t * 2.2) + lerp(0.12, 0.04, t), 0.05 + t * 0.85))
-            p.add_mesh(prim("cone", r1=0.035, r2=0.0, h=0.09, seg=6), lambda c, n: s["inner_ear"],
-                       Matrix.Translation(pos) @ UP_CONE @ Matrix.Translation((0, 0, 0.04)) @ Matrix.Diagonal((0.5, 1, 1, 1)))
     return p
 
 
 def build_paw(s, foot=False):
     p = Part()
-    fur, acc, pad = s["fur"], s["accent"], s.get("pad", (0.95, 0.62, 0.62))
+    fur, pad = s["fur"], s.get("pad", (0.95, 0.62, 0.62))
     claw = s["head"] == "lizard"
     if foot:
-        p.add_mesh(prim("sphere", r=0.115, u=12, v=8), lambda c, n: pad if c.y < -0.045 else fur,
-                   T((0, 0, -0.03), scale=(1.0, 0.72, 1.35)))
+        # Leather sandal (naal) under a furry foot.
+        sole, strap = (0.36, 0.22, 0.12), (0.55, 0.3, 0.14)
+        p.add_mesh(prim("sphere", r=0.07, u=12, v=8), lambda c, n: fur, T((0, 0.02, -0.03), scale=(0.95, 0.7, 1.5)))
+        box_part(p, (0, -0.035, -0.035), (0.13, 0.025, 0.25), sole)
+        box_part(p, (0, 0.01, -0.07), (0.14, 0.03, 0.03), strap)
         for k in (-1, 0, 1):
-            p.add_mesh(prim("sphere", r=0.04, u=6, v=4), lambda c, n: (0.95, 0.95, 0.85) if claw else fur,
-                       T((k * 0.055, -0.035, -0.17), scale=(0.9, 0.8, 1.3 if claw else 1.0)))
+            p.add_mesh(prim("sphere", r=0.025, u=6, v=4), lambda c, n: (0.95, 0.95, 0.85) if claw else fur,
+                       T((k * 0.035, -0.005, -0.13), scale=(0.9, 0.8, 1.4 if claw else 1.0)))
     else:
-        p.add_mesh(prim("sphere", r=0.09, u=12, v=8), lambda c, n: pad if c.z < -0.05 and c.y < 0.0 else fur)
+        p.add_mesh(prim("sphere", r=0.065, u=12, v=8), lambda c, n: pad if c.z < -0.035 and c.y < 0.0 else fur,
+                   T(scale=(0.9, 1.0, 1.1)))
         for k in (-1, 0, 1):
-            p.add_mesh(prim("sphere", r=0.034, u=6, v=4), lambda c, n: (0.95, 0.95, 0.85) if claw else fur,
-                       T((k * 0.045, -0.02, -0.085), scale=(0.9, 0.9, 1.4 if claw else 1.0)))
-        p.add_mesh(prim("sphere", r=0.034, u=6, v=4), lambda c, n: fur, T((0.075, 0.03, -0.03)))  # thumb
+            p.add_mesh(prim("sphere", r=0.024, u=6, v=4), lambda c, n: (0.95, 0.95, 0.85) if claw else fur,
+                       T((k * 0.032, -0.02, -0.065), scale=(0.9, 0.9, 1.6 if claw else 1.3)))
+        p.add_mesh(prim("sphere", r=0.024, u=6, v=4), lambda c, n: fur, T((0.055, 0.02, -0.025)))
     return p
 
 
 def build_daraa_wing(s, sx):
-    """The robe's wide sleeve opened as a sail for gliding. Folds are baked in."""
+    """The daraa's side panels opened as a sail for gliding."""
     part = Part()
-    grid = prim("grid", xs=10, ys=6)
+    grid = prim("grid", xs=12, ys=8)
     for v in grid.vertices:
-        u = v.co.x + 0.5  # 0 at the body, 1 at the tip
-        w = v.co.y + 0.5  # 0 front, 1 back
-        v.co = Vector((sx * (0.12 + u * 0.95), math.sin(w * math.pi * 4) * 0.025 * u - 0.05 * u * u, (w - 0.5) * lerp(0.55, 0.8, u)))
+        u = v.co.x + 0.5
+        w = v.co.y + 0.5
+        v.co = Vector((sx * (0.3 + u * 1.05), math.sin(w * math.pi * 5) * 0.03 * u - 0.06 * u * u - 0.1 * w,
+                       (w - 0.5) * lerp(0.5, 0.95, u)))
 
     def col(c, n):
-        u = (abs(c.x) - 0.12) / 0.95
-        w = c.z
-        if u > 0.92:
-            return s["embroidery"]
-        if 0.55 < u < 0.6 and math.sin(w * 60) > 0:
+        u = (abs(c.x) - 0.3) / 1.05
+        if u > 0.94 or abs(c.z) > lerp(0.25, 0.475, u) - 0.03:
             return s["embroidery"]
         return s["robe"]
     part.add_mesh(grid, col)
@@ -454,33 +547,29 @@ def build_daraa_wing(s, sx):
 def build_species(name):
     clear_scene()
     s = SPECIES[name]
+    eye_y = EYE_Y[s["head"]]
+    rows = [
+        ("Body", build_robe(s), BODY_C),
+        ("Head", build_head(s), HEAD_C),
+        ("Eyes", build_eyes(s), (0, HEAD_C[1] + eye_y, 0)),
+        ("Tail", build_tail(s), TAIL_C),
+        ("HandR", build_paw(s), HAND_C),
+        ("HandL", build_paw(s), (-HAND_C[0], HAND_C[1], HAND_C[2])),
+        ("FootR", build_paw(s, True), FOOT_C),
+        ("FootL", build_paw(s, True), (-FOOT_C[0], FOOT_C[1], FOOT_C[2])),
+        ("DaraaR", build_daraa_wing(s, 1), (0, 1.3, 0.02)),
+        ("DaraaL", build_daraa_wing(s, -1), (0, 1.3, 0.02)),
+    ]
+    if s["ears"] != "none":
+        _, _, base, _ = ear_layout(s)
+        rows.append(("EarR", build_ear(s, 1), (base[0], HEAD_C[1] + base[1], base[2])))
+        rows.append(("EarL", build_ear(s, -1), (-base[0], HEAD_C[1] + base[1], base[2])))
     tris = 0
-    for pname, part, pivot in [
-        ("Body", build_body(s), (0, 0.62, 0)),
-        ("Head", build_head(s), (0, 1.15, 0)),
-        ("Eyes", build_eyes(s), (0, 1.29, 0)),
-        ("Tail", build_tail(s), (0, 0.4, 0.26)),
-        ("HandR", build_paw(s), (0.45, 0.62, -0.08)),
-        ("HandL", build_paw(s), (-0.45, 0.62, -0.08)),
-        ("FootR", build_paw(s, True), (0.17, 0.09, 0)),
-        ("FootL", build_paw(s, True), (-0.17, 0.09, 0)),
-        *([("EarR", build_ear(s, 1), (0.19 if s["ears"] == "cat" else 0.2, 1.43 if s["ears"] == "cat" else 1.45, 0.02)),
-           ("EarL", build_ear(s, -1), (-0.19 if s["ears"] == "cat" else -0.2, 1.43 if s["ears"] == "cat" else 1.45, 0.02))]
-          if s["ears"] != "none" else []),
-        ("DaraaR", build_daraa_wing(s, 1), (0, 0.95, 0.05)),
-        ("DaraaL", build_daraa_wing(s, -1), (0, 0.95, 0.05)),
-    ]:
+    for pname, part, pivot in rows:
         _, f = emit(pname, part, pivot)
         tris += f
     export(os.path.join(OUT, name + ".glb"))
     return tris
-
-
-# --- equipment --------------------------------------------------------------
-
-def box_part(part, center, size, color, taper_tip=None):
-    m = T(center, scale=size)
-    part.add_mesh(prim("cube"), lambda c, n: color, m)
 
 
 def build_equipment():

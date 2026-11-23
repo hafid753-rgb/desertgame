@@ -2,6 +2,14 @@ extends Node
 ## Character lineup render: godot --path . res://tools/portrait.tscn
 ## Saves user://shots/lineup.png and user://shots/jinn_close.png
 
+var models: Array[CreatureModel] = []
+
+
+func _process(delta: float) -> void:
+	for m in models:
+		m.animate(delta, {"move": 0.0, "state": "MOVE"})
+
+
 func _ready() -> void:
 	var root := Node3D.new()
 	add_child(root)
@@ -31,6 +39,7 @@ func _ready() -> void:
 	var x := -2.4
 	for id in ["cat", "fennec", "lizard"]:
 		var m := CreatureModel.new()
+		models.append(m)
 		root.add_child(m)
 		m.build(Species.get_data(id))
 		m.position = Vector3(x, 0, 0)
@@ -44,19 +53,19 @@ func _ready() -> void:
 	var cam := Camera3D.new()
 	cam.fov = 40
 	root.add_child(cam)
-	cam.position = Vector3(0, 1.6, 7.2)
-	cam.look_at(Vector3(0, 0.95, 0))
+	cam.position = Vector3(0, 1.5, 8.2)
+	cam.look_at(Vector3(0, 1.05, 0))
 	cam.current = true
 	for i in 30:
 		await get_tree().process_frame
 	await _shot("lineup")
-	cam.position = Vector3(2.0, 1.55, 1.8)
-	cam.look_at(Vector3(2.6, 1.2, -0.4))
+	cam.position = Vector3(1.6, 1.9, 2.6)
+	cam.look_at(Vector3(2.6, 1.5, -0.4))
 	for i in 5:
 		await get_tree().process_frame
 	await _shot("jinn_close")
-	cam.position = Vector3(-2.9, 1.25, 1.6)
-	cam.look_at(Vector3(-2.4, 0.9, 0))
+	cam.position = Vector3(-2.7, 1.45, 2.2)
+	cam.look_at(Vector3(-2.35, 1.2, 0))
 	for i in 5:
 		await get_tree().process_frame
 	await _shot("cat_close")

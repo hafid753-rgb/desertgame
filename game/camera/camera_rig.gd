@@ -14,10 +14,10 @@ var lock_target: Node3D
 var camera: Camera3D
 var yaw: float = 0.0
 var pitch: float = -0.28
-var distance: float = 4.8
-var height: float = 1.45
+var distance: float = 5.2
+var height: float = 1.75
 var focus: Vector3 = Vector3.ZERO
-var _current_distance: float = 4.8
+var _current_distance: float = 5.2
 var _shake: float = 0.0
 
 

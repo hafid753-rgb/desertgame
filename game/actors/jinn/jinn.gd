@@ -22,6 +22,7 @@ const ATTACKS := {
 const CHASE_SPEED := 3.2
 const CIRCLE_SPEED := 2.0
 const STAGGER_PARRIED := 1.4
+const VISUAL_SCALE := 1.25  # towers over the ~1.75 m adventurers
 
 @export var ai_enabled: bool = true
 @export var max_hp: float = 160.0
@@ -65,9 +66,9 @@ func _ready() -> void:
 	var shape := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = radius
-	cap.height = 1.8
+	cap.height = 2.2
 	shape.shape = cap
-	shape.position = Vector3(0, 0.9, 0)
+	shape.position = Vector3(0, 1.1, 0)
 	add_child(shape)
 	_build_visual()
 	if fx_parent == null:
@@ -369,7 +370,7 @@ func _animate(delta: float) -> void:
 		_visual.rotation.z = sin(state_time * 20.0) * 0.12
 	else:
 		_visual.rotation.z = 0.0
-	_visual.scale = _visual.scale.lerp(Vector3(swell, 1.0 / sqrt(swell), swell), 1.0 - exp(-12.0 * delta))
+	_visual.scale = _visual.scale.lerp(Vector3(swell, 1.0 / sqrt(swell), swell) * VISUAL_SCALE, 1.0 - exp(-12.0 * delta))
 	# Arms read the attack: swipe winds one claw back, burst spreads both,
 	# lunge sweeps both behind. Idle: slow drifting sway.
 	var t_ms := Time.get_ticks_msec() * 0.002
@@ -404,6 +405,7 @@ func _animate(delta: float) -> void:
 
 func _build_visual() -> void:
 	_visual = Node3D.new()
+	_visual.scale = Vector3.ONE * VISUAL_SCALE
 	add_child(_visual)
 	_smoke_mat = ShaderMaterial.new()
 	_smoke_mat.shader = preload("res://game/actors/jinn/jinn_smoke.gdshader")
