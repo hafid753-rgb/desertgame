@@ -3,7 +3,7 @@ extends Node3D
 ## Stylised Rayman-style creature: rounded body in a daraa robe, big head,
 ## floating hands and feet (no limbs to skin). Parts are built in Blender by
 ## tools/blender/build_characters.py and rendered with the toon + outline
-## shader: 9 parts, 9 draw calls + 9 outline passes, ~5k triangles.
+## shader: 12 parts (eyes and ears ride on the head).
 ## player.gd only talks to build() and animate().
 
 const ART_DIR := "res://game/art/characters/"
@@ -20,6 +20,14 @@ var tail: Node3D
 var sword: Node3D
 var element_glow: MeshInstance3D
 var daraa: Node3D
+var eyes: Node3D
+var ear_r: Node3D
+var ear_l: Node3D
+var _blink_in := 2.0
+var _blink_t := 0.0
+var _twitch_in := 3.0
+var _twitch_t := 0.0
+var _twitch_side := 1.0
 
 var _mat: ShaderMaterial
 var _cloth_mat: ShaderMaterial
@@ -43,6 +51,10 @@ func build(data: Dictionary) -> void:
 	hand_l = _take(parts, "HandL", Vector3(-0.45, 0.62, -0.08))
 	foot_r = _take(parts, "FootR", Vector3(0.17, 0.09, 0))
 	foot_l = _take(parts, "FootL", Vector3(-0.17, 0.09, 0))
+	# Face parts ride on the head so blinks and ear twitches follow it.
+	eyes = _attach_to_head(parts, "Eyes")
+	ear_r = _attach_to_head(parts, "EarR")
+	ear_l = _attach_to_head(parts, "EarL")
 
 	daraa = Node3D.new()
 	daraa.position = Vector3(0, 0.95, 0.05)
@@ -193,6 +205,8 @@ func animate(delta: float, info: Dictionary) -> void:
 	hand_r.rotation = hand_r.rotation.lerp(hr_rot, k)
 	hand_l.rotation = hand_l.rotation.lerp(hl_rot, k)
 
+	_animate_face(delta, state)
+
 	var glow_a := clampf(charge / 3.0, 0.0, 1.0) * 0.8
 	_glow_mat.albedo_color = Color(ecol.r, ecol.g, ecol.b, glow_a)
 	element_glow.scale = Vector3.ONE * (0.6 + charge * 0.5)
@@ -200,6 +214,44 @@ func animate(delta: float, info: Dictionary) -> void:
 	_flash = maxf(0.0, _flash - delta * 6.0)
 	_mat.set_shader_parameter("flash", _flash * 0.9)
 	_mat.set_shader_parameter("flash_color", _flash_color)
+
+
+func _attach_to_head(parts: Dictionary, name: String) -> Node3D:
+	var mi: MeshInstance3D = parts.get(name)
+	if mi == null:
+		return null
+	mi.material_override = _mat
+	mi.position = mi.position - Vector3(0, HEAD_Y, 0)
+	head.add_child(mi)
+	return mi
+
+
+func _animate_face(delta: float, state: String) -> void:
+	# Blink every 2-5 s (double-blink sometimes); eyes squeeze shut when hurt.
+	_blink_in -= delta
+	if _blink_in <= 0.0:
+		_blink_t = 0.14
+		_blink_in = randf_range(2.0, 5.0) if randf() > 0.2 else 0.25
+	_blink_t = maxf(0.0, _blink_t - delta)
+	if eyes:
+		var shut := _blink_t > 0.0 or state == "HITSTUN"
+		eyes.scale.y = lerpf(eyes.scale.y, 0.12 if shut else 1.0, 1.0 - exp(-40.0 * delta))
+	# Ear twitch, and ears flatten back when hit or gliding.
+	_twitch_in -= delta
+	if _twitch_in <= 0.0:
+		_twitch_t = 0.25
+		_twitch_side = -1.0 if randf() < 0.5 else 1.0
+		_twitch_in = randf_range(2.5, 6.0)
+	_twitch_t = maxf(0.0, _twitch_t - delta)
+	var back := 0.6 if state in ["HITSTUN", "GLIDE", "DODGE", "MOBILITY"] else 0.0
+	var tw := sin(_twitch_t * 40.0) * 0.35 if _twitch_t > 0.0 else 0.0
+	var k := 1.0 - exp(-18.0 * delta)
+	if ear_r:
+		ear_r.rotation.x = lerpf(ear_r.rotation.x, back, k)
+		ear_r.rotation.z = lerpf(ear_r.rotation.z, tw if _twitch_side > 0.0 else 0.0, k)
+	if ear_l:
+		ear_l.rotation.x = lerpf(ear_l.rotation.x, back, k)
+		ear_l.rotation.z = lerpf(ear_l.rotation.z, -tw if _twitch_side < 0.0 else 0.0, k)
 
 
 func _take(parts: Dictionary, name: String, fallback_pos: Vector3) -> Node3D:
