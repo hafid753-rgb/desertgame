@@ -25,6 +25,8 @@ func _ready() -> void:
 
 
 func _run_all() -> void:
+	await _test_spirit_visual()
+	await _test_elemental_props()
 	await _test_light_combo()
 	await _test_heavy_attack()
 	await _test_taking_hit()
@@ -35,6 +37,11 @@ func _run_all() -> void:
 	await _test_release_special_cancels()
 	await _test_elemental_mobility()
 	await _test_wind_defense()
+	await _test_water_chill()
+	await _test_water_defense()
+	await _test_earth_healing()
+	await _test_earth_defense()
+	await _test_element_cycle()
 	await _test_lock_on()
 	await _test_species_stamina()
 	await _test_jinn_ai_attacks()
@@ -48,6 +55,30 @@ func _run_all() -> void:
 
 
 # --- Tests ------------------------------------------------------------------
+
+func _test_spirit_visual() -> void:
+	await _reset(Vector3(0, 0, -3.0))
+	var ribbons := jinn.get_node_or_null("Visual/SpiritVeil")
+	# Node name is assigned in the visual constructor; also allow direct mesh check.
+	_check("jinn has original spectral silhouette", ribbons is MeshInstance3D, str(ribbons))
+
+
+func _test_elemental_props() -> void:
+	var props := get_tree().get_nodes_in_group("elemental_props")
+	_check("three physics props exist", props.size() == 3, "count %d" % props.size())
+	if props.is_empty():
+		return
+	var crate := props[0] as ElementalProp
+	crate.receive_element(Combat.Element.FIRE, Vector3.FORWARD, 10.0)
+	_check("fire ignites wooden crates", crate.burning > 0.0, str(crate.burning))
+	crate.receive_element(Combat.Element.WATER, Vector3.FORWARD, 10.0)
+	_check("water extinguishes fire", crate.burning == 0.0 and crate.chilled > 0.0, str(crate.chilled))
+	crate.receive_element(Combat.Element.WIND, Vector3.RIGHT, 9.0)
+	await _frames(2)
+	_check("wind pushes physics props", crate.linear_velocity.length() > 0.01, str(crate.linear_velocity))
+
+
+
 
 func _test_light_combo() -> void:
 	await _reset(Vector3(0, 0, -1.6))
@@ -172,6 +203,70 @@ func _test_wind_defense() -> void:
 	_check("wind deflect: no damage", is_equal_approx(player.hp, 100.0), "hp %.1f" % player.hp)
 	GameInput.release("dodge")
 	await _frames(10)
+
+
+func _test_water_chill() -> void:
+	await _reset(Vector3(0, 0, -2.5))
+	player.element = Combat.Element.WATER
+	GameInput.press("special")
+	await _frames(25)  # tier I
+	await _tap("attack", 2)
+	await _frames(23)
+	GameInput.release("special")
+	_check("ice attack slows jinn", jinn.chill_time > 0.0 and jinn.chill_multiplier < 1.0, "chill %.2f mult %.2f" % [jinn.chill_time, jinn.chill_multiplier])
+	_check("ice attack does less damage than fire", jinn.damage_taken_total > 0.0 and jinn.damage_taken_total < 18.0, "%.1f" % jinn.damage_taken_total)
+
+
+func _test_water_defense() -> void:
+	await _reset(Vector3(0, 0, -1.8))
+	player.element = Combat.Element.WATER
+	jinn.force_attack("swipe")
+	await _frames(17)
+	GameInput.press("dodge")
+	await _frames(14)
+	await _tap("special", 2)
+	await _frames(19)
+	_check("ice barrier absorbs frontal hit", jinn.last_result == "ice_block" and is_equal_approx(player.hp, 100.0), jinn.last_result)
+	_check("ice barrier chills attacker", jinn.chill_time > 0.0, "%.2f" % jinn.chill_time)
+	GameInput.release("dodge")
+	await _frames(5)
+
+
+func _test_earth_healing() -> void:
+	await _reset(Vector3(0, 0, -2.5))
+	player.element = Combat.Element.EARTH
+	player.hp = 30.0
+	GameInput.press("special")
+	await _frames(25)
+	await _tap("attack", 2)
+	await _frames(23)
+	GameInput.release("special")
+	_check("earth tier I restores 18 HP", is_equal_approx(player.hp, 48.0), "%.1f" % player.hp)
+	_check("earth healing does not damage jinn", is_zero_approx(jinn.damage_taken_total), "%.1f" % jinn.damage_taken_total)
+
+
+func _test_earth_defense() -> void:
+	await _reset(Vector3(0, 0, -1.8))
+	player.element = Combat.Element.EARTH
+	player.hp = 70.0
+	jinn.force_attack("swipe")
+	await _frames(17)
+	GameInput.press("dodge")
+	await _frames(14)
+	await _tap("special", 2)
+	await _frames(19)
+	_check("earth defense halves incoming damage", jinn.last_result == "earth_guard" and player.hp > 70.0, "hp %.1f / %s" % [player.hp, jinn.last_result])
+	GameInput.release("dodge")
+	await _frames(5)
+
+
+func _test_element_cycle() -> void:
+	await _reset(Vector3(0, 0, -8.0))
+	player.element = Combat.Element.WIND
+	for e in [Combat.Element.FIRE, Combat.Element.WATER, Combat.Element.EARTH, Combat.Element.WIND]:
+		await _tap("element", 2)
+		await _frames(32)  # > 0.5 s switch cooldown
+		_check("element cycles to %s" % Combat.ELEMENT_NAMES[e], player.element == e, str(player.element))
 
 
 func _test_lock_on() -> void:

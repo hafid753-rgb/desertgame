@@ -60,7 +60,7 @@ func _on_jinn_defeated(_j: Jinn) -> void:
 func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation = Vector3(deg_to_rad(-52), deg_to_rad(35), 0)
-	sun.light_color = Color(1.0, 0.92, 0.78)
+	sun.light_color = Color(1.0, 0.86, 0.67)
 	sun.light_energy = 0.85
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
@@ -68,9 +68,9 @@ func _build_environment() -> void:
 	add_child(sun)
 
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.32, 0.55, 0.85)
-	sky_mat.sky_horizon_color = Color(0.93, 0.8, 0.62)
-	sky_mat.ground_horizon_color = Color(0.85, 0.7, 0.5)
+	sky_mat.sky_top_color = Color(0.29, 0.40, 0.64)
+	sky_mat.sky_horizon_color = Color(0.96, 0.70, 0.54)
+	sky_mat.ground_horizon_color = Color(0.89, 0.64, 0.49)
 	sky_mat.ground_bottom_color = Color(0.6, 0.45, 0.3)
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
@@ -82,8 +82,8 @@ func _build_environment() -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_white = 1.6
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.93, 0.82, 0.65)
-	env.fog_density = 0.004
+	env.fog_light_color = Color(0.83, 0.67, 0.62)
+	env.fog_density = 0.006
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
