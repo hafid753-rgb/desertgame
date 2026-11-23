@@ -43,7 +43,6 @@ var burn_tick: float = 0.0
 var fx_parent: Node
 var damage_taken_total: float = 0.0
 
-var _body: MeshInstance3D
 var _smoke_mat: ShaderMaterial
 var _eye_mat: StandardMaterial3D
 var _ring: MeshInstance3D
@@ -51,6 +50,10 @@ var _ring_mat: StandardMaterial3D
 var _visual: Node3D
 var _flash: float = 0.0
 var _rng := RandomNumberGenerator.new()
+var _arm_r: Node3D
+var _arm_l: Node3D
+var _mask: MeshInstance3D
+var _mask_mat: ShaderMaterial
 var _recent: Array[String] = []
 
 
@@ -152,6 +155,8 @@ func _physics_process(delta: float) -> void:
 				_enter(S.CIRCLE if ai_enabled else S.IDLE)
 		S.DEAD:
 			_smoke_mat.set_shader_parameter("dissolve", clampf(state_time / 1.2, 0.0, 1.0))
+			if _mask:
+				_mask.scale = Vector3.ONE * maxf(0.01, 1.0 - state_time / 1.0)
 			if state_time > 1.3:
 				defeated.emit(self)
 				queue_free()
@@ -365,8 +370,36 @@ func _animate(delta: float) -> void:
 	else:
 		_visual.rotation.z = 0.0
 	_visual.scale = _visual.scale.lerp(Vector3(swell, 1.0 / sqrt(swell), swell), 1.0 - exp(-12.0 * delta))
+	# Arms read the attack: swipe winds one claw back, burst spreads both,
+	# lunge sweeps both behind. Idle: slow drifting sway.
+	var t_ms := Time.get_ticks_msec() * 0.002
+	var ar := Vector3(sin(t_ms) * 0.12, 0, 0.1 + sin(t_ms * 1.3) * 0.08)
+	var al := Vector3(sin(t_ms + 1.0) * 0.12, 0, -0.1 - sin(t_ms * 1.1) * 0.08)
+	if state == S.TELEGRAPH:
+		match current:
+			"swipe":
+				ar = Vector3(-1.2 * tel_p, -0.8 * tel_p, 0.9 * tel_p)
+			"burst":
+				ar = Vector3(0, 0, 1.3 * tel_p)
+				al = Vector3(0, 0, -1.3 * tel_p)
+			"lunge":
+				ar = Vector3(0.9 * tel_p, 0, 0.3)
+				al = Vector3(0.9 * tel_p, 0, -0.3)
+	elif state == S.ATTACK and current == "swipe":
+		ar = Vector3(0.9, 1.0, 0.2)
+	elif state == S.STAGGER:
+		ar = Vector3(0.6, 0, 0.9)
+		al = Vector3(0.6, 0, -0.9)
+	var k := 1.0 - exp(-14.0 * delta)
+	if _arm_r:
+		_arm_r.rotation = _arm_r.rotation.lerp(ar, k)
+	if _arm_l:
+		_arm_l.rotation = _arm_l.rotation.lerp(al, k)
+
 	_flash = maxf(0.0, _flash - delta * 6.0)
 	_smoke_mat.set_shader_parameter("flash", _flash * 0.8)
+	if _mask_mat:
+		_mask_mat.set_shader_parameter("flash", _flash * 0.6)
 
 
 func _build_visual() -> void:
@@ -374,49 +407,31 @@ func _build_visual() -> void:
 	add_child(_visual)
 	_smoke_mat = ShaderMaterial.new()
 	_smoke_mat.shader = preload("res://game/actors/jinn/jinn_smoke.gdshader")
-	var body_mesh := SphereMesh.new()
-	body_mesh.radius = 0.55
-	body_mesh.height = 1.5
-	body_mesh.radial_segments = 20
-	body_mesh.rings = 12
-	_body = MeshInstance3D.new()
-	_body.mesh = body_mesh
-	_body.material_override = _smoke_mat
-	_body.position = Vector3(0, 1.1, 0)
-	_visual.add_child(_body)
-	# Wispy tail instead of legs.
-	var tail := CylinderMesh.new()
-	tail.top_radius = 0.4
-	tail.bottom_radius = 0.02
-	tail.height = 0.9
-	tail.radial_segments = 12
-	var tail_mi := MeshInstance3D.new()
-	tail_mi.mesh = tail
-	tail_mi.material_override = _smoke_mat
-	tail_mi.position = Vector3(0, 0.35, 0.05)
-	_visual.add_child(tail_mi)
-	# Long floating arms.
-	for side in [-1.0, 1.0]:
-		var arm := CapsuleMesh.new()
-		arm.radius = 0.1
-		arm.height = 0.9
-		var arm_mi := MeshInstance3D.new()
-		arm_mi.mesh = arm
-		arm_mi.material_override = _smoke_mat
-		arm_mi.position = Vector3(0.72 * side, 1.0, -0.05)
-		arm_mi.rotation = Vector3(0.2, 0, 0.35 * side)
-		_visual.add_child(arm_mi)
+	var parts := CharacterArt.load_parts("res://game/art/characters/jinn.glb")
+	for n in ["Body", "ArmR", "ArmL"]:
+		if parts.has(n):
+			var mi: MeshInstance3D = parts[n]
+			mi.material_override = _smoke_mat
+			_visual.add_child(mi)
+	_arm_r = parts.get("ArmR")
+	_arm_l = parts.get("ArmL")
+	if parts.has("Mask"):
+		_mask = parts["Mask"]
+		_mask_mat = CharacterArt.toon_material(Color(0.05, 0.03, 0.06), 0.008)
+		_mask.material_override = _mask_mat
+		_visual.add_child(_mask)
 	_eye_mat = StandardMaterial3D.new()
 	_eye_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_eye_mat.albedo_color = Color(0.95, 0.9, 0.7)
 	var eye := SphereMesh.new()
-	eye.radius = 0.07
-	eye.height = 0.1
+	eye.radius = 0.05
+	eye.height = 0.07
 	for side in [-1.0, 1.0]:
 		var e := MeshInstance3D.new()
 		e.mesh = eye
 		e.material_override = _eye_mat
-		e.position = Vector3(0.17 * side, 1.4, -0.47)
+		e.position = Vector3(0.11 * side, 1.41, -0.535)
+		e.scale = Vector3(1.2, 0.8, 0.5)
 		e.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_visual.add_child(e)
 	# Telegraph ring on the ground.

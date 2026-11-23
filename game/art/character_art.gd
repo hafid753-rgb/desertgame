@@ -1,0 +1,64 @@
+class_name CharacterArt
+extends RefCounted
+## Loads the Blender-built character parts (tools/blender/build_characters.py)
+## and gives them the toon + outline look.
+
+const TOON := preload("res://game/shaders/toon.gdshader")
+const TOON_DOUBLE := preload("res://game/shaders/toon_double.gdshader")
+const OUTLINE := preload("res://game/shaders/outline.gdshader")
+
+
+## Thin cloth: both faces lit correctly, no outline hull.
+static func cloth_material() -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = TOON_DOUBLE
+	return m
+
+
+static func toon_material(outline_color: Color = Color(0.14, 0.08, 0.07), thickness: float = 0.012) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = TOON
+	if thickness > 0.0:
+		var o := ShaderMaterial.new()
+		o.shader = OUTLINE
+		o.set_shader_parameter("thickness", thickness)
+		o.set_shader_parameter("outline_color", outline_color)
+		m.next_pass = o
+	return m
+
+
+## Instantiates a .glb and returns {node_name: MeshInstance3D}, detached from
+## the imported root so the caller can parent them anywhere.
+static func load_parts(path: String) -> Dictionary:
+	var out := {}
+	var scene: PackedScene = load(path)
+	if scene == null:
+		push_error("CharacterArt: cannot load %s" % path)
+		return out
+	var root := scene.instantiate()
+	for mi in _meshes(root):
+		var xf: Transform3D = mi.global_transform if mi.is_inside_tree() else _accum(mi)
+		mi.get_parent().remove_child(mi)
+		mi.transform = xf
+		mi.owner = null
+		out[str(mi.name)] = mi
+	root.free()
+	return out
+
+
+static func _meshes(n: Node) -> Array[MeshInstance3D]:
+	var arr: Array[MeshInstance3D] = []
+	for c in n.get_children():
+		if c is MeshInstance3D:
+			arr.append(c)
+		arr.append_array(_meshes(c))
+	return arr
+
+
+static func _accum(n: Node3D) -> Transform3D:
+	var xf := n.transform
+	var p := n.get_parent()
+	while p is Node3D:
+		xf = (p as Node3D).transform * xf
+		p = p.get_parent()
+	return xf

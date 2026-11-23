@@ -13,6 +13,9 @@ it is banished. Outside the open gate: dunes, a ruined wall, a 10 m pillar, and 
 - **Phone:** install `hafid-the-room.apk` (Android 7.0 or newer; allow "install unknown apps").
 - **PC:** open this folder in Godot **4.6.3** and press F5.
 - **Tests:** `godot --headless --path . --fixed-fps 60 res://tests/combat_test.tscn` (45 checks: combat, traversal, species, menu; exit code 0 = pass).
+- **Characters:** `pip install bpy` then `python tools/blender/build_characters.py` rebuilds
+  `game/art/characters/*.glb` (Cat, Fennec, Lizard in their daraas, the masked jinn, sword and shield).
+  Render a lineup with `godot --path . res://tools/portrait.tscn`.
 - **Sounds:** `python3 tools/gen_sfx.py` regenerates `game/audio/*.wav` (original, procedurally generated).
 - **Screenshots:** `godot --path . res://tools/screenshot.tscn` → `user://shots/`.
 
@@ -69,6 +72,8 @@ game/
   autoload/   game_input.gd (one input path for touch/keys/pad), perf_logger.gd (CSV per second),
               juice.gd (sound, hit-stop, shake), settings.gd (saved options)
   audio/      generated placeholder sound effects
+  art/        character .glb files + CharacterArt loader
+  shaders/    toon (cel + rim + spec, vertex colours), outline (inverted hull)
   actors/     player/ (rules, species, placeholder model)  jinn/ (AI, smoke shader)
   camera/     orbit + lock-on rig
   combat/     shared rules (Combat), effects (Fx)
