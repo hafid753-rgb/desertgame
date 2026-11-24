@@ -6,6 +6,26 @@ extends RefCounted
 const TOON := preload("res://game/shaders/toon.gdshader")
 const TOON_DOUBLE := preload("res://game/shaders/toon_double.gdshader")
 const OUTLINE := preload("res://game/shaders/outline.gdshader")
+const FUR := preload("res://game/shaders/fur_shell.gdshader")
+## Per-species fur look: [length, density, thickness, droop].
+const FUR_STYLE := {
+	"cat": [0.028, 70.0, 0.9, 0.3],
+	"fennec": [0.034, 64.0, 0.9, 0.45],
+}
+
+
+## Shell fur material for a species, or null for scaly ones.
+static func fur_material(species: String) -> ShaderMaterial:
+	if not FUR_STYLE.has(species):
+		return null
+	var st: Array = FUR_STYLE[species]
+	var m := ShaderMaterial.new()
+	m.shader = FUR
+	m.set_shader_parameter("fur_length", st[0])
+	m.set_shader_parameter("density", st[1])
+	m.set_shader_parameter("thickness", st[2])
+	m.set_shader_parameter("droop", st[3])
+	return m
 
 
 ## Thin cloth: both faces lit correctly, no outline hull.

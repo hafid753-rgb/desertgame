@@ -14,10 +14,10 @@ extends Node3D
 
 const ART_DIR := "res://game/art/characters/"
 # Adventurer proportions (~1.75 m), see tools/blender/build_characters.py.
-const HEAD_Y := 1.6
-const BODY_Y := 0.8
-const HAND := Vector3(0.56, 0.92, -0.05)
-const FOOT := Vector3(0.13, 0.07, 0.0)
+const HEAD_Y := 1.28
+const BODY_Y := 0.7312
+const HAND := Vector3(0.5, 0.66, -0.1)
+const FOOT := Vector3(0.15, 0.0, 0.0)
 const POSES: Array[String] = ["open", "fist", "grip", "thumbs_up", "peace"]
 
 var hand_r: Node3D
@@ -28,6 +28,11 @@ var body: Node3D
 var head: Node3D
 var tail: Node3D
 var sword: Node3D
+var scabbard: Node3D
+var hawli: Node3D
+var turban: Node3D
+## Diagonal across the back, hilt over the right shoulder.
+const BACK_SWORD := Transform3D(Basis(Vector3.FORWARD, 0.7) * Basis(Vector3.RIGHT, -PI / 2), Vector3(0.16, 0.44, 0.3))
 var element_glow: MeshInstance3D
 var daraa: Node3D
 var eyes: Node3D
@@ -66,7 +71,7 @@ func build(data: Dictionary) -> void:
 
 	body = _take(parts, "Body", Vector3(0, BODY_Y, 0))
 	head = _take(parts, "Head", Vector3(0, HEAD_Y, 0))
-	tail = _take(parts, "Tail", Vector3(0, 0.62, 0.22))
+	tail = _take(parts, "Tail", Vector3(0, 0.5, 0.24))
 	hand_r = _hand(parts, "HandR", HAND, _poses_r)
 	hand_l = _hand(parts, "HandL", Vector3(-HAND.x, HAND.y, HAND.z), _poses_l)
 	foot_r = _take(parts, "FootR", FOOT)
@@ -75,9 +80,12 @@ func build(data: Dictionary) -> void:
 	eyes = _attach_to_head(parts, "Eyes")
 	ear_r = _attach_to_head(parts, "EarR")
 	ear_l = _attach_to_head(parts, "EarL")
+	# Hawli / tagelmust: neck wrap and/or turban, worn per species.
+	hawli = _attach_to_head(parts, "Hawli")
+	turban = _attach_to_head(parts, "Turban")
 
 	daraa = Node3D.new()
-	daraa.position = Vector3(0, 1.3, 0.02)
+	daraa.position = Vector3(0, 0.9912, 0.02)
 	add_child(daraa)
 	_cloth_mat = CharacterArt.cloth_material()
 	for n in ["DaraaR", "DaraaL"]:
@@ -93,10 +101,19 @@ func build(data: Dictionary) -> void:
 		sword = gear["Sword"]
 		_sword_mat = CharacterArt.toon_material(Color(0.1, 0.08, 0.08), 0.006)
 		(sword as MeshInstance3D).material_override = _sword_mat
+	if gear.has("Scabbard"):
+		scabbard = gear["Scabbard"]
+		(scabbard as MeshInstance3D).material_override = _mat
+		body.add_child(scabbard)
+		scabbard.transform = BACK_SWORD
 	if gear.has("Shield"):
 		shield = gear["Shield"]
 		(shield as MeshInstance3D).material_override = _mat
 	set_armed(false, true)
+	_attach_fur(parts)
+	for k in parts:
+		if (parts[k] as Node).get_parent() == null:
+			(parts[k] as Node).queue_free()
 	for k in gear:
 		if (gear[k] as Node).get_parent() == null:
 			(gear[k] as Node).queue_free()
@@ -127,9 +144,8 @@ func set_armed(on: bool, force: bool = false) -> void:
 			hand_r.add_child(sword)
 			sword.transform = Transform3D(Basis(), Vector3(0, 0.0, -0.04))
 		else:
-			# Diagonal across the back, hilt over the right shoulder.
 			body.add_child(sword)
-			sword.transform = Transform3D(Basis(Vector3.FORWARD, 0.7) * Basis(Vector3.RIGHT, -PI / 2), Vector3(0.12, 0.42, 0.24))
+			sword.transform = BACK_SWORD
 	if shield:
 		if shield.get_parent():
 			shield.get_parent().remove_child(shield)
@@ -138,7 +154,7 @@ func set_armed(on: bool, force: bool = false) -> void:
 			shield.transform = Transform3D(Basis(), Vector3(-0.17, 0, -0.04))
 		else:
 			body.add_child(shield)
-			shield.transform = Transform3D(Basis(Vector3.UP, PI / 2), Vector3(0, 0.2, 0.25))
+			shield.transform = Transform3D(Basis(Vector3.UP, PI / 2), Vector3(0, 0.2, 0.36))
 
 
 ## Play a hand emote for `seconds` (thumbs_up, peace).
@@ -339,6 +355,33 @@ func _hand(parts: Dictionary, prefix: String, pos: Vector3, table: Dictionary) -
 		pivot.add_child(mi)
 		table[pose] = mi
 	return pivot
+
+
+## Shell fur meshes ("<Part>_fur") ride on their base part, so they follow
+## hand poses, blinks and ear twitches. Culled beyond FUR_RANGE metres.
+const FUR_RANGE := 14.0
+var fur_meshes: Array[MeshInstance3D] = []
+
+
+func _attach_fur(parts: Dictionary) -> void:
+	var mat := CharacterArt.fur_material(_species_key)
+	if mat == null:
+		return
+	for k in parts:
+		var key := str(k)
+		if not key.ends_with("_fur"):
+			continue
+		var base: Node3D = parts.get(key.trim_suffix("_fur"))
+		if base == null or base.get_parent() == null:
+			continue
+		var fur: MeshInstance3D = parts[k]
+		fur.material_override = mat
+		fur.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		fur.visibility_range_end = FUR_RANGE
+		fur.visibility_range_end_margin = 2.0
+		fur.transform = Transform3D.IDENTITY
+		base.add_child(fur)
+		fur_meshes.append(fur)
 
 
 func _attach_to_head(parts: Dictionary, name: String) -> Node3D:

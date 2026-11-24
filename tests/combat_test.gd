@@ -423,6 +423,13 @@ func _test_hand_poses() -> void:
 	player.last_combat_time = -100.0
 	await _frames(10)
 	var m := player.model
+	_check("character wears a hawli or turban", m.hawli != null or m.turban != null, "")
+	_check("takoba scabbard worn on the back", m.scabbard != null and m.scabbard.get_parent() == m.body, "")
+	var furry := m._species_key in ["cat", "fennec"]
+	_check("fur shells match species (furry=%s)" % furry, (m.fur_meshes.size() > 0) == furry, str(m.fur_meshes.size()))
+	if furry:
+		var f: MeshInstance3D = m.fur_meshes[0]
+		_check("fur is culled at distance", f.visibility_range_end > 0.0 and f.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "")
 	_check("idle, no enemy near: sword on the back", not m.armed, "")
 	_check("idle: open hands", m.hand_pose_r == "open" and m.hand_pose_l == "open", m.hand_pose_r)
 	GameInput.touch_move = Vector2(0, -1)
