@@ -32,11 +32,11 @@ decompiled code were imported.
 | github.com/leopeltola/Godot-3d-pixelart-demo | 6118473 | MIT | pixelart_stylizer.gdshader | Adapted | Depth-difference edge darkening re-implemented in game/shaders/pixel_post.gdshader. Its normal-edge highlights need `hint_normal_roughness_texture` (Forward+ only), so Mobile uses a depth-only variant. |
 | github.com/gdquest-demos/godot-shaders | 158a490 | MIT code / CC-BY-NC-SA art | various | Studied | Art is non-commercial: none used. |
 
-## Vegetation (Phase 3 — not started)
+## Vegetation (Phase 3 — oasis lab built, see docs/oasis/ART_NOTES.md)
 | Repo | Commit | License | Status | Notes |
 |---|---|---|---|---|
-| 2Retr0/GodotGrass | 3785bec | MIT | Studied | Compute-based; heavier than Mobile budget, reference for wind/bend. |
-| DylearnDev/Dylearn-3D-Pixel-Art-Grass-Demo | 7486b9b | MIT code / art separate | Studied | Grass.gdshader: quantised sway framerate, character displacement array (64 vec4) — planned pattern for Phase 3. No art reused. |
+| 2Retr0/GodotGrass | 3785bec | MIT | Studied | Compute-based; heavier than Mobile budget. Hafid uses MultiMesh cards + vertex bend instead. |
+| DylearnDev/Dylearn-3D-Pixel-Art-Grass-Demo | 7486b9b | MIT code / art separate | Adapted (idea) | Character displacement re-implemented as `player_push()` in game/shaders/wind.gdshaderinc (single player position, not their 64-entry array). No code or art copied. |
 | TheMIU/Stylized-Fluffy-Tree-Shader | d1909e8 | **No license file** | Studied only | Cannot reuse code. |
 | FaRu85/Godot-Foliage | e5af6d7 | MIT | Studied | |
 | Ladvien/pixy_terrain | b53fef2 | **No license file** | Studied only | |

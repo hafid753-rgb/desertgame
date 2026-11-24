@@ -143,26 +143,12 @@ func _merlons() -> void:
 	add_child(mmi)
 
 
+## Date palm (pixel-art trunk, individual frond leaflets, wind sway).
 func _palm(base: Vector3, lean: float) -> void:
-	var trunk := Transform3D(Basis.from_euler(Vector3(lean, 0, lean * 0.5)), base)
-	var m := CylinderMesh.new()
-	m.top_radius = 0.16
-	m.bottom_radius = 0.26
-	m.height = 5.0
-	m.radial_segments = 8
-	_batch.add(m, trunk * Transform3D(Basis(), Vector3(0, 2.5, 0)), WOOD, self)
-	var leaf := BoxMesh.new()
-	leaf.size = Vector3(0.5, 0.06, 2.6)
-	for i in 7:
-		var a := i * TAU / 7.0
-		_batch.add(leaf, trunk * Transform3D(Basis.from_euler(Vector3(0.45, a, 0)), Vector3(sin(a) * 1.1, 5.0, cos(a) * 1.1)), PALM, self)
-	var col := CollisionShape3D.new()
-	var shape := CylinderShape3D.new()
-	shape.radius = 0.28
-	shape.height = 5.0
-	col.shape = shape
-	col.position = base + Vector3(0, 2.5, 0)
-	add_child(col)
+	if _palm_rng == null:
+		_palm_rng = RandomNumberGenerator.new()
+		_palm_rng.seed = 21
+	Vegetation.date_palm(self, base, 5.0, Vector3(lean * 6.0, 0, lean * 3.0), _palm_rng)
 
 
 func _box(size: Vector3, pos: Vector3, color: Color, collide: bool = true) -> void:
@@ -197,6 +183,7 @@ func _cylinder(radius: float, h: float, pos: Vector3, color: Color, collide: boo
 
 ## Pixel-art surface families (Phase 1): architecture and props use the
 ## shared texel-grid shader; anything not mapped keeps a plain material.
+var _palm_rng: RandomNumberGenerator
 const PIXEL_SHADER := preload("res://game/shaders/pixel_world.gdshader")
 const PIXEL_FAMILIES := {
 	"mud": ["res://game/art/pixel/sandstone_128.png", 128.0, Color(1.0, 0.97, 0.94)],

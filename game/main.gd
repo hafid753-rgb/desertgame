@@ -14,19 +14,25 @@ var jinn_kills: int = 0
 var village: Village
 var env: Environment
 ## Phase 1 low-res pixel render layer (see PixelRender).
-@export var pixel_render_enabled: bool = true
+## Off: the pixel-art look lives in the assets at full resolution (Noio's
+## approach); the low-res layer stays available as an option.
+@export var pixel_render_enabled: bool = false
 var pixel_render: PixelRender
 var sun: DirectionalLight3D
 var _haunt: float = 0.0
 
 const PLAYER_SPAWN := Vector3(0, 0.1, 6)
 const JINN_SPAWN := Vector3(0, 0, -3)
+const OASIS_AT := Vector3(-32, 0, -4)
 const VILLAGE_AT := Vector3(40, 0, 0)
 
 
 func _ready() -> void:
 	_build_environment()
 	add_child(Courtyard.new())
+	var oasis := Oasis.new()
+	oasis.position = OASIS_AT
+	add_child(oasis)
 
 	player = Player.new()
 	player.species_id = species_id
@@ -67,7 +73,7 @@ func _process(delta: float) -> void:
 	var target := 1.0 if inside and village.is_haunted() else 0.0
 	_haunt = lerpf(_haunt, target, 1.0 - exp(-1.5 * delta))
 	env.fog_light_color = Color(0.9, 0.82, 0.7).lerp(Color(0.36, 0.26, 0.48), _haunt)
-	env.fog_density = lerpf(0.0045, 0.03, _haunt)
+	env.fog_density = lerpf(0.003, 0.03, _haunt)
 	sun.light_energy = lerpf(0.95, 0.5, _haunt)
 
 
@@ -102,7 +108,7 @@ func _build_environment() -> void:
 
 	var sky_mat := ProceduralSkyMaterial.new()
 	# sun-bleached, dusty sky: pale horizon haze, restrained blue
-	sky_mat.sky_top_color = Color(0.42, 0.55, 0.72)
+	sky_mat.sky_top_color = Color(0.36, 0.52, 0.74)
 	sky_mat.sky_horizon_color = Color(0.9, 0.8, 0.66)
 	sky_mat.ground_horizon_color = Color(0.88, 0.78, 0.62)
 	sky_mat.ground_bottom_color = Color(0.6, 0.5, 0.4)
@@ -120,13 +126,13 @@ func _build_environment() -> void:
 	# atmospheric depth: warm dusty haze, distant scenery loses contrast
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.9, 0.82, 0.7)
-	env.fog_density = 0.0045
+	env.fog_density = 0.003
 	env.fog_aerial_perspective = 0.2
 	env.fog_sky_affect = 0.3
 	# restrained saturation
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 0.9
-	env.adjustment_contrast = 1.04
+	env.adjustment_contrast = 1.1
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)

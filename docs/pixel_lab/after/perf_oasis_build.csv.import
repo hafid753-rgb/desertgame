@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://cb0pk50x0bxui"
+
+[deps]
+
+files=["res://docs/pixel_lab/after/perf_oasis_build.fps.translation", "res://docs/pixel_lab/after/perf_oasis_build.ft.translation", "res://docs/pixel_lab/after/perf_oasis_build.ft.translation", "res://docs/pixel_lab/after/perf_oasis_build.ft.translation", "res://docs/pixel_lab/after/perf_oasis_build.ft.translation", "res://docs/pixel_lab/after/perf_oasis_build.draw.translation", "res://docs/pixel_lab/after/perf_oasis_build.primitives.translation", "res://docs/pixel_lab/after/perf_oasis_build.static.translation", "res://docs/pixel_lab/after/perf_oasis_build.input.translation", "res://docs/pixel_lab/after/perf_oasis_build.device.translation", "res://docs/pixel_lab/after/perf_oasis_build.renderer.translation", "res://docs/pixel_lab/after/perf_oasis_build.player.translation"]
+
+source_file="res://docs/pixel_lab/after/perf_oasis_build.csv"
+dest_files=["res://docs/pixel_lab/after/perf_oasis_build.fps.translation", "res://docs/pixel_lab/after/perf_oasis_build.ft.translation", "res://docs/pixel_lab/after/perf_oasis_build.ft.translation", "res://docs/pixel_lab/after/perf_oasis_build.ft.translation", "res://docs/pixel_lab/after/perf_oasis_build.ft.translation", "res://docs/pixel_lab/after/perf_oasis_build.draw.translation", "res://docs/pixel_lab/after/perf_oasis_build.primitives.translation", "res://docs/pixel_lab/after/perf_oasis_build.static.translation", "res://docs/pixel_lab/after/perf_oasis_build.input.translation", "res://docs/pixel_lab/after/perf_oasis_build.device.translation", "res://docs/pixel_lab/after/perf_oasis_build.renderer.translation", "res://docs/pixel_lab/after/perf_oasis_build.player.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true
