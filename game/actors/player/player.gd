@@ -104,6 +104,15 @@ var _last_tier_sound: int = 0
 
 var stamina_delay: float = 0.0
 var sprint_time: float = 0.0
+## Ground momentum (v2.0): speed builds up and bleeds off instead of
+## snapping, sharp reversals skid, and hard landings cost a beat.
+const GROUND_ACCEL := 30.0
+const GROUND_DECEL := 38.0
+const SKID_DECEL := 60.0
+const LAND_LAG := 0.14
+var ground_vel := Vector3.ZERO
+var land_lag := 0.0
+var _skid_puffed := false
 var sprinting: bool = false
 var hitstun_time: float = 0.0
 var knock_velocity: Vector3 = Vector3.ZERO
@@ -585,6 +594,7 @@ func _enter(s: int) -> void:
 	state = s
 	state_time = 0.0
 	if s == State.MOVE:
+		ground_vel = Combat.flat(velocity)
 		combo_step = 0 if not queued_attack else combo_step
 		if now - buffered_dodge_t <= INPUT_BUFFER and dodge_held:
 			buffered_dodge_t = -10.0
@@ -612,8 +622,22 @@ func _tick_move(delta: float) -> Vector3:
 	var spd := move_speed * (SPRINT_MULT if sprinting else 1.0) * (0.5 if is_charging() else 1.0)
 	if sprinting:
 		_spend(SPRINT_COST * delta)
-	var h := dir * spd
-	_face_target_or(h, delta, 12.0)
+	land_lag = maxf(0.0, land_lag - delta)
+	if land_lag > 0.0:
+		spd *= 0.3
+	var want := dir * spd
+	var rate := GROUND_ACCEL if want.length() > 0.1 else GROUND_DECEL
+	var skid := ground_vel.length() > move_speed * 0.6 and want.length() > 0.1 and ground_vel.normalized().dot(want.normalized()) < -0.25
+	if skid:
+		rate = SKID_DECEL
+		if not _skid_puffed and model and model.has_method("puff"):
+			model.puff(global_position, 8)
+			_skid_puffed = true
+	else:
+		_skid_puffed = false
+	ground_vel = ground_vel.move_toward(want, rate * delta)
+	var h := ground_vel
+	_face_target_or(want if want.length() > 0.1 else h, delta, 12.0)
 	_play_charge_ticks()
 	# Push into a wall for a moment to start climbing.
 	if dir.length() > 0.5 and not is_charging() and now >= regrab_at:
@@ -970,6 +994,8 @@ func _tick_air(delta: float) -> Vector3:
 func _land(fall_speed: float) -> void:
 	if state == State.AIR or state == State.GLIDE:
 		_enter(State.MOVE)
+	if fall_speed > 7.5:
+		land_lag = LAND_LAG
 	if fall_speed > 6.0:
 		Juice.play("land", global_position, 1.0, -4.0 + minf(6.0, fall_speed * 0.3))
 		Fx.ring(fx_parent, global_position, Color(0.9, 0.8, 0.6, 0.5), 1.2, 0.25)
@@ -1275,4 +1301,7 @@ func _animate(delta: float, horizontal: Vector3) -> void:
 		"charge": charge_progress(),
 		"element_color": Combat.ELEMENT_COLORS[element],
 		"sprinting": sprinting and state == State.MOVE,
+		"vel": velocity,
+		"rising": velocity.y > 0.5,
+		"windup_frac": (float(current_attack["windup"]) / (float(current_attack["windup"]) + float(current_attack["active"]))) if state == State.ATTACK else 0.4,
 	})

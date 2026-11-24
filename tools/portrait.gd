@@ -107,6 +107,32 @@ func _ready() -> void:
 		await _shot(str(step[2]))
 	models.insert(0, cat0)
 	cat0.set_armed(true)
+	# Motion sheet (rig): walk, run, attack wind-up/impact/follow-through,
+	# jump, land. Same cat, side-on, frames sampled from the real clips.
+	if cat0.has_rig():
+		var home := cat0.global_position
+		cat0.global_position = Vector3(0, 0, -40)
+		cam.position = cat0.global_position + Vector3(-3.2, 1.2, -0.6)
+		cam.look_at(cat0.global_position + Vector3(0, 0.75, 0))
+		var frames := [
+			["MOVE", 0.3, 12, {}, "mo_walk"], ["MOVE", 1.0, 20, {"sprinting": true}, "mo_run"],
+			["ATTACK", 0.2, 1, {"windup_frac": 0.5}, "mo_atk_windup"], ["ATTACK", 0.5, 1, {"windup_frac": 0.5}, "mo_atk_impact"],
+			["ATTACK", 0.85, 1, {"windup_frac": 0.5}, "mo_atk_follow"], ["HEAVY_CHARGE", 0.0, 10, {}, "mo_heavy_charge"],
+			["AIR", 0.0, 6, {"rising": true}, "mo_jump"], ["MOVE", 0.0, 3, {}, "mo_land"],
+		]
+		cat0.set_armed(true)
+		var prev_state := "MOVE"
+		for fr in frames:
+			var info: Dictionary = {"state": fr[0], "move": fr[1], "t": fr[1], "combo": 0}
+			info.merge(fr[3])
+			if fr[0] == "MOVE" and prev_state == "AIR":
+				info["move"] = 0.0
+			for i in int(fr[2]):
+				cat0.animate(1.0 / 60.0, info)
+				await get_tree().process_frame
+			prev_state = fr[0]
+			await _shot(str(fr[4]))
+		cat0.global_position = home
 	# Gear sheet: shield face-on, takoba and scabbard.
 	var gear := CharacterArt.load_parts("res://game/art/characters/equipment.glb")
 	var gear_root := Node3D.new()

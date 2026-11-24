@@ -127,6 +127,7 @@ func build(data: Dictionary) -> void:
 	if gear.has("Shield"):
 		shield = gear["Shield"]
 		(shield as MeshInstance3D).material_override = _mat
+	_build_rig()
 	set_armed(false, true)
 	_apply_materials()
 	_attach_fur(parts)
@@ -159,7 +160,12 @@ func set_armed(on: bool, force: bool = false) -> void:
 	if sword:
 		if sword.get_parent():
 			sword.get_parent().remove_child(sword)
-		if on:
+		if on and rig:
+			# In the rest pose the rig's own sword points forward, edge up.
+			var sr := _rest_model("handslot.r")
+			_attach["handslot.r"].add_child(sword)
+			sword.transform = sr.affine_inverse() * Transform3D(Basis(Vector3.BACK, PI / 2), sr.origin)
+		elif on:
 			hand_r.add_child(sword)
 			sword.transform = Transform3D(Basis(), Vector3(0, 0.0, -0.04))
 		else:
@@ -168,7 +174,12 @@ func set_armed(on: bool, force: bool = false) -> void:
 	if shield:
 		if shield.get_parent():
 			shield.get_parent().remove_child(shield)
-		if on:
+		if on and rig:
+			# The rig's shield hangs below the left slot, facing outward.
+			var sl := _rest_model("handslot.l")
+			_attach["handslot.l"].add_child(shield)
+			shield.transform = sl.affine_inverse() * Transform3D(Basis(), sl.origin + Vector3(-0.03, -0.24, 0.0))
+		elif on:
 			hand_l.add_child(shield)
 			shield.transform = Transform3D(Basis(), Vector3(-0.17, 0, -0.04))
 		else:
@@ -245,6 +256,20 @@ func animate(delta: float, info: Dictionary) -> void:
 		set_hand_pose("r", poses[0])
 	if poses[1] != hand_pose_l:
 		set_hand_pose("l", poses[1])
+
+	if rig:
+		_animate_rig(delta, info, state, move, t, sprinting)
+		_update_squash(delta, state, move)
+		rig.basis = Basis(Vector3.UP, PI).scaled(Vector3(1.0 - squash * 0.45, 1.0 + squash, 1.0 - squash * 0.45) * RIG_SCALE)
+		_animate_face(delta, state)
+		var ga := clampf(charge / 3.0, 0.0, 1.0) * 0.8
+		_glow_mat.albedo_color = Color(ecol.r, ecol.g, ecol.b, ga)
+		element_glow.scale = Vector3.ONE * (0.6 + charge * 0.5)
+		_flash = maxf(0.0, _flash - delta * 6.0)
+		for m in [_mat, _fabric_mat, _leather_mat]:
+			m.set_shader_parameter("flash", _flash * 0.9)
+			m.set_shader_parameter("flash_color", _flash_color)
+		return
 
 	_walk_phase += delta * (3.5 + 8.0 * move)
 	# Bouncy, hoppy walk: feet push the body up twice per stride.
@@ -515,3 +540,326 @@ func _take(parts: Dictionary, name: String, fallback_pos: Vector3) -> Node3D:
 func _outline_color(data: Dictionary) -> Color:
 	var fur: Color = data["fur"]
 	return fur.darkened(0.62)
+
+
+# --- Skeletal rig (v2.0) -----------------------------------------------------
+# Our parts ride on a keyframe-animated skeleton (KayKit Rig_Medium, CC0,
+# 76 hand-made clips). Arms and legs stay invisible: the mittens and boots
+# float, but they move with real animation weight. The robe hangs from a
+# spring at the neck so it lags and swings. See game/art/rig/.
+
+const RIG_PATH := "res://game/art/rig/hafid_rig.glb"
+const RIG_SCALE := 0.8
+const RIG_LOOPS: Array[String] = ["Idle", "Unarmed_Idle", "Walking_A", "Walking_B", "Running_A", "Running_B",
+	"Blocking", "Jump_Idle", "Spellcasting", "2H_Melee_Idle"]
+const ATTACK_CLIPS: Array[String] = ["1H_Melee_Attack_Slice_Diagonal", "1H_Melee_Attack_Slice_Horizontal",
+	"1H_Melee_Attack_Chop"]
+## Fraction of each attack clip where the blade connects.
+const ATTACK_IMPACT := 0.38
+static var use_rig := true
+
+var rig: Node3D
+var skel: Skeleton3D
+var anim: AnimationPlayer
+var anim_name := ""
+var _attach: Dictionary = {}
+var _robe_pivot: Node3D
+var _robe_base := Transform3D.IDENTITY
+var _tail_base := Transform3D.IDENTITY
+var _robe_sway := Vector2.ZERO
+var _robe_sway_v := Vector2.ZERO
+var _tail_sway := 0.0
+var _tail_sway_v := 0.0
+var _last_vel := Vector3.ZERO
+var _anim_state := ""
+var _hit_flip := false
+var _land_t := 0.0
+var _step_prev := 0.0
+var _dust: Array[CPUParticles3D] = []
+var _dust_i := 0
+
+
+func has_rig() -> bool:
+	return rig != null
+
+
+func _build_rig() -> void:
+	if not use_rig or not ResourceLoader.exists(RIG_PATH):
+		return
+	rig = (load(RIG_PATH) as PackedScene).instantiate()
+	add_child(rig)
+	rig.transform = Transform3D(Basis(Vector3.UP, PI).scaled(Vector3.ONE * RIG_SCALE), Vector3.ZERO)
+	var sk := rig.find_children("*", "Skeleton3D", true, false)
+	var ap := rig.find_children("*", "AnimationPlayer", true, false)
+	if sk.is_empty() or ap.is_empty():
+		rig.queue_free()
+		rig = null
+		return
+	skel = sk[0]
+	anim = ap[0]
+	skel.reset_bone_poses()
+	for n in RIG_LOOPS:
+		if anim.has_animation(n):
+			anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
+	# Head (face parts already ride on it).
+	_mount(head, "head", Transform3D(Basis(), Vector3(0, HEAD_Y, 0)))
+	# Robe on a neck pivot so it can swing.
+	var neck := Vector3(0, 1.06, 0)
+	_robe_pivot = Node3D.new()
+	_robe_pivot.name = "RobePivot"
+	add_child(_robe_pivot)
+	_mount(_robe_pivot, "spine", Transform3D(Basis(), neck))
+	body.get_parent().remove_child(body)
+	_robe_pivot.add_child(body)
+	body.transform = Transform3D(Basis(), Vector3(0, BODY_Y, 0) - neck)
+	_robe_base = _robe_pivot.transform
+	_mount(tail, "hips", Transform3D(Basis(), Vector3(0, 0.5, 0.24)))
+	if tail:
+		_tail_base = tail.transform
+	var spread := ArmSpread.new()
+	skel.add_child(spread)
+	# Mittens: fingers follow the arm, palm down in the rest pose.
+	var hr := _rest_model("hand.r").origin
+	var hl := _rest_model("hand.l").origin
+	_mount(hand_r, "hand.r", Transform3D(Basis(Vector3.UP, -PI / 2), hr + Vector3(0.06, 0, 0)))
+	_mount(hand_l, "hand.l", Transform3D(Basis(Vector3.UP, PI / 2), hl - Vector3(0.06, 0, 0)))
+	# Boots under the foot bones.
+	var fr := _rest_model("foot.r").origin
+	var fl := _rest_model("foot.l").origin
+	_mount(foot_r, "foot.r", Transform3D(Basis(), Vector3(fr.x, 0, fr.z)))
+	_mount(foot_l, "foot.l", Transform3D(Basis(), Vector3(fl.x, 0, fl.z)))
+	_bone_attach("handslot.r")
+	_bone_attach("handslot.l")
+	_build_dust()
+	_play("Unarmed_Idle", 0.0)
+
+
+func _model_xform(n: Node3D) -> Transform3D:
+	var x := Transform3D.IDENTITY
+	var cur: Node = n
+	while cur != null and cur != self:
+		if cur is Node3D:
+			x = (cur as Node3D).transform * x
+		cur = cur.get_parent()
+	return x
+
+
+func _rest_model(bone: String) -> Transform3D:
+	return _model_xform(skel) * skel.get_bone_global_rest(skel.find_bone(bone))
+
+
+func _bone_attach(bone: String) -> BoneAttachment3D:
+	if _attach.has(bone):
+		return _attach[bone]
+	var a := BoneAttachment3D.new()
+	a.name = "At_" + bone.replace(".", "_")
+	a.bone_name = bone
+	skel.add_child(a)
+	_attach[bone] = a
+	return a
+
+
+## Re-parent `node` under the bone so that, in the rest pose, it sits at
+## `model_xform` (model space).
+func _mount(node: Node3D, bone: String, model_xform: Transform3D) -> void:
+	if node == null:
+		return
+	var a := _bone_attach(bone)
+	if node.get_parent():
+		node.get_parent().remove_child(node)
+	a.add_child(node)
+	node.transform = _rest_model(bone).affine_inverse() * model_xform
+
+
+func _play(clip: String, blend: float = 0.14, speed: float = 1.0) -> void:
+	if anim == null or not anim.has_animation(clip):
+		return
+	if clip == anim_name and anim.is_playing():
+		anim.speed_scale = speed
+		return
+	anim_name = clip
+	anim.play(clip, blend)
+	anim.speed_scale = speed
+
+
+## Hold a clip at an exact time (attacks are driven by gameplay progress so
+## the blade connects on the hit frame).
+func _scrub(clip: String, time: float, _blend: float = 0.0) -> void:
+	# No crossfade here: at speed 0 a blend would never advance and the
+	# pose would stay stuck on the previous clip.
+	if anim == null or not anim.has_animation(clip):
+		return
+	if clip != anim_name:
+		anim_name = clip
+		anim.play(clip, 0.0)
+	anim.speed_scale = 0.0
+	anim.seek(clampf(time, 0.0, anim.get_animation(clip).length - 0.01), true)
+
+
+func _animate_rig(delta: float, info: Dictionary, state: String, move: float, t: float, sprinting: bool) -> void:
+	var entered := state != _anim_state
+	var prev := _anim_state
+	_anim_state = state
+	var combo: int = info.get("combo", 0)
+	if _emote_t > 0.0:
+		_play("Cheer", 0.12)
+	else:
+		match state:
+			"ATTACK", "HEAVY":
+				var clip := "1H_Melee_Attack_Chop" if state == "HEAVY" else ATTACK_CLIPS[posmod(combo, ATTACK_CLIPS.size())]
+				var length := anim.get_animation(clip).length
+				var w: float = info.get("windup_frac", 0.4)
+				var at := (t / maxf(w, 0.01)) * ATTACK_IMPACT if t < w else ATTACK_IMPACT + (t - w) / maxf(1.0 - w, 0.01) * (0.8 - ATTACK_IMPACT)
+				_scrub(clip, at * length)
+			"HEAVY_CHARGE":
+				# Anticipation: hold the wind-up of the overhead chop.
+				_scrub("1H_Melee_Attack_Chop", 0.26 * anim.get_animation("1H_Melee_Attack_Chop").length, 0.12)
+			"GUARD", "DEFENSE":
+				_play("Blocking", 0.1)
+			"DODGE", "MOBILITY":
+				_play("Dodge_Forward", 0.06, 1.5)
+			"CAST":
+				_play("Spellcast_Shoot", 0.08, 1.3)
+			"HITSTUN":
+				if entered:
+					_hit_flip = not _hit_flip
+					anim_name = ""
+				_play("Hit_A" if _hit_flip else "Hit_B", 0.05, 1.2)
+			"DEAD":
+				_play("Death_A", 0.1)
+			"AIR":
+				if entered and prev in ["MOVE", "DODGE", "MOBILITY"] and info.get("rising", false):
+					anim_name = ""
+					_play("Jump_Start", 0.05, 1.6)
+				elif anim_name != "Jump_Start" or not anim.is_playing():
+					_play("Jump_Idle", 0.15)
+			"GLIDE":
+				_play("Jump_Idle", 0.2, 0.5)
+			"CLIMB":
+				_play("Running_A", 0.15, clampf(absf(t) * 0.5, 0.0, 1.2))
+			"MANTLE":
+				_play("Jump_Land", 0.08, 1.4)
+			_:
+				if entered and prev in ["AIR", "GLIDE"]:
+					_land_t = 0.22
+					anim_name = ""
+					puff(global_position, 14)
+				_land_t = maxf(0.0, _land_t - delta)
+				if _land_t > 0.0 and move < 0.5:
+					_play("Jump_Land", 0.04, 1.3)
+				elif move < 0.06:
+					_play("Idle" if armed else "Unarmed_Idle", 0.2)
+				elif sprinting or move > 0.62:
+					_play("Running_A", 0.15, lerpf(0.9, 1.25, move))
+					_footstep_dust()
+				else:
+					# walk 0..0.62 of top speed, scaled so feet don't slide
+					_play("Walking_A" if move < 0.38 else "Running_A", 0.18, lerpf(0.7, 1.15, move / 0.62))
+	_secondary_motion(delta, info, move)
+
+
+## Robe and tail lag behind the body: springs driven by acceleration.
+func _secondary_motion(delta: float, info: Dictionary, move: float) -> void:
+	var vel: Vector3 = info.get("vel", Vector3.ZERO)
+	var acc := (vel - _last_vel) / maxf(delta, 0.001)
+	_last_vel = vel
+	var inv := global_transform.basis.inverse()
+	var acc_l := inv * acc
+	var vel_l := inv * vel
+	# Target: hem trails behind motion and kicks against acceleration.
+	var target := Vector2(
+		clampf(-vel_l.z * 0.035 + acc_l.z * 0.012, -0.32, 0.32),
+		clampf(vel_l.x * 0.02 - acc_l.x * 0.01, -0.25, 0.25))
+	var steps := clampi(ceili(delta * 120.0), 1, 12)
+	var h := minf(delta, 0.1) / float(steps)
+	for i in steps:
+		var a := (target - _robe_sway) * 150.0 - _robe_sway_v * 9.0
+		_robe_sway_v += a * h
+		_robe_sway += _robe_sway_v * h
+		var ta := (-vel_l.x * 0.06 - _tail_sway) * 90.0 - _tail_sway_v * 6.0
+		_tail_sway_v += ta * h
+		_tail_sway += _tail_sway_v * h
+	_robe_sway = _robe_sway.clamp(Vector2(-0.4, -0.3), Vector2(0.4, 0.3))
+	if _robe_pivot:
+		_robe_pivot.transform = _robe_base * Transform3D(Basis.from_euler(Vector3(-_robe_sway.x, 0.0, _robe_sway.y)), Vector3.ZERO)
+	if tail:
+		var ty := _tail_sway + sin(Time.get_ticks_msec() * 0.003) * 0.12 * (1.0 - move)
+		tail.transform = _tail_base * Transform3D(Basis(Vector3.UP, ty), Vector3.ZERO)
+
+
+# --- Dust --------------------------------------------------------------------
+
+func _build_dust() -> void:
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(0.5, 0.0)
+	tex.width = 32
+	tex.height = 32
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = tex
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.32, 0.32)
+	quad.material = mat
+	var fade := Gradient.new()
+	fade.set_color(0, Color(0.96, 0.86, 0.68, 0.75))
+	fade.set_color(1, Color(0.96, 0.86, 0.68, 0.0))
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 0.5))
+	curve.add_point(Vector2(1, 1.6))
+	for i in 3:
+		var p := CPUParticles3D.new()
+		p.top_level = true
+		p.mesh = quad
+		p.one_shot = true
+		p.emitting = false
+		p.explosiveness = 0.95
+		p.lifetime = 0.55
+		p.amount = 14
+		p.direction = Vector3(0, 0.25, 0)
+		p.spread = 85.0
+		p.flatness = 0.7
+		p.initial_velocity_min = 0.8
+		p.initial_velocity_max = 2.0
+		p.gravity = Vector3(0, -0.6, 0)
+		p.damping_min = 3.0
+		p.damping_max = 4.0
+		p.scale_amount_curve = curve
+		p.color_ramp = fade
+		p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+		p.emission_sphere_radius = 0.18
+		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(p)
+		_dust.append(p)
+
+
+## Puff of sand at `at` (landings, dodges, skids, footsteps).
+func puff(at: Vector3, amount: int = 10) -> void:
+	if _dust.is_empty():
+		return
+	var p := _dust[_dust_i]
+	_dust_i = (_dust_i + 1) % _dust.size()
+	p.global_position = at + Vector3(0, 0.05, 0)
+	p.amount = clampi(amount, 2, 24)
+	p.restart()
+
+
+func _footstep_dust() -> void:
+	if anim == null:
+		return
+	var len := anim.current_animation_length
+	if len <= 0.0:
+		return
+	var ph := fmod(anim.current_animation_position / len, 0.5)
+	if ph < _step_prev:
+		var side := foot_r if fmod(anim.current_animation_position / len, 1.0) < 0.5 else foot_l
+		puff(side.global_position if side else global_position, 4)
+	_step_prev = ph

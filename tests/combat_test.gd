@@ -442,6 +442,18 @@ func _test_hand_poses() -> void:
 	for i in 30:  # 10 fps: the spring must stay stable
 		m.animate(0.1, {"state": "AIR" if i % 10 < 5 else "MOVE", "move": 0.0})
 	_check("squash spring stable at 10 fps", absf(m.squash) < 0.32 and absf(m._squash_v) < 8.0, "%.3f" % m.squash)
+	_check("skeletal rig loaded (76 clips)", m.has_rig() and m.anim.get_animation_list().size() >= 70, "")
+	m.animate(0.016, {"state": "ATTACK", "t": 0.05, "combo": 0, "windup_frac": 0.5})
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var hp0 := m.hand_r.global_position
+	m.animate(0.016, {"state": "ATTACK", "t": 0.6, "combo": 0, "windup_frac": 0.5})
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var hp1 := m.hand_r.global_position
+	_check("attack clip swings the sword hand", hp0.distance_to(hp1) > 0.15, "%.2f m" % hp0.distance_to(hp1))
+	_check("robe faces forward on the rig", m.body.global_transform.basis.z.dot(m.global_transform.basis.z) > 0.8, "")
+	m.animate(0.016, {"state": "MOVE", "move": 0.0})
 	_check("closed-eye '> <' part exists and starts hidden", m.eyes_closed != null and not m.eyes_closed.visible, "")
 	_check("idle, no enemy near: sword on the back", not m.armed, "")
 	_check("idle: open hands", m.hand_pose_r == "open" and m.hand_pose_l == "open", m.hand_pose_r)
