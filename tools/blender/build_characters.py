@@ -2283,6 +2283,17 @@ def fur_mask(name, part, s):
             continue
         if name == "Head":
             lv = v / HEAD_SCALE
+            kind = s["head"]
+            ex = EYE_X.get(kind, 0.09)
+            if lv.z < 0 and any(math.hypot((lv.x - ex * sx) / 0.05, lv.y / 0.075) < 1.5 for sx in (-1, 1)):
+                out.append(0.0)       # bald around the eyes so fur never covers them
+                continue
+            if kind == "round" and lv.z < 0:
+                near = any(_seg_dist(lv.x, lv.y, 0.12 * sx, -0.012, 0.2 * sx, -0.065) < 0.022 for sx in (-1, 1))
+                near = near or (lv.z < -0.03 and 0.07 < lv.y < 0.175 and abs(lv.x) < 0.06)
+                if near:
+                    out.append(0.0)   # printed markings stay crisp
+                    continue
             m = 1.0
             if lv.z < -0.13:
                 m = 0.22          # short fur on the face keeps the expression clean
@@ -2376,10 +2387,15 @@ def build_species(name):
     rows = chibi(rows, s)
     furry = name in FUR_SPECIES
     masks = {}
+    fur_src = {}
     if furry:
+        coarse = chibi([("Head", build_head(s, 30, 60, markings=False), HEAD_C)], s)[0]
+        fur_src["Head"] = (coarse[1], coarse[2], fur_mask("Head", coarse[1], s))
         for pname, part, pivot in rows:
-            if pname in ("Head", "Tail") or pname.startswith("Ear") or pname.startswith("Hand"):
+            if pname in ("Tail",) or pname.startswith("Ear") or pname.startswith("Hand"):
                 masks[pname] = fur_mask(pname, part, s)
+            if pname == "Head":
+                masks[pname] = None
     bake_depth(rows)
     tris = 0
     fur_tris = 0
@@ -2389,7 +2405,11 @@ def build_species(name):
         if visible:
             tris += f
         if pname in masks:
-            ft = emit_fur(pname, part, pivot, masks[pname])
+            if pname in fur_src:
+                fp, fpiv, fm = fur_src[pname]
+                ft = emit_fur(pname, fp, fpiv, fm)
+            else:
+                ft = emit_fur(pname, part, pivot, masks[pname])
             if visible:
                 fur_tris += ft
     export(os.path.join(OUT, name + ".glb"))
@@ -2403,7 +2423,7 @@ def build_species(name):
 # sand cat, fennec, desert hare ("rabbit", Lepus capensis, found in
 # Mauritania). Closed eyes are "> <" chevrons (EyesClosed part).
 # ===========================================================================
-FUR_SPECIES = {}
+FUR_SPECIES = {"cat": {"tail": 1.1}, "fennec": {"tail": 1.9}, "rabbit": {"tail": 1.7}}
 
 SPECIES["cat"].update({
     "fur": (0.85, 0.76, 0.6), "fur_dark": (0.45, 0.34, 0.24), "accent": (0.98, 0.96, 0.9),
@@ -2452,11 +2472,10 @@ def _seg_dist(px, py, ax, ay, bx, by):
     return math.hypot(px - (ax + vx * t), py - (ay + vy * t))
 
 
-def build_head(s):
+def build_head(s, lat_n=64, lon_n=128, markings=True):
     kind = s["head"]
     ax, ay, az = HEAD_EXT[kind]
     fur, dark, white = s["fur"], s["fur_dark"], s["accent"]
-    lat_n, lon_n = 64, 128
     p = Part()
     grid = []
     for i in range(lat_n + 1):
@@ -2479,13 +2498,13 @@ def build_head(s):
             c = fur
             if _head_white(kind, v):
                 c = white
-            if kind == "round":
+            if kind == "round" and markings:
                 for sx in (-1, 1):
                     if v.z < 0 and _seg_dist(v.x, v.y, 0.12 * sx, -0.012, 0.2 * sx, -0.065) < 0.008:
                         c = s["streak"]
                 if v.z < -0.05 and 0.085 < v.y < 0.16 and any(abs(v.x - k * 0.032) < 0.0065 for k in (-1, 0, 1)):
                     c = dark                                 # faint tabby stripes on the brow
-            if kind == "rabbit" and v.z < 0:
+            if kind == "rabbit" and v.z < 0 and markings:
                 for sx in (-1, 1):                           # pale eye rings
                     d = math.hypot((v.x - EYE_X[kind] * sx) / 0.045, (v.y - 0.0) / 0.068)
                     if 1.0 < d < 1.18:

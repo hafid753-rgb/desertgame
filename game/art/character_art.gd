@@ -8,13 +8,18 @@ const TOON_DOUBLE := preload("res://game/shaders/toon_double.gdshader")
 const OUTLINE := preload("res://game/shaders/outline.gdshader")
 const FUR := preload("res://game/shaders/fur_shell.gdshader")
 ## Per-species fur look: [length, density, thickness, droop].
-## Empty in the vinyl-toy style (v0.9); the shell fur pipeline stays available.
-const FUR_STYLE := {}
+const FUR_STYLE := {
+	"cat": [0.022, 80.0, 0.9, 0.3],
+	"fennec": [0.026, 74.0, 0.9, 0.4],
+	"rabbit": [0.024, 78.0, 0.9, 0.35],
+}
+## Global switch: vinyl (false) or flocked-fur (true) finish.
+static var fur_enabled := true
 
 
 ## Shell fur material for a species, or null for scaly ones.
 static func fur_material(species: String) -> ShaderMaterial:
-	if not FUR_STYLE.has(species):
+	if not fur_enabled or not FUR_STYLE.has(species):
 		return null
 	var st: Array = FUR_STYLE[species]
 	var m := ShaderMaterial.new()

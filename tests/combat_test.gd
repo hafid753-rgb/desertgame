@@ -425,7 +425,7 @@ func _test_hand_poses() -> void:
 	var m := player.model
 	_check("character wears a hawli or turban", m.hawli != null or m.turban != null, "")
 	_check("takoba scabbard worn on the back", m.scabbard != null and m.scabbard.get_parent() == m.body, "")
-	_check("vinyl style: no fur shells", m.fur_meshes.is_empty(), str(m.fur_meshes.size()))
+	_check("fur shells follow the fur switch", m.fur_meshes.is_empty() != CharacterArt.fur_enabled, str(m.fur_meshes.size()))
 	_check("closed-eye '> <' part exists and starts hidden", m.eyes_closed != null and not m.eyes_closed.visible, "")
 	_check("idle, no enemy near: sword on the back", not m.armed, "")
 	_check("idle: open hands", m.hand_pose_r == "open" and m.hand_pose_l == "open", m.hand_pose_r)
