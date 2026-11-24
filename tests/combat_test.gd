@@ -426,6 +426,22 @@ func _test_hand_poses() -> void:
 	_check("character wears a hawli or turban", m.hawli != null or m.turban != null, "")
 	_check("takoba scabbard worn on the back", m.scabbard != null and m.scabbard.get_parent() == m.body, "")
 	_check("fur shells follow the fur switch", m.fur_meshes.is_empty() != CharacterArt.fur_enabled, str(m.fur_meshes.size()))
+	m.animate(0.016, {"state": "AIR", "move": 0.0})
+	for i in 4:
+		m.animate(0.016, {"state": "AIR", "move": 0.0})
+	_check("take-off stretches the body", m.squash > 0.03, "%.3f" % m.squash)
+	for i in 40:
+		m.animate(0.016, {"state": "AIR", "move": 0.0})
+	m.animate(0.016, {"state": "MOVE", "move": 0.0})
+	for i in 4:
+		m.animate(0.016, {"state": "MOVE", "move": 0.0})
+	_check("landing squashes the body", m.squash < -0.03, "%.3f" % m.squash)
+	for i in 120:
+		m.animate(0.016, {"state": "MOVE", "move": 0.0})
+	_check("squash settles back", absf(m.squash) < 0.03, "%.3f" % m.squash)
+	for i in 30:  # 10 fps: the spring must stay stable
+		m.animate(0.1, {"state": "AIR" if i % 10 < 5 else "MOVE", "move": 0.0})
+	_check("squash spring stable at 10 fps", absf(m.squash) < 0.32 and absf(m._squash_v) < 8.0, "%.3f" % m.squash)
 	_check("closed-eye '> <' part exists and starts hidden", m.eyes_closed != null and not m.eyes_closed.visible, "")
 	_check("idle, no enemy near: sword on the back", not m.armed, "")
 	_check("idle: open hands", m.hand_pose_r == "open" and m.hand_pose_l == "open", m.hand_pose_r)

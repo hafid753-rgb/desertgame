@@ -93,6 +93,20 @@ func _ready() -> void:
 	for m in models:
 		m._blink_t = 0.0
 		m._blink_in = 3.0
+	# Squash & stretch strip on the cat: take-off, mid-air, landing, settle.
+	var cat0: CreatureModel = models[0]
+	models.erase(cat0)
+	cat0.set_armed(false)
+	cam.position = Vector3(-2.4, 1.1, 3.4)
+	cam.look_at(Vector3(-2.4, 0.95, 0))
+	var seq := [["AIR", 6, "sq_takeoff"], ["AIR", 30, "sq_air"], ["MOVE", 6, "sq_land"], ["MOVE", 60, "sq_settle"]]
+	for step in seq:
+		for i in int(step[1]):
+			cat0.animate(1.0 / 60.0, {"state": step[0], "move": 0.0})
+			await get_tree().process_frame
+		await _shot(str(step[2]))
+	models.insert(0, cat0)
+	cat0.set_armed(true)
 	# Gear sheet: shield face-on, takoba and scabbard.
 	var gear := CharacterArt.load_parts("res://game/art/characters/equipment.glb")
 	var gear_root := Node3D.new()

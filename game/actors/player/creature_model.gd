@@ -47,6 +47,10 @@ var hand_pose_l: String = "open"
 var _poses_r: Dictionary = {}
 var _poses_l: Dictionary = {}
 var _emote: String = ""
+## Squash & stretch spring (+ stretch, - squash) and the state it reacts to.
+var squash := 0.0
+var _squash_v := 0.0
+var _prev_state := "MOVE"
 var _emote_t: float = 0.0
 var _blink_in := 2.0
 var _blink_t := 0.0
@@ -241,7 +245,8 @@ func animate(delta: float, info: Dictionary) -> void:
 		set_hand_pose("l", poses[1])
 
 	_walk_phase += delta * (3.5 + 8.0 * move)
-	var bob := sin(_walk_phase * 2.0) * 0.035 * move
+	# Bouncy, hoppy walk: feet push the body up twice per stride.
+	var bob := absf(sin(_walk_phase)) * 0.06 * move - 0.02 * move
 	var breathe := sin(Time.get_ticks_msec() * 0.003) * 0.01 * (1.0 - move)
 	var body_y := BODY_Y + bob
 	var head_y := HEAD_Y + bob * 1.2 + breathe
@@ -329,8 +334,15 @@ func animate(delta: float, info: Dictionary) -> void:
 	if gliding:
 		daraa.rotation.x = sin(_walk_phase * 3.0) * 0.06
 
+	_update_squash(delta, state, move)
+	body_y += -absf(squash) * 0.05 if squash < 0.0 else 0.0
+	head_y += squash * 0.22
+
 	var k := 1.0 - exp(-20.0 * delta)
 	body.position.y = lerpf(body.position.y, body_y, k)
+	body.scale = Vector3(1.0 - squash * 0.45, 1.0 + squash, 1.0 - squash * 0.45)
+	head.scale = Vector3(1.0 - squash * 0.3, 1.0 + squash * 0.6, 1.0 - squash * 0.3)
+	head.rotation.z = lerpf(head.rotation.z, sin(_walk_phase) * 0.07 * move, k * 0.5)
 	body.rotation.x = lerpf(body.rotation.x, -lean * 0.6, k)
 	body.rotation.z = lerpf(body.rotation.z, robe_sway, k * 0.5)
 	head.position.y = lerpf(head.position.y, head_y, k)
@@ -353,6 +365,31 @@ func animate(delta: float, info: Dictionary) -> void:
 	for m in [_mat, _fabric_mat, _leather_mat]:
 		m.set_shader_parameter("flash", _flash * 0.9)
 		m.set_shader_parameter("flash_color", _flash_color)
+
+
+## Spring-driven squash & stretch: stretch on take-off and on swings,
+## squash on landing and when hit, a soft breathing pulse when idle.
+func _update_squash(delta: float, state: String, move: float) -> void:
+	var airborne := state in ["AIR", "GLIDE"]
+	var was_air := _prev_state in ["AIR", "GLIDE"]
+	if airborne and not was_air:
+		_squash_v += 4.0
+	elif was_air and not airborne:
+		_squash_v -= 6.5
+	if state == "HITSTUN" and _prev_state != "HITSTUN":
+		_squash_v -= 2.4
+	if state in ["ATTACK", "HEAVY"] and _prev_state != state:
+		_squash_v += 1.2
+	_prev_state = state
+	var rest := sin(Time.get_ticks_msec() * 0.004) * 0.012 * (1.0 - move)
+	# Fixed 1/120 s sub-steps (semi-implicit Euler) keep the spring stable
+	# at any frame rate.
+	var steps := clampi(ceili(delta * 120.0), 1, 12)
+	var h := minf(delta, 0.1) / float(steps)
+	for i in steps:
+		var acc := -260.0 * (squash - rest) - 13.0 * _squash_v
+		_squash_v = clampf(_squash_v + acc * h, -8.0, 8.0)
+		squash = clampf(squash + _squash_v * h, -0.32, 0.32)
 
 
 func _hand(parts: Dictionary, prefix: String, pos: Vector3, table: Dictionary) -> Node3D:
