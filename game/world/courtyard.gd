@@ -9,7 +9,7 @@ extends StaticBody3D
 
 const MUD := Color(0.7, 0.47, 0.3)
 const MUD_DARK := Color(0.62, 0.41, 0.26)
-const SAND := Color(0.74, 0.6, 0.41)
+const SAND := Color(0.84, 0.64, 0.42)
 const STONE := Color(0.58, 0.5, 0.42)
 const PALM := Color(0.36, 0.5, 0.22)
 const WOOD := Color(0.42, 0.28, 0.16)
@@ -21,7 +21,7 @@ const MESA_H := 20.0
 
 var _materials: Dictionary = {}
 var _batch := MeshBatcher.new()
-const DUNE := Color(0.8, 0.65, 0.44)
+const DUNE := Color(0.88, 0.67, 0.44)
 var _sand_shader: Shader = preload("res://game/world/sand_ripple.gdshader")
 
 
