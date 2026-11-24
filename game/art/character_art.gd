@@ -14,7 +14,7 @@ const FUR_STYLE := {
 	"rabbit": [0.024, 78.0, 0.9, 0.35],
 }
 ## Global switch: vinyl (false) or flocked-fur (true) finish.
-static var fur_enabled := true
+static var fur_enabled := false
 
 
 ## Shell fur material for a species, or null for scaly ones.
@@ -35,12 +35,34 @@ static func fur_material(species: String) -> ShaderMaterial:
 static func cloth_material() -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = TOON_DOUBLE
+	preset(m, "fabric")
 	return m
 
 
-static func toon_material(outline_color: Color = Color(0.14, 0.08, 0.07), thickness: float = 0.012) -> ShaderMaterial:
+## Material presets for the soft storybook look.
+##   skin   satin, small soft highlight (heads, hands, ears, tails)
+##   fabric matte with a velvet sheen (daraa, hawli, sarouel)
+##   gloss  sharp highlight (eyes, boots' polish is "leather")
+##   leather a little sheen and a soft highlight
+const PRESETS := {
+	"skin": {"spec_strength": 0.16, "spec_power": 22.0, "spec_sharp": 0.0, "sheen_strength": 0.0, "rim_strength": 0.4},
+	"fabric": {"spec_strength": 0.0, "spec_power": 8.0, "spec_sharp": 0.0, "sheen_strength": 0.28, "rim_strength": 0.25},
+	"gloss": {"spec_strength": 0.9, "spec_power": 90.0, "spec_sharp": 1.0, "sheen_strength": 0.0, "rim_strength": 0.2},
+	"leather": {"spec_strength": 0.22, "spec_power": 30.0, "spec_sharp": 0.4, "sheen_strength": 0.1, "rim_strength": 0.25},
+}
+
+
+static func preset(m: ShaderMaterial, kind: String) -> ShaderMaterial:
+	var p: Dictionary = PRESETS.get(kind, PRESETS["skin"])
+	for k in p:
+		m.set_shader_parameter(k, p[k])
+	return m
+
+
+static func toon_material(outline_color: Color = Color(0.14, 0.08, 0.07), thickness: float = 0.007, kind: String = "skin") -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = TOON
+	preset(m, kind)
 	if thickness > 0.0:
 		var o := ShaderMaterial.new()
 		o.shader = OUTLINE

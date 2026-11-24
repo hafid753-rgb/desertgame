@@ -2462,7 +2462,7 @@ def _head_white(kind, p):
     if kind == "round":
         return (x / 0.13) ** 2 + ((y + 0.1) / 0.085) ** 2 < 1.0
     if kind == "fox":
-        return (x / 0.16) ** 2 + ((y + 0.085) / 0.1) ** 2 < 1.0 or ((abs(x) - 0.08) / 0.03) ** 2 + ((y - 0.065) / 0.018) ** 2 < 1.0
+        return (x / 0.16) ** 2 + ((y + 0.085) / 0.1) ** 2 < 1.0
     return (x / 0.085) ** 2 + ((y + 0.1) / 0.07) ** 2 < 1.0
 
 
@@ -2673,6 +2673,313 @@ def build_species(name):
     # remapped by chibi() (EyesClosed is treated like Eyes).
     global build_eyes_closed_cache
     return _prev_build_species(name)
+
+
+# ===========================================================================
+# v1.0 daraa: Nintendo-clean boubou. One wide, soft silhouette (shoulders fall
+# from the neck straight into the drape), a few large soft folds, the open
+# sleeve sides shown as a dark slit edged in gold, a rolled hem, an embroidered
+# neck yoke with the V slit, and the pocket on the chest.
+# ===========================================================================
+SPECIES["cat"].update({"robe": (0.4, 0.64, 0.9), "robe_dark": (0.26, 0.45, 0.74), "embroidery": (1.0, 0.82, 0.36), "inner": (0.97, 0.96, 0.93)})
+SPECIES["fennec"].update({"robe": (0.96, 0.96, 0.93), "robe_dark": (0.78, 0.8, 0.86), "embroidery": (0.2, 0.36, 0.78), "inner": (0.86, 0.9, 0.98)})
+SPECIES["rabbit"].update({"robe": (0.24, 0.34, 0.66), "robe_dark": (0.15, 0.21, 0.46), "embroidery": (0.98, 0.95, 0.86), "inner": (0.96, 0.95, 0.9)})
+
+
+def build_robe(s):
+    robe, robe_dark, emb = s["robe"], s["robe_dark"], s["embroidery"]
+    oy = BODY_C[1]
+    prof = [  # (world y, half width, half depth)
+        (0.14, 0.56, 0.3), (0.2, 0.55, 0.296), (0.3, 0.535, 0.288), (0.5, 0.505, 0.272), (0.7, 0.48, 0.257),
+        (0.9, 0.46, 0.243), (1.08, 0.445, 0.23), (1.18, 0.43, 0.22), (1.25, 0.405, 0.205),
+        (1.31, 0.37, 0.185), (1.36, 0.29, 0.16), (1.4, 0.2, 0.13), (1.43, 0.12, 0.1),
+    ]
+    n_r = 44
+    sections = []
+    for j in range(n_r + 1):
+        y = lerp(prof[0][0], prof[-1][0], j / n_r)
+        for k in range(len(prof) - 1):
+            if prof[k][0] <= y <= prof[k + 1][0]:
+                t = (y - prof[k][0]) / (prof[k + 1][0] - prof[k][0])
+                t = t * t * (3 - 2 * t)
+                sections.append((y - oy, lerp(prof[k][1], prof[k + 1][1], t), lerp(prof[k][2], prof[k + 1][2], t), 0.0))
+                break
+    front_a = 1.5 * math.pi
+
+    def side_slit(a, wy):
+        # open sleeve sides: a narrow dark gap at the left/right edge, upper half
+        return min(_angdiff(a, 0.0), _angdiff(a, math.pi)) < 0.07 and 0.86 < wy < 1.3
+
+    def col(co, a):
+        wy = co.y + oy
+        if wy < 0.19:
+            return emb                       # rolled hem band
+        da = min(_angdiff(a, 0.0), _angdiff(a, math.pi))
+        if 0.9 < wy < 1.28 and da < 0.022:
+            return emb                       # thin gold seam where the sleeve opens
+        return robe
+    p = loft(sections, 128, col, None, squareness=3.2)
+
+    def disp(co):
+        wy = co.y + oy
+        r = Vector((co.x, 0, co.z))
+        a = math.atan2(co.z, co.x) % math.tau
+        g = _ss(1.28, 0.95, wy)                     # folds start below the shoulders
+        side = abs(math.cos(a)) ** 1.5
+        front = _angdiff(a, front_a)
+        calm = 1.0 - 0.85 * _ss(0.5, 0.1, front)    # keep the chest flat for embroidery
+        big = math.sin(a * 7 + 0.6 * math.sin(wy * 2.5))  # few, large, soft folds
+        hemw = _ss(0.75, 0.14, wy)
+        amp = (0.012 * g * (0.4 + 1.6 * side ** 2) + 0.03 * hemw) * (calm if wy > 0.6 else 1.0)
+        return amp * big, big
+
+    bottom_y = sections[0][0]
+    for i, co in enumerate(p.verts):
+        r = Vector((co.x, 0, co.z))
+        if r.length < 1e-5:
+            continue
+        d, b = disp(co)
+        co += r.normalized() * d
+        if abs(co.y - bottom_y) < 1e-6:
+            co.y -= 0.03 * (b * 0.5 + 0.5)         # wavy hem
+        # soft value change in the fold valleys (no hard lines)
+        p.colors[i] = mix(p.colors[i], robe_dark, max(0.0, -b) * 0.22 * _ss(1.28, 0.6, co.y + oy))
+        p.colors[i] = mix(p.colors[i], robe_dark, 0.18 * _ss(0.9, 0.2, co.y + oy))  # soft vertical gradient
+    for i, co in enumerate(p.verts):           # raise the bottom cap: thick hem
+        if abs(co.y - bottom_y) < 0.03 and Vector((co.x, 0, co.z)).length < 1e-5:
+            co.y += 0.08
+            p.colors[i] = mix(robe_dark, (0.05, 0.04, 0.06), 0.55)
+
+    # Rolled hem: a soft tube around the bottom edge.
+    hem = []
+    for k in range(97):
+        a = k / 96 * math.tau
+        x, z = superellipse(a, 0.56, 0.3, 3.2)
+        b = math.sin(a * 7 + 0.6 * math.sin(0.14 * 2.5))
+        rr = 1.0 + 0.03 * b / 0.56
+        hem.append(Vector((x * rr, bottom_y + 0.012 - 0.03 * (b * 0.5 + 0.5), z * rr)))
+    merge(p, sweep(hem, lambda t: 0.016, lambda t: 0.016, lambda t, a: emb, sides=8))
+
+    # Neck: rolled collar + embroidered yoke + V slit + chest pocket.
+    collar = _helix((0, 0, 0), 0.122, 0.102, 1.418 - oy, 1.418 - oy, 1.0, 48)
+    merge(p, sweep(collar, lambda t: 0.018, lambda t: 0.018, lambda t, a: emb, sides=10))
+    yoke = []
+    for k in range(25):
+        a = math.pi + k / 24 * math.pi      # front half-ring under the collar
+        yoke.append((math.cos(a) * 0.2, 1.385 - oy + math.sin(a) * 0.075 - 0.0))
+    top = 1.40 - oy
+    tip = 1.08 - oy
+    merge(p, project_poly(p, [([(-0.13, top), (0.13, top), (0.0, tip)], emb)], offset=0.004))
+    merge(p, project_poly(p, [([(-0.1, top), (0.1, top), (0.0, tip + 0.045)], s["inner"])], offset=0.007))
+    # yoke scallops either side of the V
+    band = []
+    for k in range(20):
+        a0 = math.pi * (1.08 + 0.84 * k / 20)
+        a1 = math.pi * (1.08 + 0.84 * (k + 1) / 20)
+        def pt(a, r):
+            return (math.cos(a) * r * 1.25, 1.415 - oy + math.sin(a) * r * 0.62)
+        quad = [pt(a0, 0.155), pt(a1, 0.155), pt(a1, 0.19), pt(a0, 0.19)]
+        if all(abs(x) > 0.1 or y > top - 0.0 or True for x, y in quad):
+            band.append((quad, emb))
+    merge(p, project_poly(p, band, offset=0.005, cuts=1))
+    pk_top, pk_bot, pk_x = 1.06 - oy, 0.86 - oy, 0.0
+
+    def pent(hw, t, b, cx=0.0):
+        return [(cx - hw, t), (cx + hw, t), (cx + hw, b + hw * 0.9), (cx, b), (cx - hw, b + hw * 0.9)]
+    merge(p, project_poly(p, [(pent(0.105, pk_top, pk_bot), emb)], offset=0.009))
+    merge(p, project_poly(p, [(pent(0.085, pk_top - 0.018, pk_bot + 0.028), robe)], offset=0.012))
+    orn = [([(-0.007, pk_top - 0.018), (0.007, pk_top - 0.018), (0.007, pk_bot + 0.034), (-0.007, pk_bot + 0.034)], emb)]
+    for k in range(3):
+        cy = pk_top - 0.052 - k * 0.046
+        for cx in (-0.045, 0.045):
+            orn.append(([(cx, cy + 0.02), (cx + 0.022, cy), (cx, cy - 0.02), (cx - 0.022, cy)], emb))
+    merge(p, project_poly(p, orn, offset=0.015, cuts=1))
+    return p
+
+
+# --- v1.0 polish: mitten hands, blush, indigo hawli, cleaner daraa ---------
+SPECIES["cat"].update({"hawli": (0.2, 0.26, 0.55), "hawli_dark": (0.13, 0.17, 0.4), "streak": (0.84, 0.6, 0.44), "fur": (0.86, 0.77, 0.62)})
+
+
+def build_hand(s, pose):
+    """Soft boxy mitten (Nintendo-chunky): fused fingers, rounded everywhere.
+    Poses: open, fist, grip, thumbs_up, peace."""
+    p = Part()
+    fur, pad = s["fur"], s.get("pad", (0.95, 0.62, 0.62))
+
+    def palm_col(co, n):
+        return mix(pad, fur, 0.35) if co.y < -0.035 and abs(co.x) < 0.05 and co.z > -0.04 else fur
+    add_box(p, (0.16, 0.09, 0.14), (0, 0, 0), palm_col, r=0.045, seg=4)
+    fx = [0.054, 0.018, -0.018, -0.054]
+
+    def straight(x, length=0.085, rot=(0, 0, 0)):
+        add_box(p, (0.04, 0.04, length), (x, 0.0, -0.06 - length * 0.5), fur, r=0.019, seg=3, rot=rot)
+
+    def curled(xs):
+        for x in xs:
+            add_box(p, (0.04, 0.056, 0.052), (x, -0.01, -0.082), fur, r=0.02, seg=3)
+
+    if pose == "open":
+        for x in fx:
+            straight(x)
+        add_box(p, (0.042, 0.042, 0.08), (-0.098, 0.0, -0.03), fur, r=0.019, seg=3, rot=(0, 0.55, 0))
+    elif pose == "fist":
+        curled(fx)
+        add_box(p, (0.085, 0.04, 0.04), (-0.03, 0.03, -0.094), fur, r=0.018, seg=3)
+    elif pose == "grip":
+        for x in fx:
+            add_box(p, (0.04, 0.034, 0.06), (x, -0.045, -0.088), fur, r=0.016, seg=3)
+        add_box(p, (0.04, 0.04, 0.075), (-0.07, 0.035, -0.088), fur, r=0.018, seg=3)
+    elif pose == "thumbs_up":
+        curled(fx)
+        add_box(p, (0.044, 0.105, 0.044), (-0.07, 0.085, -0.045), fur, r=0.02, seg=3)
+    elif pose == "peace":
+        curled(fx[:2])
+        straight(fx[2], 0.12, rot=(0, -0.3, 0))
+        straight(fx[3], 0.12, rot=(0, 0.36, 0))
+        add_box(p, (0.075, 0.04, 0.04), (0.02, 0.03, -0.094), fur, r=0.018, seg=3)
+    p.verts = [v * HAND_SCALE for v in p.verts]
+    return p
+
+
+_vinyl_head = build_head
+
+
+def build_head(s, lat_n=64, lon_n=128, markings=True):
+    p = _vinyl_head(s, lat_n, lon_n, markings)
+    if not markings:
+        return p
+    kind = s["head"]
+    ex = EYE_X[kind]
+    blush = (0.98, 0.66, 0.62)
+    for i, v in enumerate(p.verts):
+        if v.z > -0.05:
+            continue
+        for sx in (-1, 1):
+            d = math.hypot((v.x - (ex + 0.05) * sx) / 0.042, (v.y + 0.062) / 0.022)
+            if d < 1.0:
+                p.colors[i] = mix(p.colors[i], blush, 0.55 * (1 - d * d) ** 0.5 + 0.25)
+    return p
+
+
+# --- v1.0 polish 2: smooth decal markings, fused mittens, longer daraa -----
+def _decal_line(head, pts2, width_fn, col, lift=0.003, n=10):
+    path = []
+    for k in range(len(pts2) - 1):
+        (x0, y0), (x1, y1) = pts2[k], pts2[k + 1]
+        for t in [i / n for i in range(n + (1 if k == len(pts2) - 2 else 0))]:
+            loc, _ = _surface(head, lerp(x0, x1, t), lerp(y0, y1, t))
+            if loc is not None:
+                path.append(loc + Vector((0, 0, -lift)))
+    return sweep(path, width_fn, lambda t: 0.0035, lambda t, a: col, sides=8)
+
+
+_blush_head = build_head
+
+
+def build_head(s, lat_n=64, lon_n=128, markings=True):
+    kind = s["head"]
+    p = _blush_head(s, lat_n, lon_n, False)     # base without stair-stepped marks
+    if not markings:
+        return p
+    ex = EYE_X[kind]
+    blush = (0.98, 0.66, 0.62)
+    for i, v in enumerate(p.verts):            # soft blush (smooth gradient, fine)
+        if v.z > -0.05:
+            continue
+        for sx in (-1, 1):
+            d = math.hypot((v.x - (ex + 0.05) * sx) / 0.042, (v.y + 0.062) / 0.022)
+            if d < 1.0:
+                p.colors[i] = mix(p.colors[i], blush, 0.35 + 0.45 * (1 - d * d))
+    if kind == "round":
+        base = Part()
+        base.verts, base.faces = list(p.verts), list(p.faces)
+        # tapered cheek streaks from the outer eye corner
+        for sx in (-1, 1):
+            merge(p, _decal_line(base, [(0.124 * sx, -0.02), (0.16 * sx, -0.036), (0.19 * sx, -0.044)],
+                                 lambda t: 0.005 * (1 - t) + 0.0015, s["streak"], lift=0.0015))
+        # three short tapered brow stripes
+        for k, x in enumerate((-0.03, 0.0, 0.03)):
+            merge(p, _decal_line(base, [(x, 0.165 - abs(x) * 0.6), (x * 0.9, 0.11 - abs(x) * 0.4)],
+                                 lambda t: 0.0085 * (1 - t) + 0.002, s["fur_dark"]))
+    return p
+
+
+def build_hand(s, pose):
+    """Fused mitten: wide rounded palm, fingers packed edge to edge."""
+    p = Part()
+    fur, pad = s["fur"], s.get("pad", (0.95, 0.62, 0.62))
+    add_box(p, (0.165, 0.092, 0.145), (0, 0, 0), fur, r=0.046, seg=4)
+    fx = [0.056, 0.019, -0.019, -0.056]
+
+    def straight(x, length=0.08, rot=(0, 0, 0)):
+        add_box(p, (0.046, 0.044, length), (x, 0.0, -0.06 - length * 0.5), fur, r=0.021, seg=3, rot=rot)
+
+    def curled(xs):
+        for x in xs:
+            add_box(p, (0.046, 0.058, 0.054), (x, -0.008, -0.08), fur, r=0.022, seg=3)
+
+    if pose == "open":
+        for x in fx:
+            straight(x)
+        add_box(p, (0.046, 0.046, 0.078), (-0.1, 0.0, -0.028), fur, r=0.021, seg=3, rot=(0, 0.55, 0))
+    elif pose == "fist":
+        curled(fx)
+        add_box(p, (0.09, 0.044, 0.044), (-0.03, 0.032, -0.092), fur, r=0.02, seg=3)
+    elif pose == "grip":
+        for x in fx:
+            add_box(p, (0.046, 0.036, 0.06), (x, -0.045, -0.086), fur, r=0.017, seg=3)
+        add_box(p, (0.046, 0.044, 0.075), (-0.07, 0.036, -0.086), fur, r=0.02, seg=3)
+    elif pose == "thumbs_up":
+        curled(fx)
+        add_box(p, (0.048, 0.105, 0.048), (-0.07, 0.085, -0.045), fur, r=0.022, seg=3)
+    elif pose == "peace":
+        curled(fx[:2])
+        straight(fx[2], 0.115, rot=(0, -0.28, 0))
+        straight(fx[3], 0.115, rot=(0, 0.34, 0))
+        add_box(p, (0.08, 0.044, 0.044), (0.02, 0.032, -0.092), fur, r=0.02, seg=3)
+    # pink pads on the underside
+    add_box(p, (0.07, 0.01, 0.06), (0, -0.046, 0.01), mix(pad, fur, 0.3), r=0.005, seg=2)
+    p.verts = [v * HAND_SCALE for v in p.verts]
+    return p
+
+
+# --- v1.0 polish 3: full turbans, warm boots --------------------------------
+def build_hawli_head(s):
+    """Tagelmust turban: a domed crown wrapped by three plump, crossing turns;
+    the ears come through. A tail of cloth falls behind."""
+    c1, c2 = s["hawli"], s["hawli_dark"]
+    ax, ay, az = HEAD_EXT[s["head"]]
+    p = Part()
+    # crown dome hugging the top of the head
+    secs = []
+    for i in range(9):
+        t = i / 8
+        y = lerp(ay * 0.5, ay * 1.18, t)
+        k = math.sqrt(max(0.0, 1 - t ** 2.2))
+        secs.append((y, ax * 0.96 * max(0.05, k), az * 0.96 * max(0.05, k), 0.0))
+    merge(p, loft(secs, 40, lambda co, a: c2, None, squareness=2.4))
+    for k, (y, tilt, R) in enumerate(((ay * 0.62, 0.05, 1.0), (ay * 0.8, -0.06, 0.96), (ay * 0.96, 0.07, 0.86))):
+        ring = _helix((0, 0, 0.0), ax * R, az * R, y, y, 1.0, 64, tilt=tilt, wobble=0.004)
+        merge(p, sweep(ring, lambda t: 0.04, lambda t: 0.021, _band_col(c1 if k % 2 == 0 else c2, c1), sides=12,
+                       twist_fn=lambda t: 0.5 * math.sin(t * 9), ripple_fn=lambda t: 0.5))
+    start = Vector((0.06, ay * 0.62, az * 0.95))
+    tail = [start + Vector((0.03 * math.sin(t * 3), -t * 0.2, 0.05 * math.sin(t * 2.5) + 0.02 * t))
+            for t in [i / 17 for i in range(18)]]
+    merge(p, sweep(tail, lambda t: lerp(0.04, 0.06, t), lambda t: 0.012,
+                   _band_col(c1, c2, 0.15, s["embroidery"]), sides=10,
+                   twist_fn=lambda t: 1.4 + 0.3 * math.sin(t * 5), ripple_fn=lambda t: t))
+    return p
+
+
+_boot_v1 = build_boot
+
+
+def build_boot(s):
+    p = _boot_v1(s)
+    warm = {(0.42, 0.25, 0.14): (0.62, 0.4, 0.24), (0.16, 0.11, 0.08): (0.32, 0.22, 0.15)}
+    p.colors = [warm.get(tuple(round(x, 2) for x in c), c) for c in p.colors]
+    return p
 
 
 def main():

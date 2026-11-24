@@ -56,6 +56,9 @@ var _twitch_side := 1.0
 
 var _mat: ShaderMaterial
 var _cloth_mat: ShaderMaterial
+var _fabric_mat: ShaderMaterial
+var _gloss_mat: ShaderMaterial
+var _leather_mat: ShaderMaterial
 var _sword_mat: ShaderMaterial
 var enchanted: bool = false
 var _glow_mat: StandardMaterial3D
@@ -67,7 +70,11 @@ var _species_key := "cat"
 
 func build(data: Dictionary) -> void:
 	_species_key = str(data["name"]).to_lower()
-	_mat = CharacterArt.toon_material(_outline_color(data))
+	var oc := _outline_color(data)
+	_mat = CharacterArt.toon_material(oc, 0.007, "skin")
+	_fabric_mat = CharacterArt.toon_material(oc, 0.007, "fabric")
+	_gloss_mat = CharacterArt.toon_material(oc, 0.0, "gloss")
+	_leather_mat = CharacterArt.toon_material(oc, 0.007, "leather")
 	var parts := CharacterArt.load_parts(ART_DIR + _species_key + ".glb")
 	var gear := CharacterArt.load_parts(ART_DIR + "equipment.glb")
 
@@ -115,6 +122,7 @@ func build(data: Dictionary) -> void:
 		shield = gear["Shield"]
 		(shield as MeshInstance3D).material_override = _mat
 	set_armed(false, true)
+	_apply_materials()
 	_attach_fur(parts)
 	for k in parts:
 		if (parts[k] as Node).get_parent() == null:
@@ -342,8 +350,9 @@ func animate(delta: float, info: Dictionary) -> void:
 	element_glow.scale = Vector3.ONE * (0.6 + charge * 0.5)
 
 	_flash = maxf(0.0, _flash - delta * 6.0)
-	_mat.set_shader_parameter("flash", _flash * 0.9)
-	_mat.set_shader_parameter("flash_color", _flash_color)
+	for m in [_mat, _fabric_mat, _leather_mat]:
+		m.set_shader_parameter("flash", _flash * 0.9)
+		m.set_shader_parameter("flash_color", _flash_color)
 
 
 func _hand(parts: Dictionary, prefix: String, pos: Vector3, table: Dictionary) -> Node3D:
@@ -360,6 +369,19 @@ func _hand(parts: Dictionary, prefix: String, pos: Vector3, table: Dictionary) -
 		pivot.add_child(mi)
 		table[pose] = mi
 	return pivot
+
+
+## Cloth reads matte with a velvet sheen, eyes glossy, boots leathery.
+func _apply_materials() -> void:
+	for n in [body, hawli, turban]:
+		if n is MeshInstance3D:
+			(n as MeshInstance3D).material_override = _fabric_mat
+	for n in [foot_r, foot_l, scabbard]:
+		if n is MeshInstance3D:
+			(n as MeshInstance3D).material_override = _leather_mat
+	for n in [eyes, eyes_closed]:
+		if n is MeshInstance3D:
+			(n as MeshInstance3D).material_override = _gloss_mat
 
 
 ## Shell fur meshes ("<Part>_fur") ride on their base part, so they follow
@@ -446,4 +468,4 @@ func _take(parts: Dictionary, name: String, fallback_pos: Vector3) -> Node3D:
 
 func _outline_color(data: Dictionary) -> Color:
 	var fur: Color = data["fur"]
-	return fur.darkened(0.78)
+	return fur.darkened(0.62)

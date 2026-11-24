@@ -15,15 +15,22 @@ func _ready() -> void:
 	add_child(root)
 	var sun := DirectionalLight3D.new()
 	sun.rotation = Vector3(deg_to_rad(-45), deg_to_rad(30), 0)
-	sun.light_energy = 0.9
+	sun.light_energy = 0.85
 	sun.shadow_enabled = true
 	root.add_child(sun)
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.86, 0.74, 0.56)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.9, 0.85, 0.8)
+	var sky := Sky.new()
+	var sm := ProceduralSkyMaterial.new()
+	sm.sky_top_color = Color(0.42, 0.62, 0.9)
+	sm.sky_horizon_color = Color(0.9, 0.86, 0.78)
+	sm.ground_horizon_color = Color(0.86, 0.74, 0.56)
+	sm.ground_bottom_color = Color(0.7, 0.56, 0.4)
+	sky.sky_material = sm
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_energy = 0.45
+	env.tonemap_white = 1.6
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -33,7 +40,7 @@ func _ready() -> void:
 	pm.size = Vector2(20, 20)
 	floor_mi.mesh = pm
 	var fm := StandardMaterial3D.new()
-	fm.albedo_color = Color(0.78, 0.64, 0.45)
+	fm.albedo_color = Color(0.6, 0.48, 0.34)
 	floor_mi.material_override = fm
 	root.add_child(floor_mi)
 	var x := -2.4
