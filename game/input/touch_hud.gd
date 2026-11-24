@@ -15,17 +15,19 @@ const BUTTONS := {
 	"jump": {"label": "JMP", "offset": Vector2(-300, -245), "r": 50.0, "color": Color(0.85, 1.0, 0.8)},
 	"lock": {"label": "LOCK", "offset": Vector2(-185, 150), "r": 38.0, "color": Color(1, 1, 1), "top": true},
 	"element": {"label": "ELM", "offset": Vector2(-75, 150), "r": 38.0, "color": Color(1, 1, 1), "top": true},
+	"act": {"label": "ACT", "offset": Vector2(-455, -165), "r": 48.0, "color": Color(1.0, 0.85, 0.45)},
 }
 const JOY_RADIUS := 90.0
 const TAP_MOVE := 14.0
 const TAP_TIME := 0.25
 const SPECIES_RECT := Rect2(24, 80, 230, 32)
 const PAUSE_R := 26.0
-const MENU_ROWS := ["resume", "left_handed", "button_size", "sound", "debug", "species"]
+const MENU_ROWS := ["resume", "left_handed", "button_size", "sound", "debug", "species", "reset_world"]
 
 var player: Player
 var jinn: Jinn
 var main: Node  # for session stats (jinn_kills)
+var boss: JinnKing
 var paused: bool = false
 
 var _canvas: Control
@@ -99,8 +101,16 @@ func _button_radius(id: String) -> float:
 	return float(BUTTONS[id]["r"]) * Settings.button_scale()
 
 
+func _button_visible(id: String) -> bool:
+	if id == "act":
+		return player != null and player.current_interactable != null
+	return true
+
+
 func _button_at(pos: Vector2) -> String:
 	for id in BUTTONS:
+		if not _button_visible(id):
+			continue
 		if pos.distance_to(_button_center(id)) <= _button_radius(id) * 1.15:
 			return id
 	return ""
@@ -119,13 +129,13 @@ func _in_joy_zone(pos: Vector2) -> bool:
 
 func _menu_rect() -> Rect2:
 	var s := _screen()
-	var size := Vector2(820, 470)
+	var size := Vector2(820, 540)
 	return Rect2((s - size) / 2, size)
 
 
 func _menu_row_rect(i: int) -> Rect2:
 	var m := _menu_rect()
-	return Rect2(m.position + Vector2(30, 80 + i * 62), Vector2(380, 52))
+	return Rect2(m.position + Vector2(30, 76 + i * 64), Vector2(380, 54))
 
 
 # --- Input ------------------------------------------------------------------
@@ -227,6 +237,10 @@ func _menu_tap(pos: Vector2) -> void:
 				"species":
 					if player:
 						player.next_species()
+				"reset_world":
+					WorldState.reset_world()
+					set_paused(false)
+					get_tree().reload_current_scene()
 			return
 
 
@@ -241,15 +255,32 @@ func _draw_hud() -> void:
 		_canvas.draw_rect(SPECIES_RECT, Color(0, 0, 0, 0.35))
 		_canvas.draw_string(_font, Vector2(30, 102), "%s  |  %s   >" % [str(player.species["name"]), ename], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Combat.ELEMENT_COLORS[player.element])
 		if player.counter_window > 0.0:
-			_canvas.draw_string(_font, Vector2(30, 136), "COUNTER x1.5", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 0.95, 0.5))
+			_canvas.draw_string(_font, Vector2(30, 172), "COUNTER x1.5", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 0.95, 0.5))
 		# Stamina wheel beside the character while climbing/gliding (BOTW-style).
 		if player.state in [Player.State.CLIMB, Player.State.GLIDE] or (player.sprinting and player.stamina < player.max_stamina):
 			var c := Vector2(s.x * 0.5 + 70, s.y * 0.5 - 40)
 			var frac := player.stamina / player.max_stamina
 			_canvas.draw_arc(c, 22, 0, TAU, 32, Color(0, 0, 0, 0.4), 8)
 			_canvas.draw_arc(c, 22, -PI / 2, -PI / 2 + TAU * frac, 32, Color(0.45, 0.85, 0.4) if frac > 0.25 else Color(0.95, 0.35, 0.3), 8)
-	if jinn and is_instance_valid(jinn) and not jinn.is_dead():
+	var boss_on := boss != null and is_instance_valid(boss) and not boss.is_dead() and player != null \
+		and Combat.flat(boss.global_position - player.global_position).length() < 26.0
+	if boss_on:
+		_bar(Vector2(s.x / 2 - 260, 28), 520.0, boss.hp / boss.max_hp, Color(0.95, 0.7, 0.2) if boss.raging else Color(0.75, 0.3, 0.85), "JINN KING")
+	elif jinn and is_instance_valid(jinn) and not jinn.is_dead():
 		_bar(Vector2(s.x / 2 - 200, 28), 400.0, jinn.hp / jinn.max_hp, Color(0.6, 0.35, 0.9), "JINN")
+	if WorldState.bricks() > 0:
+		_canvas.draw_rect(Rect2(24, 116, 150, 26), Color(0, 0, 0, 0.35))
+		_canvas.draw_string(_font, Vector2(30, 135), "Bricks  %d" % WorldState.bricks(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.95, 0.75, 0.55))
+	# Interaction prompt above the ACT button.
+	if player and player.current_interactable and not paused:
+		var it := player.current_interactable
+		var txt := it.prompt_text()
+		var ac := _button_center("act")
+		var w := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 24
+		var box := Rect2(ac + Vector2(-w / 2, -_button_radius("act") - 46), Vector2(w, 32))
+		_canvas.draw_rect(box, Color(0, 0, 0, 0.55))
+		_canvas.draw_string(_font, box.position + Vector2(12, 23), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+			Color(1, 0.92, 0.7) if it.can_interact() else Color(0.8, 0.75, 0.7))
 
 	# Zelda-style focus diamond. Pure presentation: no targeting authority here.
 	if player and player.lock_target and is_instance_valid(player.lock_target) and player.camera_rig:
@@ -286,6 +317,8 @@ func _draw_hud() -> void:
 
 	# Buttons.
 	for id in BUTTONS:
+		if not _button_visible(id):
+			continue
 		var b: Dictionary = BUTTONS[id]
 		var c := _button_center(id)
 		var r := _button_radius(id)
@@ -346,6 +379,7 @@ func _draw_menu() -> void:
 		"sound": "Sound: %s" % ("On" if Settings.sound_on else "Off"),
 		"debug": "Performance overlay: %s" % ("On" if Settings.show_debug else "Off"),
 		"species": "Species: %s (tap to change)" % (str(player.species["name"]) if player else "-"),
+		"reset_world": "Reset world (village, bricks)",
 	}
 	for i in MENU_ROWS.size():
 		var r := _menu_row_rect(i)

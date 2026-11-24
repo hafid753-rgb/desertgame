@@ -4,15 +4,21 @@ extends Node3D
 
 @export var species_id: String = "cat"
 @export var jinn_enabled: bool = true
+@export var village_enabled: bool = true
 
 var player: Player
 var camera_rig: CameraRig
 var hud: TouchHud
 var jinn: Jinn
 var jinn_kills: int = 0
+var village: Village
+var env: Environment
+var sun: DirectionalLight3D
+var _haunt: float = 0.0
 
 const PLAYER_SPAWN := Vector3(0, 0.1, 6)
 const JINN_SPAWN := Vector3(0, 0, -3)
+const VILLAGE_AT := Vector3(40, 0, 0)
 
 
 func _ready() -> void:
@@ -38,6 +44,25 @@ func _ready() -> void:
 
 	if jinn_enabled:
 		spawn_jinn()
+	if village_enabled:
+		village = Village.new()
+		village.position = VILLAGE_AT
+		add_child(village)
+		village.announced.connect(hud.announce)
+		hud.boss = village.king
+
+
+## Entering a haunted village dims the sun and thickens a violet haze;
+## once the village is claimed the desert light comes back.
+func _process(delta: float) -> void:
+	if village == null or player == null or env == null:
+		return
+	var inside := Combat.flat(player.global_position - village.global_position).length() < 20.0
+	var target := 1.0 if inside and village.is_haunted() else 0.0
+	_haunt = lerpf(_haunt, target, 1.0 - exp(-1.5 * delta))
+	env.fog_light_color = Color(0.93, 0.82, 0.65).lerp(Color(0.36, 0.26, 0.48), _haunt)
+	env.fog_density = lerpf(0.004, 0.028, _haunt)
+	sun.light_energy = lerpf(0.85, 0.45, _haunt)
 
 
 func spawn_jinn() -> Jinn:
@@ -58,7 +83,7 @@ func _on_jinn_defeated(_j: Jinn) -> void:
 
 
 func _build_environment() -> void:
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.rotation = Vector3(deg_to_rad(-52), deg_to_rad(35), 0)
 	sun.light_color = Color(1.0, 0.86, 0.67)
 	sun.light_energy = 0.85
@@ -74,7 +99,7 @@ func _build_environment() -> void:
 	sky_mat.ground_bottom_color = Color(0.6, 0.45, 0.3)
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY

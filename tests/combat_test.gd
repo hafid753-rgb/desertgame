@@ -15,6 +15,7 @@ func _ready() -> void:
 	Juice.enabled_hitstop = false
 	main = preload("res://game/main.tscn").instantiate()
 	main.jinn_enabled = false
+	main.village_enabled = false
 	add_child(main)
 	await _frames(5)
 	player = main.player

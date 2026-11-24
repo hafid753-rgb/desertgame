@@ -9,7 +9,7 @@ extends CharacterBody3D
 signal defeated(jinn: Jinn)
 signal health_changed(hp: float, max_hp: float)
 
-enum S { IDLE, CHASE, CIRCLE, TELEGRAPH, ATTACK, RECOVER, STAGGER, DEAD }
+enum S { IDLE, CHASE, CIRCLE, TELEGRAPH, ATTACK, RECOVER, STAGGER, DEAD, RETURN, SUBDUED }
 
 const ATTACKS := {
 	"swipe": {"telegraph": 0.6, "active": 0.15, "recovery": 0.6, "damage": 14.0, "range": 2.4, "arc": 120.0,
@@ -22,13 +22,23 @@ const ATTACKS := {
 const CHASE_SPEED := 3.2
 const CIRCLE_SPEED := 2.0
 const STAGGER_PARRIED := 1.4
-const VISUAL_SCALE := 1.25  # towers over the ~1.75 m adventurers
+const DEFAULT_VISUAL_SCALE := 1.25  # towers over the ~1.75 m adventurers
 
 @export var ai_enabled: bool = true
 @export var max_hp: float = 160.0
 
 var hp: float = 160.0
 var radius: float = 0.6
+var attacks: Dictionary = ATTACKS.duplicate(true)
+var visual_scale: float = DEFAULT_VISUAL_SCALE
+var chase_speed: float = CHASE_SPEED
+## Telegraph speed multiplier (>1 = faster tells; the Jinn King's rage phase).
+var tempo: float = 1.0
+## Guard behaviour: only engage players within aggro_radius of home, and walk
+## back when they leave. Default = unlimited (the practice jinn).
+var home: Vector3 = Vector3.ZERO
+var aggro_radius: float = 1.0e9
+var subdued: bool = false
 var state: int = S.IDLE
 var state_time: float = 0.0
 var current: String = ""
@@ -70,10 +80,11 @@ func _ready() -> void:
 	var shape := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = radius
-	cap.height = 2.2
+	cap.height = 2.2 * visual_scale / DEFAULT_VISUAL_SCALE
 	shape.shape = cap
-	shape.position = Vector3(0, 1.1, 0)
+	shape.position = Vector3(0, cap.height * 0.5, 0)
 	add_child(shape)
+	home = global_position if is_inside_tree() else position
 	_build_visual()
 	if fx_parent == null:
 		fx_parent = get_parent()
@@ -82,6 +93,33 @@ func _ready() -> void:
 
 func is_dead() -> bool:
 	return state == S.DEAD
+
+
+func _target_in_territory(margin: float = 0.0) -> bool:
+	if target == null:
+		return false
+	return Combat.flat(target.global_position - home).length() <= aggro_radius + margin
+
+
+func telegraph_time(name: String) -> float:
+	return float(attacks[name]["telegraph"]) / tempo
+
+
+## The Jinn King has fallen: stop fighting, kneel, become recruitable.
+func subdue() -> void:
+	if state == S.DEAD:
+		return
+	subdued = true
+	ai_enabled = false
+	remove_from_group("jinn")
+	add_to_group("subdued_jinn")
+	collision_layer = 0
+	burn_time = 0.0
+	_enter(S.SUBDUED)
+	_eye_mat.albedo_color = Color(0.7, 0.95, 1.0)
+	# The shadow lifts: core softens, rim turns pale turquoise.
+	_smoke_mat.set_shader_parameter("core_color", Color(0.1, 0.1, 0.22))
+	_smoke_mat.set_shader_parameter("rim_color", Color(0.5, 0.85, 0.95))
 
 
 func state_name() -> String:
@@ -158,18 +196,31 @@ func _physics_process(delta: float) -> void:
 	var h := Vector3.ZERO
 	match state:
 		S.IDLE:
-			if ai_enabled and target and not target.is_dead():
+			if ai_enabled and target and not target.is_dead() and _target_in_territory():
 				_enter(S.CHASE)
 		S.CHASE:
 			h = _tick_chase(delta)
+			if ai_enabled and not _target_in_territory(4.0):
+				_enter(S.RETURN)
+		S.RETURN:
+			var back := Combat.flat(home - global_position)
+			if back.length() < 0.6:
+				_enter(S.IDLE)
+			else:
+				_face(back, 1.0 - exp(-6.0 * delta))
+				h = back.normalized() * chase_speed
+		S.SUBDUED:
+			pass
 		S.CIRCLE:
 			h = _tick_circle(delta)
+			if ai_enabled and not _target_in_territory(4.0):
+				_enter(S.RETURN)
 		S.TELEGRAPH:
 			h = _tick_telegraph(delta)
 		S.ATTACK:
 			h = _tick_attack(delta)
 		S.RECOVER:
-			var rec: float = ATTACKS[current]["recovery"]
+			var rec: float = attacks[current]["recovery"]
 			if state_time >= rec:
 				_enter(S.CIRCLE if ai_enabled else S.IDLE)
 		S.STAGGER:
@@ -213,7 +264,7 @@ func _tick_chase(delta: float) -> Vector3:
 	if to.length() < 3.2:
 		_enter(S.CIRCLE)
 		return Vector3.ZERO
-	return to.normalized() * CHASE_SPEED * chill_multiplier
+	return to.normalized() * chase_speed * chill_multiplier
 
 
 func _tick_circle(delta: float) -> Vector3:
@@ -260,7 +311,7 @@ func _begin_telegraph(name: String) -> void:
 	attack_hit_done = false
 	last_result = ""
 	_enter(S.TELEGRAPH)
-	var col: Color = ATTACKS[name]["color"]
+	var col: Color = attacks[name]["color"]
 	_eye_mat.albedo_color = col
 	_smoke_mat.set_shader_parameter("warning_color", col)
 	Juice.play("tel_" + name, global_position)
@@ -268,8 +319,8 @@ func _begin_telegraph(name: String) -> void:
 
 
 func _tick_telegraph(delta: float) -> Vector3:
-	var atk: Dictionary = ATTACKS[current]
-	var tel: float = atk["telegraph"]
+	var atk: Dictionary = attacks[current]
+	var tel: float = telegraph_time(current)
 	var p := clampf(state_time / tel, 0.0, 1.0)
 	if p < 0.7 and target:
 		_face(Combat.flat(target.global_position - global_position), 1.0 - exp(-10.0 * delta))
@@ -288,7 +339,7 @@ func _tick_telegraph(delta: float) -> Vector3:
 
 
 func _tick_attack(_delta: float) -> Vector3:
-	var atk: Dictionary = ATTACKS[current]
+	var atk: Dictionary = attacks[current]
 	var active: float = atk["active"]
 	var h := Vector3.ZERO
 	match current:
@@ -384,9 +435,12 @@ func _face(dir: Vector3, weight: float) -> void:
 func _animate(delta: float) -> void:
 	var tel_p := 0.0
 	if state == S.TELEGRAPH:
-		tel_p = clampf(state_time / float(ATTACKS[current]["telegraph"]), 0.0, 1.0)
+		tel_p = clampf(state_time / telegraph_time(current), 0.0, 1.0)
 	var hover := 0.35 + sin(Time.get_ticks_msec() * 0.003 + get_instance_id()) * 0.08
 	_visual.position.y = hover
+	if subdued:  # kneeling, bowed
+		_visual.position.y = lerpf(_visual.position.y, -0.25, 0.5)
+		_visual.rotation.x = lerpf(_visual.rotation.x, 0.45, 1.0 - exp(-4.0 * delta))
 	var swell := 1.0 + tel_p * 0.18
 	if state == S.TELEGRAPH and current == "burst":
 		swell = 1.0 + tel_p * 0.4
@@ -394,7 +448,7 @@ func _animate(delta: float) -> void:
 		_visual.rotation.z = sin(state_time * 20.0) * 0.12
 	else:
 		_visual.rotation.z = 0.0
-	_visual.scale = _visual.scale.lerp(Vector3(swell, 1.0 / sqrt(swell), swell) * VISUAL_SCALE, 1.0 - exp(-12.0 * delta))
+	_visual.scale = _visual.scale.lerp(Vector3(swell, 1.0 / sqrt(swell), swell) * visual_scale, 1.0 - exp(-12.0 * delta))
 	# Arms read the attack: swipe winds one claw back, burst spreads both,
 	# lunge sweeps both behind. Idle: slow drifting sway.
 	var t_ms := Time.get_ticks_msec() * 0.002
@@ -433,7 +487,7 @@ func _animate(delta: float) -> void:
 func _build_visual() -> void:
 	_visual = Node3D.new()
 	_visual.name = "Visual"
-	_visual.scale = Vector3.ONE * VISUAL_SCALE
+	_visual.scale = Vector3.ONE * visual_scale
 	add_child(_visual)
 	_smoke_mat = ShaderMaterial.new()
 	_smoke_mat.shader = preload("res://game/actors/jinn/jinn_smoke.gdshader")

@@ -41,7 +41,9 @@ jobs:
         run: ~/godot/godot --headless --path . --import
 
       - name: Combat tests
-        run: ~/godot/godot --headless --path . --fixed-fps 60 res://tests/combat_test.tscn
+        run: |
+          ~/godot/godot --headless --path . --fixed-fps 60 res://tests/combat_test.tscn
+          ~/godot/godot --headless --path . --fixed-fps 60 res://tests/village_test.tscn
 
       - uses: actions/setup-java@v4
         with:

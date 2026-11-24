@@ -125,6 +125,9 @@ var mantle_to: Vector3 = Vector3.ZERO
 var air_horizontal: Vector3 = Vector3.ZERO
 var highest_y: float = 0.0
 
+## Nearest usable Interactable in range (shown on the HUD's ACT button).
+var current_interactable: Interactable = null
+
 var camera_rig: CameraRig
 var lock_target: Node3D = null
 var model: CreatureModel
@@ -363,6 +366,7 @@ func _physics_process(delta: float) -> void:
 	if is_on_floor():
 		last_floor_time = now
 
+	current_interactable = _find_interactable()
 	for e in GameInput.consume_events():
 		_handle_input(e)
 
@@ -474,6 +478,9 @@ func _handle_input(e: Dictionary) -> void:
 			if pressed:
 				last_input_usec = t_usec
 				_on_jump_pressed()
+		"act":
+			if pressed and current_interactable and state == State.MOVE:
+				current_interactable.interact(self)
 		"lock":
 			if pressed:
 				toggle_lock()
@@ -1138,6 +1145,22 @@ func _move_vector() -> Vector3:
 	var input := GameInput.get_move()
 	var yaw := camera_rig.yaw if camera_rig else 0.0
 	return Basis(Vector3.UP, yaw) * Vector3(input.x, 0.0, input.y)
+
+
+func _find_interactable() -> Interactable:
+	var best: Interactable = null
+	var best_d := INF
+	for it in get_tree().get_nodes_in_group("interactables"):
+		var i := it as Interactable
+		if i == null or not i.is_visible_in_tree():
+			continue
+		if not i.show_when_unavailable and not i.can_interact():
+			continue
+		var d := Combat.flat(i.global_position - global_position).length()
+		if d <= i.radius and d < best_d:
+			best_d = d
+			best = i
+	return best
 
 
 func _jinn_in_reach() -> Array:

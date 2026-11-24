@@ -20,6 +20,8 @@ const BOUND := 58.0
 const MESA_H := 20.0
 
 var _materials: Dictionary = {}
+var _batch := MeshBatcher.new()
+const DUNE := Color(0.8, 0.65, 0.44)
 var _sand_shader: Shader = preload("res://game/world/sand_ripple.gdshader")
 
 
@@ -55,6 +57,7 @@ func _ready() -> void:
 	for p in [Vector3(9.5, 0, -9), Vector3(10.2, 0, -8.2), Vector3(-10, 0, 9.5)]:
 		_cylinder(0.32, 0.7, p + Vector3(0, 0.35, 0), Color(0.68, 0.4, 0.25))
 	_outside()
+	_batch.build(func(c: Color) -> Material: return _sand_mat(c) if (c == SAND or c == DUNE) else _mat(c))
 	_spawn_physics_props()
 
 
@@ -69,7 +72,7 @@ func _outside() -> void:
 	# Dunes.
 	for d in [
 		[Vector3(18, 0, 40), Vector3(9, 2.2, 6)], [Vector3(-2, 0, 44), Vector3(12, 3.0, 7)],
-		[Vector3(-30, 0, 12), Vector3(7, 2.0, 10)], [Vector3(30, 0, -8), Vector3(8, 2.6, 12)],
+		[Vector3(-30, 0, 12), Vector3(7, 2.0, 10)], [Vector3(34, 0, -40), Vector3(8, 2.6, 12)],
 		[Vector3(0, 0, -34), Vector3(14, 3.2, 8)], [Vector3(-28, 0, -26), Vector3(9, 2.4, 9)],
 	]:
 		_dune(d[0], d[1])
@@ -89,12 +92,7 @@ func _dune(center: Vector3, size: Vector3) -> void:
 	sm.height = 2.0
 	sm.radial_segments = 16
 	sm.rings = 8
-	var mi := MeshInstance3D.new()
-	mi.mesh = sm
-	mi.scale = size
-	mi.position = center
-	mi.material_override = _sand_mat(Color(0.8, 0.65, 0.44))
-	add_child(mi)
+	_batch.add(sm, Transform3D(Basis.from_scale(size), center), DUNE, self)
 	var pts := PackedVector3Array()
 	for v in sm.get_mesh_arrays()[Mesh.ARRAY_VERTEX]:
 		if v.y >= -0.05:
@@ -146,30 +144,18 @@ func _merlons() -> void:
 
 
 func _palm(base: Vector3, lean: float) -> void:
-	var trunk := Node3D.new()
-	trunk.position = base
-	trunk.rotation = Vector3(lean, 0, lean * 0.5)
-	add_child(trunk)
+	var trunk := Transform3D(Basis.from_euler(Vector3(lean, 0, lean * 0.5)), base)
 	var m := CylinderMesh.new()
 	m.top_radius = 0.16
 	m.bottom_radius = 0.26
 	m.height = 5.0
 	m.radial_segments = 8
-	var mi := MeshInstance3D.new()
-	mi.mesh = m
-	mi.material_override = _mat(WOOD)
-	mi.position = Vector3(0, 2.5, 0)
-	trunk.add_child(mi)
+	_batch.add(m, trunk * Transform3D(Basis(), Vector3(0, 2.5, 0)), WOOD, self)
 	var leaf := BoxMesh.new()
 	leaf.size = Vector3(0.5, 0.06, 2.6)
 	for i in 7:
-		var l := MeshInstance3D.new()
-		l.mesh = leaf
-		l.material_override = _mat(PALM)
 		var a := i * TAU / 7.0
-		l.position = Vector3(sin(a) * 1.1, 5.0, cos(a) * 1.1)
-		l.rotation = Vector3(0.45, a, 0)
-		trunk.add_child(l)
+		_batch.add(leaf, trunk * Transform3D(Basis.from_euler(Vector3(0.45, a, 0)), Vector3(sin(a) * 1.1, 5.0, cos(a) * 1.1)), PALM, self)
 	var col := CollisionShape3D.new()
 	var shape := CylinderShape3D.new()
 	shape.radius = 0.28
@@ -182,11 +168,7 @@ func _palm(base: Vector3, lean: float) -> void:
 func _box(size: Vector3, pos: Vector3, color: Color, collide: bool = true) -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = _sand_mat(color) if color == SAND else _mat(color)
-	mi.position = pos
-	add_child(mi)
+	_batch.add(mesh, Transform3D(Basis(), pos), color, self)
 	if collide:
 		var col := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
@@ -202,11 +184,7 @@ func _cylinder(radius: float, h: float, pos: Vector3, color: Color, collide: boo
 	mesh.bottom_radius = radius
 	mesh.height = h
 	mesh.radial_segments = 16
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = _mat(color)
-	mi.position = pos
-	add_child(mi)
+	_batch.add(mesh, Transform3D(Basis(), pos), color, self)
 	if collide:
 		var col := CollisionShape3D.new()
 		var shape := CylinderShape3D.new()

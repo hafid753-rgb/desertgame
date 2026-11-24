@@ -17,6 +17,7 @@ GameInput="*res://game/autoload/game_input.gd"
 PerfLogger="*res://game/autoload/perf_logger.gd"
 Juice="*res://game/autoload/juice.gd"
 Settings="*res://game/autoload/settings.gd"
+WorldState="*res://game/autoload/world_state.gd"
 
 [display]
 
