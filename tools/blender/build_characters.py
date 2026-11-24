@@ -1388,63 +1388,47 @@ def build_equipment():
             add_box(sword, (0.006, 0.003, L * fl), (fx, side * 0.0085, z0 - 0.03 - L * fl / 2), fuller, r=0.001)
     add_box(sword, (0.25, 0.03, 0.035), (0, 0, -0.085), brass, r=0.008)            # cross-guard
     add_box(sword, (0.05, 0.034, 0.08), (0, 0, -0.12), brass, r=0.008, taper=(0.6, 1.0))  # langets
-    for i in range(7):  # leather wrap, alternating red / black, brass end bands
-        z = -0.05 + i * 0.024
-        col = brass if i in (0, 6) else (red if i % 2 else black)
-        add_box(sword, (0.044, 0.04, 0.024), (0, 0, z), col, r=0.01)
-    add_box(sword, (0.11, 0.028, 0.11), (0, 0, 0.13), brass, r=0.03)               # disc pommel
-    add_box(sword, (0.035, 0.035, 0.04), (0, 0, 0.19), brass, r=0.014)
-    sword.verts = [v * 0.78 for v in sword.verts]
-    emit("Sword", sword, (0, 0, 0), smooth=False)
+    to_z = Matrix.Rotation(-math.pi / 2, 4, "X")       # +Y (loft axis) -> -Z (blade axis)
 
-    # Takoba scabbard: tooled leather with red / green / black bands and a
-    # flared diamond chape. Same axis as the blade so the sheathed sword sits in it.
+    def along_z(part):
+        part.verts = [to_z @ v for v in part.verts]
+        part.normals = [(to_z.to_3x3() @ n).normalized() for n in part.normals]
+        return part
+    # spiral leather wrap on the grip, brass ferrules at both ends
+    grip = loft([(y, 0.021 + 0.0025 * math.cos(y * 260), 0.019 + 0.0025 * math.cos(y * 260), 0.0)
+                 for y in [lerp(-0.1, 0.05, k / 24) for k in range(25)]], 20,
+                lambda co, a: red if int(co.y * 42 + a / math.pi) % 2 else black, None, squareness=2.0)
+    merge(sword, along_z(grip))
+    for zc in (-0.055, 0.1):
+        add_box(sword, (0.05, 0.046, 0.02), (0, 0, zc), brass, r=0.009, seg=3)
+    sword.add_mesh(prim("sphere", r=1.0, u=24, v=14), lambda c, n: brass, T((0, 0, 0.135), scale=(0.058, 0.017, 0.058)))
+    sword.add_mesh(prim("sphere", r=1.0, u=14, v=10), lambda c, n: brass, T((0, 0, 0.2), scale=(0.02, 0.02, 0.022)))
+    sword.verts = [v * 0.78 for v in sword.verts]
+    emit("Sword", sword, (0, 0, 0), smooth=True)
+
+    # Takoba scabbard: one smooth tooled-leather sheath, painted bands,
+    # brass throat and a flared diamond chape (flat side faces the blade flat).
     sc = Part()
-    tan, green = (0.7, 0.5, 0.3), (0.2, 0.42, 0.28)
-    n = 10
-    for i in range(n):
-        t = (i + 0.5) / n
-        z = -0.11 - t * 0.88
-        col = tan
-        if i % 3 == 1:
-            col = red
-        elif i % 3 == 2 and i > 2:
-            col = green
-        add_box(sc, (lerp(0.1, 0.085, t), 0.04, 0.088), (0, 0, z), col, r=0.014)
-        add_box(sc, (0.02, 0.043, 0.06), (0, 0, z), black if col != tan else red, r=0.006, rot=(0, 0.785, 0))
-    add_box(sc, (0.16, 0.036, 0.16), (0, 0, -1.04), tan, r=0.02, rot=(0, 0.785, 0))     # diamond chape
-    add_box(sc, (0.1, 0.04, 0.1), (0, 0, -1.04), red, r=0.015, rot=(0, 0.785, 0))
-    add_box(sc, (0.12, 0.05, 0.04), (0, 0, -0.12), brass, r=0.012)                       # throat
+    tan, green = (0.72, 0.52, 0.32), (0.22, 0.44, 0.3)
+
+    def sheath_col(co, a):
+        y = co.y
+        band = int((y - 0.1) / 0.11)
+        f = ((y - 0.1) / 0.11) % 1.0
+        if f < 0.16:
+            return (red, green, black)[band % 3]
+        if f > 0.5 and f < 0.62 and abs(math.cos(a)) > 0.85:
+            return red
+        return tan
+    secs = [(y, lerp(0.052, 0.043, (y - 0.1) / 0.9), 0.021, 0.0) for y in [lerp(0.1, 1.0, k / 40) for k in range(41)]]
+    merge(sc, along_z(loft(secs, 24, sheath_col, None, squareness=2.6)))
+    add_box(sc, (0.13, 0.032, 0.13), (0, 0, -1.03), tan, r=0.03, seg=3, rot=(0, 0.785, 0))
+    add_box(sc, (0.08, 0.036, 0.08), (0, 0, -1.03), red, r=0.02, seg=3, rot=(0, 0.785, 0))
+    add_box(sc, (0.115, 0.054, 0.05), (0, 0, -0.12), brass, r=0.018, seg=3)
     sc.verts = [v * 0.78 for v in sc.verts]
     emit("Scabbard", sc, (0, 0, 0))
 
-    # Rectangular leather shield (aghar-inspired): rounded box, painted
-    # cross and triangle pattern projected as crisp geometry, brass boss.
-    shield = Part()
-    leather, red, dark, brass = (0.74, 0.55, 0.32), (0.58, 0.14, 0.08), (0.14, 0.09, 0.06), (0.85, 0.65, 0.25)
-    add_box(shield, (0.05, 0.5, 0.36), (0, 0, 0), leather, r=0.02)
-    add_box(shield, (0.03, 0.04, 0.04), (-0.035, 0, 0), brass, r=0.01)
-
-    def pattern(u, v):
-        x, y = (u - 0.5) * 0.36, (v - 0.5) * 0.5
-        if abs(x) < 0.012 or abs(y) < 0.012:
-            return dark
-        if abs(abs(x) - 0.15) < 0.01 or abs(abs(y) - 0.225) < 0.01:
-            return red
-        tri = abs(((y * 20) % 2) - 1)
-        if abs(x) > 0.11 and abs(x) - 0.11 < 0.035 * tri:
-            return red
-        return None
-    # Project onto the outer face (-X): rotate a temporary copy so the face
-    # points at the projector, then rotate the decal back.
-    rot_in = Matrix.Rotation(-math.pi / 2, 4, "Y")
-    tmp = Part()
-    tmp.verts = [rot_in @ v for v in shield.verts]
-    tmp.faces = shield.faces
-    decal = project_patch(tmp, (0, 0), (0.36, 0.5), (40, 56), pattern, offset=0.003)
-    rot_out = Matrix.Rotation(math.pi / 2, 4, "Y")
-    decal.verts = [rot_out @ v for v in decal.verts]
-    merge(shield, decal)
+    shield = build_aghar()
     emit("Shield", shield, (0, 0, 0))
 
     export(os.path.join(OUT, "equipment.glb"))
@@ -2980,6 +2964,48 @@ def build_boot(s):
     warm = {(0.42, 0.25, 0.14): (0.62, 0.4, 0.24), (0.16, 0.11, 0.08): (0.32, 0.22, 0.15)}
     p.colors = [warm.get(tuple(round(x, 2) for x in c), c) for c in p.colors]
     return p
+
+
+def build_aghar():
+    """Tuareg-style aghar shield: tall pale hide panel, gently curved, leather
+    rim, painted cross with lozenges and zigzag bands, small brass boss.
+    Built facing -Z, then turned so the face points -X (hand convention)."""
+    hide, rim, paint, dark, brass = (0.93, 0.87, 0.74), (0.55, 0.33, 0.19), (0.6, 0.17, 0.1), (0.2, 0.13, 0.09), (0.88, 0.68, 0.28)
+    W, H = 0.34, 0.47
+    sh = Part()
+    sh.add_mesh(rbox((W, H, 0.035), 0.03, 3), lambda c, n: hide)
+    for i, v in enumerate(sh.verts):             # curved hide, slightly waisted sides
+        xn, yn = v.x / (W / 2), v.y / (H / 2)
+        v.z -= 0.035 * (1 - xn * xn)
+        v.x *= 1.0 - 0.06 * (1 - yn * yn)
+    polys_rim = []
+    e, bw = 0.012, 0.022
+    polys_rim += [([(-W / 2 + e, H / 2 - e), (W / 2 - e, H / 2 - e), (W / 2 - e, H / 2 - e - bw), (-W / 2 + e, H / 2 - e - bw)], rim),
+                  ([(-W / 2 + e, -H / 2 + e + bw), (W / 2 - e, -H / 2 + e + bw), (W / 2 - e, -H / 2 + e), (-W / 2 + e, -H / 2 + e)], rim)]
+    for sx in (-1, 1):
+        x0 = sx * (W / 2 - e) * 0.94
+        x1 = sx * (W / 2 - e - bw) * 0.94
+        polys_rim.append(([(min(x0, x1), H / 2 - e), (max(x0, x1), H / 2 - e), (max(x0, x1), -H / 2 + e), (min(x0, x1), -H / 2 + e)], rim))
+    merge(sh, project_poly(sh, polys_rim, offset=0.003, cuts=2))
+    cross = [([(-0.016, 0.19), (0.016, 0.19), (0.016, -0.19), (-0.016, -0.19)], paint),
+             ([(-0.12, 0.016), (0.12, 0.016), (0.12, -0.016), (-0.12, -0.016)], paint)]
+    merge(sh, project_poly(sh, cross, offset=0.005, cuts=3))
+    loz = []
+    for (cx, cy) in ((-0.07, 0.1), (0.07, 0.1), (-0.07, -0.1), (0.07, -0.1)):
+        loz.append(([(cx, cy + 0.035), (cx + 0.026, cy), (cx, cy - 0.035), (cx - 0.026, cy)], dark))
+    for sy in (-1, 1):                               # zigzag bands near top and bottom
+        y = sy * 0.175
+        for k in range(6):
+            x = -0.1 + k * 0.04
+            loz.append(([(x, y - 0.014 * sy), (x + 0.04, y - 0.014 * sy), (x + 0.02, y + 0.018 * sy)], paint))
+    loz.append(([(0, 0.055), (0.04, 0), (0, -0.055), (-0.04, 0)], dark))
+    merge(sh, project_poly(sh, loz, offset=0.007, cuts=1))
+    loc, _ = _surface(sh, 0.0, 0.0)
+    sh.add_mesh(prim("sphere", r=1.0, u=18, v=12), lambda c, n: brass, T(loc + Vector((0, 0, -0.004)), scale=(0.028, 0.028, 0.016)))
+    m = Matrix.Rotation(math.pi / 2, 4, "Y")
+    sh.verts = [m @ v for v in sh.verts]
+    sh.normals = [(m.to_3x3() @ n).normalized() for n in sh.normals]
+    return sh
 
 
 def main():

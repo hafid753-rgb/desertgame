@@ -264,19 +264,19 @@ func animate(delta: float, info: Dictionary) -> void:
 			var combo: int = info.get("combo", 0)
 			var side := 1.0 if combo % 2 == 0 else -1.0
 			var swing := clampf(t * 1.8, 0.0, 1.0)
-			hr = Vector3(lerpf(0.62 * side, -0.4 * side, swing), 1.12, -0.42)
+			hr = Vector3(lerpf(0.62 * side, -0.4 * side, swing), 0.92, -0.52)
 			hr_rot = Vector3(-0.3, lerpf(1.2 * side, -1.4 * side, swing), 0)
 			lean = 0.22
 			robe_sway = -0.12 * side * swing
 			if state == "HEAVY":
-				hr = Vector3(0.35, lerpf(1.95, 0.7, swing), -0.48)
+				hr = Vector3(0.42, lerpf(1.75, 0.6, swing), -0.56)
 				hr_rot = Vector3(lerpf(1.2, -1.3, swing), 0, 0)
 		"HEAVY_CHARGE":
-			hr = Vector3(0.4, 1.9, 0.1)
+			hr = Vector3(0.52, 1.72, 0.15)
 			hr_rot = Vector3(1.3, 0, 0)
 			lean = -0.1
 		"GUARD", "DEFENSE":
-			hl = Vector3(-0.2, 1.08, -0.5)
+			hl = Vector3(-0.2, 0.9, -0.56)
 			hl_rot = Vector3(0, -0.4, 0)
 			lean = 0.06
 		"DODGE", "MOBILITY":
@@ -284,43 +284,43 @@ func animate(delta: float, info: Dictionary) -> void:
 			head_y = HEAD_Y - 0.32
 			lean = 0.4
 		"CAST":
-			hr = Vector3(0.25, 1.15, -0.62)
-			hl = Vector3(-0.25, 1.15, -0.62)
+			hr = Vector3(0.25, 0.95, -0.66)
+			hl = Vector3(-0.25, 0.95, -0.66)
 		"HITSTUN":
 			head_z = 0.08
 			lean = -0.25
 		"CLIMB":
 			_walk_phase += delta * absf(t) * 5.0
 			var reach := sin(_walk_phase) * 0.22
-			hr = Vector3(0.32, 1.75 + reach, -0.34)
-			hl = Vector3(-0.32, 1.75 - reach, -0.34)
+			hr = Vector3(0.34, 1.5 + reach, -0.48)
+			hl = Vector3(-0.34, 1.5 - reach, -0.48)
 			fr = Vector3(0.16, 0.3 - reach, -0.3)
 			fl = Vector3(-0.16, 0.3 + reach, -0.3)
 			lean = 0.15
 		"MANTLE":
-			hr = Vector3(0.32, 1.2, -0.45)
-			hl = Vector3(-0.32, 1.2, -0.45)
+			hr = Vector3(0.32, 1.1, -0.52)
+			hl = Vector3(-0.32, 1.1, -0.52)
 			fr = Vector3(0.13, 0.45, 0)
 			fl = Vector3(-0.13, 0.45, 0)
 		"AIR":
-			hr = Vector3(0.62, 1.25, 0)
-			hl = Vector3(-0.62, 1.25, 0)
+			hr = Vector3(0.64, 1.05, 0)
+			hl = Vector3(-0.64, 1.05, 0)
 			fr = Vector3(0.13, 0.25, 0.1)
 			fl = Vector3(-0.13, 0.06, -0.1)
 		"GLIDE":
-			hr = Vector3(1.3, 1.32, 0.05)
-			hl = Vector3(-1.3, 1.32, 0.05)
+			hr = Vector3(1.2, 1.08, 0.05)
+			hl = Vector3(-1.2, 1.08, 0.05)
 			fr = Vector3(0.12, 0.12, 0.3)
 			fl = Vector3(-0.12, 0.12, 0.3)
 			lean = 0.3
 	if charge > 0.0:
-		hr = hr.lerp(Vector3(0.35, 1.2, -0.3), 0.6)
+		hr = hr.lerp(Vector3(0.45, 1.0, -0.48), 0.6)
 	if _emote_t > 0.0:
 		if _emote == "peace":  # hand raised beside the face, fingers up
-			hr = Vector3(0.38, 1.65, -0.22)
+			hr = Vector3(0.62, 1.3, -0.16)
 			hr_rot = Vector3(PI / 2, 0.3, 0)
 		else:  # thumbs up held out in front
-			hr = Vector3(0.36, 1.2, -0.38)
+			hr = Vector3(0.42, 0.96, -0.5)
 			hr_rot = Vector3(0, 0, 0)
 
 	var gliding := state == "GLIDE"

@@ -92,6 +92,26 @@ func _ready() -> void:
 	for m in models:
 		m._blink_t = 0.0
 		m._blink_in = 3.0
+	# Gear sheet: shield face-on, takoba and scabbard.
+	var gear := CharacterArt.load_parts("res://game/art/characters/equipment.glb")
+	var gear_root := Node3D.new()
+	root.add_child(gear_root)
+	gear_root.position = Vector3(0, 5, 20)
+	var gm := CharacterArt.toon_material(Color(0.2, 0.12, 0.08), 0.006, "leather")
+	var placed := {"Shield": Transform3D(Basis(Vector3.UP, PI / 2), Vector3(-0.35, 0, 0)),
+		"Sword": Transform3D(Basis(Vector3.RIGHT, PI / 2), Vector3(0.08, -0.3, 0)),
+		"Scabbard": Transform3D(Basis(Vector3.RIGHT, PI / 2), Vector3(0.36, -0.3, 0))}
+	for k in placed:
+		var mi: MeshInstance3D = gear[k]
+		mi.material_override = gm
+		gear_root.add_child(mi)
+		mi.transform = placed[k]
+	cam.position = gear_root.position + Vector3(0.05, 0.1, 2.0)
+	cam.look_at(gear_root.position + Vector3(0.05, 0.05, 0))
+	for i in 5:
+		await get_tree().process_frame
+	await _shot("gear")
+	gear_root.queue_free()
 	# Emotes on the lineup.
 	models[1].emote("thumbs_up", 5.0)
 	models[2].emote("peace", 5.0)
