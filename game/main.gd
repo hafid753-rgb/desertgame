@@ -49,6 +49,7 @@ func _ready() -> void:
 		village.position = VILLAGE_AT
 		add_child(village)
 		village.announced.connect(hud.announce)
+		village.stage_changed.connect(func(_s: String) -> void: player.emote("peace", 2.2))
 		hud.boss = village.king
 
 
@@ -76,6 +77,7 @@ func spawn_jinn() -> Jinn:
 
 func _on_jinn_defeated(_j: Jinn) -> void:
 	jinn_kills += 1
+	player.emote("thumbs_up")
 	hud.announce("Jinn banished (%d)" % jinn_kills, Color(0.8, 0.6, 1.0))
 	await get_tree().create_timer(3.0).timeout
 	if is_inside_tree():

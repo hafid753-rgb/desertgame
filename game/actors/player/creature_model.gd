@@ -1,19 +1,24 @@
 class_name CreatureModel
 extends Node3D
-## Stylised adventurer creature: long daraa robe, proportioned head,
-## floating hands and feet (no limbs to skin). Parts are built in Blender by
+## Boxy adventurer creature, Rayman-style: long daraa robe, rounded-box head,
+## floating hands and shoes (no limbs). Parts are built in Blender by
 ## tools/blender/build_characters.py and rendered with the toon + outline
-## shader: 12 parts (eyes and ears ride on the head).
-## player.gd only talks to build() and animate().
+## shader. Each hand has five poses and shows one at a time:
+##   open       walking, idle, climbing, gliding, casting
+##   fist       running, dodging, punching
+##   grip       holding the sword (combat)
+##   thumbs_up  emote (jinn banished)
+##   peace      emote (village claimed, species switch)
+## Outside combat the sword and shield are carried on the back.
+## player.gd talks to build(), animate(), set_armed() and emote().
 
 const ART_DIR := "res://game/art/characters/"
 # Adventurer proportions (~1.75 m), see tools/blender/build_characters.py.
 const HEAD_Y := 1.6
 const BODY_Y := 0.8
-const HAND := Vector3(0.5, 0.92, -0.05)
+const HAND := Vector3(0.56, 0.92, -0.05)
 const FOOT := Vector3(0.13, 0.07, 0.0)
-const SHOULDER := Vector3(0.27, 1.27, 0.0)  # model space at rest
-const HIP := Vector3(0.11, 0.55, 0.02)
+const POSES: Array[String] = ["open", "fist", "grip", "thumbs_up", "peace"]
 
 var hand_r: Node3D
 var hand_l: Node3D
@@ -28,10 +33,14 @@ var daraa: Node3D
 var eyes: Node3D
 var ear_r: Node3D
 var ear_l: Node3D
-var arm_r: Node3D
-var arm_l: Node3D
-var leg_r: Node3D
-var leg_l: Node3D
+var shield: Node3D
+var armed: bool = false
+var hand_pose_r: String = "open"
+var hand_pose_l: String = "open"
+var _poses_r: Dictionary = {}
+var _poses_l: Dictionary = {}
+var _emote: String = ""
+var _emote_t: float = 0.0
 var _blink_in := 2.0
 var _blink_t := 0.0
 var _twitch_in := 3.0
@@ -39,7 +48,6 @@ var _twitch_t := 0.0
 var _twitch_side := 1.0
 
 var _mat: ShaderMaterial
-var _limb_mats: Array[ShaderMaterial] = []
 var _cloth_mat: ShaderMaterial
 var _glow_mat: StandardMaterial3D
 var _walk_phase := 0.0
@@ -57,16 +65,10 @@ func build(data: Dictionary) -> void:
 	body = _take(parts, "Body", Vector3(0, BODY_Y, 0))
 	head = _take(parts, "Head", Vector3(0, HEAD_Y, 0))
 	tail = _take(parts, "Tail", Vector3(0, 0.62, 0.22))
-	hand_r = _take(parts, "HandR", HAND)
-	hand_l = _take(parts, "HandL", Vector3(-HAND.x, HAND.y, HAND.z))
+	hand_r = _hand(parts, "HandR", HAND, _poses_r)
+	hand_l = _hand(parts, "HandL", Vector3(-HAND.x, HAND.y, HAND.z), _poses_l)
 	foot_r = _take(parts, "FootR", FOOT)
 	foot_l = _take(parts, "FootL", Vector3(-FOOT.x, FOOT.y, FOOT.z))
-	# Limbs: tapered tubes stretched from shoulder/hip to the hand/foot every
-	# frame, so the floating-limb animation drives a connected silhouette.
-	arm_r = _limb(data["sleeve"], 0.055, 0.042)
-	arm_l = _limb(data["sleeve"], 0.055, 0.042)
-	leg_r = _limb(data["sirwal"], 0.085, 0.05)
-	leg_l = _limb(data["sirwal"], 0.085, 0.05)
 	# Face parts ride on the head so blinks and ear twitches follow it.
 	eyes = _attach_to_head(parts, "Eyes")
 	ear_r = _attach_to_head(parts, "EarR")
@@ -87,14 +89,11 @@ func build(data: Dictionary) -> void:
 
 	if gear.has("Sword"):
 		sword = gear["Sword"]
-		sword.transform = Transform3D.IDENTITY
 		(sword as MeshInstance3D).material_override = CharacterArt.toon_material(Color(0.1, 0.08, 0.08), 0.006)
-		hand_r.add_child(sword)
 	if gear.has("Shield"):
-		var shield: MeshInstance3D = gear["Shield"]
-		shield.transform = Transform3D(Basis(), Vector3(-0.06, 0, -0.02))
-		shield.material_override = _mat
-		hand_l.add_child(shield)
+		shield = gear["Shield"]
+		(shield as MeshInstance3D).material_override = _mat
+	set_armed(false, true)
 	for k in gear:
 		if (gear[k] as Node).get_parent() == null:
 			(gear[k] as Node).queue_free()
@@ -113,6 +112,71 @@ func build(data: Dictionary) -> void:
 	hand_r.add_child(element_glow)
 
 
+## Draw (true) or sheathe (false) the sword and shield.
+func set_armed(on: bool, force: bool = false) -> void:
+	if on == armed and not force:
+		return
+	armed = on
+	if sword:
+		if sword.get_parent():
+			sword.get_parent().remove_child(sword)
+		if on:
+			hand_r.add_child(sword)
+			sword.transform = Transform3D(Basis(), Vector3(0, 0.0, -0.04))
+		else:
+			# Diagonal across the back, hilt over the right shoulder.
+			body.add_child(sword)
+			sword.transform = Transform3D(Basis(Vector3.FORWARD, 0.7) * Basis(Vector3.RIGHT, -PI / 2), Vector3(0.12, 0.42, 0.24))
+	if shield:
+		if shield.get_parent():
+			shield.get_parent().remove_child(shield)
+		if on:
+			hand_l.add_child(shield)
+			shield.transform = Transform3D(Basis(), Vector3(-0.17, 0, -0.04))
+		else:
+			body.add_child(shield)
+			shield.transform = Transform3D(Basis(Vector3.UP, PI / 2), Vector3(0, 0.2, 0.25))
+
+
+## Play a hand emote for `seconds` (thumbs_up, peace).
+func emote(pose: String, seconds: float = 1.6) -> void:
+	_emote = pose
+	_emote_t = seconds
+
+
+func is_emoting() -> bool:
+	return _emote_t > 0.0
+
+
+func set_hand_pose(side: String, pose: String) -> void:
+	var table := _poses_r if side == "r" else _poses_l
+	if not table.has(pose):
+		return
+	for k in table:
+		(table[k] as Node3D).visible = k == pose
+	if side == "r":
+		hand_pose_r = pose
+	else:
+		hand_pose_l = pose
+
+
+func _choose_poses(state: String, move: float, sprinting: bool) -> Array[String]:
+	if _emote_t > 0.0:
+		return [_emote, "open"]
+	match state:
+		"ATTACK", "HEAVY", "HEAVY_CHARGE":
+			return ["grip" if armed else "fist", "fist"]
+		"GUARD", "DEFENSE":
+			return ["grip" if armed else "fist", "grip" if armed else "fist"]
+		"DODGE", "MOBILITY", "HITSTUN":
+			return ["grip" if armed else "fist", "fist"]
+		"CAST", "CLIMB", "MANTLE", "GLIDE", "AIR":
+			return ["open", "open"]
+	if sprinting:
+		return ["grip" if armed else "fist", "fist"]
+	return ["grip" if armed else "open", "grip" if armed else "open"]
+
+
 func flash(color: Color, amount: float = 1.0) -> void:
 	_flash = amount
 	_flash_color = color
@@ -126,6 +190,13 @@ func animate(delta: float, info: Dictionary) -> void:
 	var t: float = info.get("t", 0.0)
 	var charge: float = info.get("charge", 0.0)
 	var ecol: Color = info.get("element_color", Color.WHITE)
+	var sprinting: bool = info.get("sprinting", false)
+	_emote_t = maxf(0.0, _emote_t - delta)
+	var poses := _choose_poses(state, move, sprinting)
+	if poses[0] != hand_pose_r:
+		set_hand_pose("r", poses[0])
+	if poses[1] != hand_pose_l:
+		set_hand_pose("l", poses[1])
 
 	_walk_phase += delta * (3.5 + 8.0 * move)
 	var bob := sin(_walk_phase * 2.0) * 0.035 * move
@@ -202,6 +273,13 @@ func animate(delta: float, info: Dictionary) -> void:
 			lean = 0.3
 	if charge > 0.0:
 		hr = hr.lerp(Vector3(0.35, 1.2, -0.3), 0.6)
+	if _emote_t > 0.0:
+		if _emote == "peace":  # hand raised beside the face, fingers up
+			hr = Vector3(0.38, 1.65, -0.22)
+			hr_rot = Vector3(PI / 2, 0.3, 0)
+		else:  # thumbs up held out in front
+			hr = Vector3(0.36, 1.2, -0.38)
+			hr_rot = Vector3(0, 0, 0)
 
 	var gliding := state == "GLIDE"
 	daraa.visible = gliding or daraa.scale.x > 0.25
@@ -224,62 +302,30 @@ func animate(delta: float, info: Dictionary) -> void:
 	hand_l.rotation = hand_l.rotation.lerp(hl_rot, k)
 
 	_animate_face(delta, state)
-	_update_limbs()
 
 	var glow_a := clampf(charge / 3.0, 0.0, 1.0) * 0.8
 	_glow_mat.albedo_color = Color(ecol.r, ecol.g, ecol.b, glow_a)
 	element_glow.scale = Vector3.ONE * (0.6 + charge * 0.5)
 
 	_flash = maxf(0.0, _flash - delta * 6.0)
-	for m in [_mat] + _limb_mats:
-		m.set_shader_parameter("flash", _flash * 0.9)
-		m.set_shader_parameter("flash_color", _flash_color)
+	_mat.set_shader_parameter("flash", _flash * 0.9)
+	_mat.set_shader_parameter("flash_color", _flash_color)
 
 
-func _limb(color: Color, r_top: float, r_bottom: float) -> Node3D:
-	var m := CharacterArt.toon_material(Color(color, 1.0).darkened(0.75), 0.01)
-	m.set_shader_parameter("tint", color)
-	var cyl := CylinderMesh.new()
-	cyl.top_radius = r_top
-	cyl.bottom_radius = r_bottom
-	cyl.height = 1.0
-	cyl.radial_segments = 10
-	cyl.rings = 1
+func _hand(parts: Dictionary, prefix: String, pos: Vector3, table: Dictionary) -> Node3D:
 	var pivot := Node3D.new()
-	var mi := MeshInstance3D.new()
-	mi.mesh = cyl
-	mi.material_override = m
-	mi.position = Vector3(0, -0.5, 0)  # pivot at the top end, tube hangs along -Y
-	pivot.add_child(mi)
+	pivot.position = pos
 	add_child(pivot)
-	_limb_mats.append(m)
+	for pose in POSES:
+		var mi: MeshInstance3D = parts.get(prefix + "_" + pose)
+		if mi == null:
+			continue
+		mi.material_override = _mat
+		mi.position = Vector3.ZERO
+		mi.visible = pose == "open"
+		pivot.add_child(mi)
+		table[pose] = mi
 	return pivot
-
-
-func _body_point(rest: Vector3) -> Vector3:
-	# Where a rest-pose point on the robe is now (follows bob and lean).
-	return body.position + body.basis * (rest - Vector3(0, BODY_Y, 0))
-
-
-func _stretch(limb: Node3D, from: Vector3, to: Vector3) -> void:
-	var d := to - from
-	var length := d.length()
-	if length < 0.01:
-		return
-	var down := -d / length  # tube's local -Y points at the target
-	var x := down.cross(Vector3.FORWARD)
-	if x.length() < 0.01:
-		x = down.cross(Vector3.RIGHT)
-	x = x.normalized()
-	var z := x.cross(down).normalized()
-	limb.transform = Transform3D(Basis(x, down * length, z), from)
-
-
-func _update_limbs() -> void:
-	_stretch(arm_r, _body_point(SHOULDER), hand_r.position)
-	_stretch(arm_l, _body_point(Vector3(-SHOULDER.x, SHOULDER.y, SHOULDER.z)), hand_l.position)
-	_stretch(leg_r, _body_point(HIP), foot_r.position + Vector3(0, 0.05, 0))
-	_stretch(leg_l, _body_point(Vector3(-HIP.x, HIP.y, HIP.z)), foot_l.position + Vector3(0, 0.05, 0))
 
 
 func _attach_to_head(parts: Dictionary, name: String) -> Node3D:

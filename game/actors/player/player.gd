@@ -125,6 +125,11 @@ var mantle_to: Vector3 = Vector3.ZERO
 var air_horizontal: Vector3 = Vector3.ZERO
 var highest_y: float = 0.0
 
+## Sword and shield come out for fights and go on the back after a calm spell.
+const SHEATHE_AFTER := 5.0
+const DRAW_RANGE := 9.0
+var last_combat_time: float = -100.0
+
 ## Nearest usable Interactable in range (shown on the HUD's ACT button).
 var current_interactable: Interactable = null
 
@@ -179,6 +184,7 @@ func next_species() -> void:
 	var ids: Array = Species.DATA.keys()
 	set_species(ids[(ids.find(species_id) + 1) % ids.size()])
 	announced.emit(str(species["name"]), species["fur"])
+	emote("peace")
 
 
 func is_dead() -> bool:
@@ -437,6 +443,7 @@ func _physics_process(delta: float) -> void:
 
 	_tick_stamina(delta)
 	PerfLogger.player_state = state_name()
+	_update_armed()
 	_animate(delta, horizontal)
 
 
@@ -1147,6 +1154,26 @@ func _move_vector() -> Vector3:
 	return Basis(Vector3.UP, yaw) * Vector3(input.x, 0.0, input.y)
 
 
+func emote(pose: String, seconds: float = 1.6) -> void:
+	if model:
+		model.emote(pose, seconds)
+
+
+func _update_armed() -> void:
+	if state in [State.ATTACK, State.HEAVY_CHARGE, State.GUARD, State.CAST, State.DEFENSE, State.HITSTUN] or lock_target:
+		last_combat_time = now
+	var near := false
+	for j in _jinn_in_reach():
+		if global_position.distance_to(j.global_position) < DRAW_RANGE:
+			near = true
+			break
+	var fighting := near or now - last_combat_time < SHEATHE_AFTER
+	var hands_busy := state in [State.CLIMB, State.MANTLE, State.GLIDE]
+	if model:
+		# Celebrating puts the sword away so the hand is free to gesture.
+		model.set_armed(fighting and not hands_busy and not model.is_emoting())
+
+
 func _find_interactable() -> Interactable:
 	var best: Interactable = null
 	var best_d := INF
@@ -1234,4 +1261,5 @@ func _animate(delta: float, horizontal: Vector3) -> void:
 		"combo": combo_step,
 		"charge": charge_progress(),
 		"element_color": Combat.ELEMENT_COLORS[element],
+		"sprinting": sprinting and state == State.MOVE,
 	})

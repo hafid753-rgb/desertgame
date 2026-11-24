@@ -44,6 +44,7 @@ func _ready() -> void:
 		m.build(Species.get_data(id))
 		m.position = Vector3(x, 0, 0)
 		m.rotation.y = PI + 0.35
+		m.set_armed(true)
 		x += 1.6
 	var j := Jinn.new()
 	j.ai_enabled = false
@@ -69,6 +70,29 @@ func _ready() -> void:
 	for i in 5:
 		await get_tree().process_frame
 	await _shot("cat_close")
+	# Emotes on the lineup.
+	models[1].emote("thumbs_up", 5.0)
+	models[2].emote("peace", 5.0)
+	cam.position = Vector3(0, 1.5, 8.2)
+	cam.look_at(Vector3(0, 1.05, 0))
+	for i in 20:
+		await get_tree().process_frame
+	await _shot("lineup_emotes")
+	# Hand pose close-ups: freeze the cat and show each pose.
+	var cat := models[0]
+	models.erase(cat)
+	cat.set_armed(false)
+	var hand := cat.hand_r
+	hand.rotation = Vector3.ZERO
+	var fwd := -cat.global_transform.basis.z
+	cam.position = hand.global_position + fwd * 0.55 + Vector3(0, 0.3, 0) + cat.global_transform.basis.x * 0.25
+	cam.look_at(hand.global_position)
+	for pose in CreatureModel.POSES:
+		cat.set_hand_pose("r", pose)
+		hand.rotation = Vector3(PI / 2, 0, 0) if pose == "peace" else Vector3.ZERO
+		for i in 3:
+			await get_tree().process_frame
+		await _shot("hand_" + pose)
 	get_tree().quit()
 
 func _shot(name: String) -> void:

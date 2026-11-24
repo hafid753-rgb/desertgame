@@ -53,6 +53,7 @@ func _run_all() -> void:
 	await _test_fall_damage()
 	await _test_mesa_only_lizard()
 	await _test_pause_menu()
+	await _test_hand_poses()
 
 
 # --- Tests ------------------------------------------------------------------
@@ -411,6 +412,35 @@ func _test_pause_menu() -> void:
 	_check("pause stops the game tree", get_tree().paused, "")
 	main.hud.set_paused(false)
 	_check("resume restarts it", not get_tree().paused, "")
+
+
+func _test_hand_poses() -> void:
+	await _reset(Vector3(0, 0, -40))
+	player.global_position = Vector3(6, 0.05, 4)
+	player.last_combat_time = -100.0
+	await _frames(10)
+	var m := player.model
+	_check("idle, no enemy near: sword on the back", not m.armed, "")
+	_check("idle: open hands", m.hand_pose_r == "open" and m.hand_pose_l == "open", m.hand_pose_r)
+	GameInput.touch_move = Vector2(0, -1)
+	await _frames(50)
+	_check("sprinting: fists", m.hand_pose_r == "fist" and m.hand_pose_l == "fist", "%s %s" % [m.hand_pose_r, m.hand_pose_l])
+	GameInput.touch_move = Vector2.ZERO
+	await _tap("attack", 2)
+	await _frames(3)
+	_check("attacking draws the sword", m.armed, "")
+	_check("attacking: right hand grips the sword", m.hand_pose_r == "grip", m.hand_pose_r)
+	player.emote("thumbs_up", 1.0)
+	await _frames(40)
+	_check("emote: thumbs up", m.hand_pose_r == "thumbs_up", m.hand_pose_r)
+	_check("emote: sword put away to gesture", not m.armed, "")
+	player.emote("peace", 1.0)
+	await _frames(3)
+	_check("emote: peace", m.hand_pose_r == "peace", m.hand_pose_r)
+	await _frames(80)
+	player.last_combat_time = -100.0
+	await _frames(5)
+	_check("calm again: sword sheathed, hands open", not m.armed and m.hand_pose_r == "open", "%s %s" % [m.armed, m.hand_pose_r])
 
 
 # --- Helpers ----------------------------------------------------------------

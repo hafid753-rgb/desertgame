@@ -244,7 +244,7 @@ def box_part(part, center, size, color, taper_tip=None):
 HEAD_C = (0, 1.6, 0)     # head pivot
 BODY_C = (0, 0.8, 0)     # robe pivot (hips)
 TAIL_C = (0, 0.62, 0.22)
-HAND_C = (0.5, 0.92, -0.05)
+HAND_C = (0.56, 0.92, -0.05)
 FOOT_C = (0.13, 0.07, 0.0)
 
 
@@ -255,7 +255,7 @@ def superellipse(a, hw, hd, n=2.6):
     return x, z
 
 
-def loft(sections, segs, color_fn, fold_fn=None, cap_top=True, cap_bottom=True):
+def loft(sections, segs, color_fn, fold_fn=None, cap_top=True, cap_bottom=True, squareness=2.6):
     """sections: [(y, half_width, half_depth, z_offset)], bottom to top.
     Returns a Part whose rings are superellipses with optional folds."""
     p = Part()
@@ -264,7 +264,7 @@ def loft(sections, segs, color_fn, fold_fn=None, cap_top=True, cap_bottom=True):
         ring = []
         for i in range(segs):
             a = i / segs * math.tau
-            x, z = superellipse(a, hw, hd)
+            x, z = superellipse(a, hw, hd, squareness)
             k = 1.0 + (fold_fn(y, a) if fold_fn else 0.0)
             co = Vector((x * k, y, z * k + zo))
             ring.append(len(p.verts))
@@ -321,7 +321,7 @@ def build_robe(s):
         # Main drape: big folds where the cloth falls off the arms (sides),
         # smaller pleats front and back.
         side = abs(math.cos(a)) ** 3
-        return depth * (0.07 * side * math.sin(a * 6 + 0.4) + 0.025 * math.sin(a * 13 + 1.1))
+        return depth * (0.035 * side * math.sin(a * 6 + 0.4) + 0.012 * math.sin(a * 13 + 1.1))
 
     def col(co, a):
         wy = co.y + oy
@@ -338,7 +338,7 @@ def build_robe(s):
         shade = 0.5 + 0.5 * math.sin(a * 6 + 0.4)
         depth = max(0.0, min(1.0, (1.2 - wy) / 0.8))
         return mix(robe, robe_dark, 0.35 * shade * depth)
-    p = loft(sections, 56, col, folds)
+    p = loft(sections, 56, col, folds, squareness=4.5)
 
     def pocket(u, v):
         if u < 0.1 or u > 0.9 or v < 0.05 or v > 0.95:
@@ -364,169 +364,222 @@ def build_robe(s):
     return p
 
 
+# ===========================================================================
+# Boxy style (v0.6): everything built from rounded boxes (bevelled cubes),
+# Rayman-style floating hands and shoes, five hand poses per side.
+# ===========================================================================
+HAND_POSES = ["open", "fist", "grip", "thumbs_up", "peace"]
+HAND_SCALE = 1.6  # big, expressive Rayman-style paws
+
+
+def rbox(size, r=0.03, seg=2, taper=None):
+    """Rounded box centred at the origin. taper=(sx, sz) scales the top face
+    (y > 0) to make wedges such as ears."""
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    for v in bm.verts:
+        v.co = Vector((v.co.x * size[0], v.co.y * size[1], v.co.z * size[2]))
+        if taper and v.co.y > 0:
+            v.co.x *= taper[0]
+            v.co.z *= taper[1]
+    r = min(r, min(size) * 0.45)
+    bmesh.ops.bevel(bm, geom=list(bm.edges), offset=r, offset_type="OFFSET", segments=seg,
+                    profile=0.5, affect="EDGES", clamp_overlap=True)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new("rbox")
+    bm.to_mesh(me)
+    bm.free()
+    return me
+
+
+def add_box(part, size, loc, color, r=0.03, rot=(0, 0, 0), taper=None, seg=2):
+    c = color if callable(color) else (lambda co, n, col=color: col)
+    part.add_mesh(rbox(size, r, seg, taper), c, T(loc, rot=rot))
+
+
+def mirrored(part):
+    """Mirror a Part across X (left from right), fixing face winding."""
+    m = Part()
+    m.verts = [Vector((-v.x, v.y, v.z)) for v in part.verts]
+    m.normals = [Vector((-n.x, n.y, n.z)) for n in part.normals]
+    m.colors = list(part.colors)
+    m.faces = [list(reversed(f)) for f in part.faces]
+    return m
+
+
 def build_head(s):
     p = Part()
     fur, dark, acc = s["fur"], s["fur_dark"], s["accent"]
     kind = s["head"]
     if kind == "lizard":
-        elems = [("ELLIPSOID", (0, 0.02, 0.02), 0.2, (0.95, 0.85, 1.05)),
-                 ("ELLIPSOID", (0, -0.03, -0.18), 0.14, (0.8, 0.62, 1.35))]
-    elif kind == "fox":
-        elems = [("ELLIPSOID", (0, 0.01, 0), 0.2, (1.0, 0.92, 1.0)),
-                 ("ELLIPSOID", (0, -0.05, -0.17), 0.085, (0.95, 0.75, 1.9)),
-                 ("BALL", (0.1, -0.06, -0.06), 0.09, None), ("BALL", (-0.1, -0.06, -0.06), 0.09, None)]
+        add_box(p, (0.36, 0.3, 0.4), (0, 0.0, 0.02), fur, r=0.09)
+        add_box(p, (0.28, 0.15, 0.24), (0, -0.05, -0.25), fur, r=0.06)
+        add_box(p, (0.26, 0.06, 0.22), (0, -0.115, -0.24), acc, r=0.03)  # pale jaw
+        for i, zz in enumerate([0.12, 0.03, -0.06]):  # crest
+            add_box(p, (0.035, 0.09, 0.07), (0, 0.18 - i * 0.008, zz), s["inner_ear"], r=0.015, taper=(0.5, 0.4))
+        for sx in (-1, 1):  # scale spots
+            add_box(p, (0.05, 0.012, 0.05), (0.09 * sx, 0.152, 0.06), dark, r=0.008)
+        add_box(p, (0.04, 0.02, 0.025), (0, -0.02, -0.37), s["nose"], r=0.008)
+        return p
+    if kind == "fox":
+        add_box(p, (0.4, 0.34, 0.36), (0, 0.0, 0.0), fur, r=0.1)
+        add_box(p, (0.16, 0.11, 0.2), (0, -0.075, -0.24), acc, r=0.045)
+        add_box(p, (0.3, 0.08, 0.2), (0, -0.14, -0.04), acc, r=0.035)   # pale cheeks/throat
+        add_box(p, (0.05, 0.12, 0.02), (0, 0.06, -0.181), mix(fur, acc, 0.6), r=0.01)  # blaze
+        add_box(p, (0.05, 0.03, 0.03), (0, -0.045, -0.345), s["nose"], r=0.01)
     else:
-        elems = [("ELLIPSOID", (0, 0.01, 0), 0.21, (1.05, 0.95, 1.0)),
-                 ("ELLIPSOID", (0, -0.06, -0.15), 0.085, (1.15, 0.8, 1.2)),
-                 ("BALL", (0.1, -0.07, -0.08), 0.09, None), ("BALL", (-0.1, -0.07, -0.08), 0.09, None)]
-    head = meta_mesh("head2_" + kind, elems, resolution=0.026)
-
-    def col(co, n):
-        x, y, z = co
-        if kind == "lizard":
-            if y < -0.06 and z < 0.0:
-                return acc
-            if hash3(round(x * 22), round(y * 22), round(z * 22)) > 0.75 and y > 0.02:
-                return dark
-            return fur
-        if z < -0.1 and y < -0.04:
-            return acc  # muzzle and chin
-        if kind == "round" and y > 0.1 and abs(x) < 0.09 and math.sin(x * 70 + 1.57) > 0.55:
-            return dark  # forehead stripes
-        if kind == "fox" and z < -0.06 and y > -0.02 and abs(x) < 0.035:
-            return mix(fur, acc, 0.6)
-        if kind == "fox" and y < -0.03:
-            return acc  # pale cheeks and throat
-        return fur
-    p.add_mesh(head, col)
-    # Brow ridge gives a determined look instead of a baby face.
-    if kind != "lizard":
-        for sx in (-1, 1):
-            p.add_mesh(prim("sphere", r=0.04, u=10, v=6), lambda c, n: fur,
-                       T((0.07 * sx, 0.065, -0.16), rot=(0, 0, 0.18 * sx), scale=(1.4, 0.4, 0.6)))
-    nose = {"round": (0, -0.02, -0.262), "fox": (0, -0.05, -0.335), "lizard": (0, -0.02, -0.36)}[kind]
-    p.add_mesh(prim("sphere", r=0.022, u=8, v=6), lambda c, n: s["nose"], T(nose, scale=(1.3, 0.8, 0.9)))
-    if kind == "lizard":
-        for i, zz in enumerate([0.1, 0.03, -0.04, -0.11]):
-            m = T((0, 0.19 - abs(zz) * 0.2, zz)) @ UP_CONE
-            p.add_mesh(prim("cone", r1=0.03, r2=0.0, h=0.09, seg=6), lambda c, n: s["inner_ear"],
-                       m @ Matrix.Translation((0, 0, 0.04)) @ Matrix.Diagonal((0.5, 1, 1, 1)))
-    else:
-        for sx in (-1, 1):  # cheek ruff
-            m = T((0.19 * sx, -0.07, 0.0), rot=(0, 0, -1.1 * sx)) @ UP_CONE
-            p.add_mesh(prim("cone", r1=0.035, r2=0.0, h=0.08, seg=6), lambda c, n: fur,
-                       m @ Matrix.Translation((0, 0, 0.03)) @ Matrix.Diagonal((1, 0.5, 1, 1)))
+        add_box(p, (0.42, 0.36, 0.38), (0, 0.0, 0.0), fur, r=0.1)
+        add_box(p, (0.21, 0.12, 0.12), (0, -0.075, -0.2), acc, r=0.05)
+        for x in (-0.06, 0.0, 0.06):  # forehead stripes
+            add_box(p, (0.03, 0.012, 0.13), (x, 0.181, -0.03), dark, r=0.005)
+        add_box(p, (0.055, 0.03, 0.03), (0, -0.03, -0.268), s["nose"], r=0.01)
+    # Cheek tufts and determined brows.
+    for sx in (-1, 1):
+        add_box(p, (0.07, 0.08, 0.09), (0.215 * sx, -0.07, 0.0), fur, r=0.025, rot=(0, 0, 0.5 * sx), taper=(0.4, 0.8))
+        add_box(p, (0.11, 0.026, 0.035), (0.085 * sx, 0.075, -0.188), s["fur_dark"], r=0.01, rot=(0, 0, 0.15 * sx))
     return p
 
 
-EYE_Y = {"round": 0.03, "fox": 0.03, "lizard": 0.06}
+EYE_Y = {"round": 0.0, "fox": 0.0, "lizard": 0.04}
 
 
 def build_eyes(s):
-    """Almond eyes: white sclera, coloured iris, pupil, glint. Separate part
-    (pivot at eye height) so the game blinks it by scaling Y."""
+    """Rounded-rectangle eyes: sclera, iris, pupil, glint. One part so the
+    game blinks it by scaling Y."""
     p = Part()
     kind = s["head"]
     iris = s["iris"]
     if kind == "lizard":
         for sx in (-1, 1):
-            p.add_mesh(prim("sphere", r=0.05, u=12, v=8), lambda c, n: iris, T((0.13 * sx, 0, -0.07), scale=(0.75, 1, 1)))
-            p.add_mesh(prim("sphere", r=0.03, u=8, v=6), lambda c, n: (0.04, 0.04, 0.04), T((0.165 * sx, 0, -0.08), scale=(0.3, 1.4, 0.4)))
-            p.add_mesh(prim("sphere", r=0.01, u=6, v=4), lambda c, n: (1, 1, 1), T((0.17 * sx, 0.02, -0.1)))
+            add_box(p, (0.03, 0.08, 0.1), (0.185 * sx, 0.0, -0.06), iris, r=0.02)
+            add_box(p, (0.012, 0.06, 0.02), (0.2 * sx, 0.0, -0.065), (0.04, 0.04, 0.04), r=0.005)
+            add_box(p, (0.008, 0.015, 0.015), (0.203 * sx, 0.02, -0.09), (1, 1, 1), r=0.004)
         return p
     slit = kind == "round"
     for sx in (-1, 1):
-        base = Vector((0.075 * sx, 0.0, -0.172))
-        p.add_mesh(prim("sphere", r=0.045, u=12, v=8), lambda c, n: (0.97, 0.96, 0.92),
-                   T(base, rot=(0, 0, -0.18 * sx), scale=(1.25, 0.82, 0.45)))
-        p.add_mesh(prim("sphere", r=0.03, u=10, v=8), lambda c, n: iris, T(base + Vector((-0.004 * sx, -0.002, -0.012)), scale=(1, 1.05, 0.4)))
-        p.add_mesh(prim("sphere", r=0.017, u=8, v=6), lambda c, n: (0.03, 0.02, 0.03),
-                   T(base + Vector((-0.004 * sx, -0.002, -0.022)), scale=(0.45 if slit else 1.0, 1.25 if slit else 1.0, 0.4)))
-        p.add_mesh(prim("sphere", r=0.008, u=6, v=4), lambda c, n: (1, 1, 1), T(base + Vector((0.01 * sx, 0.012, -0.028))))
+        x = 0.085 * sx
+        add_box(p, (0.1, 0.075, 0.02), (x, 0.0, -0.19), (0.97, 0.96, 0.92), r=0.022)
+        add_box(p, (0.055, 0.058, 0.012), (x - 0.006 * sx, -0.003, -0.2), iris, r=0.016)
+        add_box(p, (0.016 if slit else 0.028, 0.044 if slit else 0.03, 0.008), (x - 0.006 * sx, -0.003, -0.205), (0.03, 0.02, 0.03), r=0.006)
+        add_box(p, (0.012, 0.012, 0.006), (x + 0.012 * sx, 0.016, -0.209), (1, 1, 1), r=0.004)
     return p
 
 
 def ear_layout(s):
     if s["ears"] == "fennec":
-        return 0.12, 0.34, (0.12, 0.13, 0.02), 0.45
-    return 0.075, 0.17, (0.12, 0.13, 0.0), 0.35
+        return (0.17, 0.32, 0.06), (0.12, 0.17, 0.02), 0.45
+    return (0.12, 0.17, 0.05), (0.12, 0.17, 0.0), 0.32
 
 
 def build_ear(s, sx):
     p = Part()
-    r, h, _, tilt = ear_layout(s)
-    m = Matrix.Rotation(-tilt * sx, 4, "Z") @ UP_CONE
-    p.add_mesh(prim("cone", r1=r, r2=0.0, h=h, seg=12), lambda c, n: s["fur"],
-               m @ Matrix.Translation((0, 0, h * 0.5)) @ Matrix.Diagonal((1, 0.45, 1, 1)))
-    p.add_mesh(prim("cone", r1=r * 0.62, r2=0.0, h=h * 0.78, seg=10), lambda c, n: s["inner_ear"],
-               m @ Matrix.Translation((0, -0.025, h * 0.43)) @ Matrix.Diagonal((1, 0.3, 1, 1)))
-    if s["ears"] == "fennec":
-        p.add_mesh(prim("cone", r1=r * 0.3, r2=0.0, h=h * 0.4, seg=6), lambda c, n: s["accent"],
-                   m @ Matrix.Translation((0, -0.035, h * 0.22)) @ Matrix.Diagonal((1, 0.4, 1, 1)))
-    if s["ears"] == "cat":  # dark ear tips
-        p.add_mesh(prim("cone", r1=r * 0.35, r2=0.0, h=h * 0.3, seg=8), lambda c, n: s["fur_dark"],
-                   m @ Matrix.Translation((0, 0.003, h * 0.86)) @ Matrix.Diagonal((1, 0.47, 1, 1)))
+    size, _, tilt = ear_layout(s)
+    rot = (0, 0, -tilt * sx)
+    w, h, d = size
+    p.add_mesh(rbox(size, 0.02, 3, taper=(0.15, 0.6)), lambda c, n: s["fur"], T((0, h * 0.5, 0), rot=rot) if False else
+               Matrix.Rotation(-tilt * sx, 4, "Z") @ Matrix.Translation((0, h * 0.5, 0)))
+    p.add_mesh(rbox((w * 0.6, h * 0.75, d * 0.4), 0.012, 2, taper=(0.15, 0.6)), lambda c, n: s["inner_ear"],
+               Matrix.Rotation(-tilt * sx, 4, "Z") @ Matrix.Translation((0, h * 0.42, -d * 0.4)))
+    if s["ears"] == "cat":
+        p.add_mesh(rbox((w * 0.35, h * 0.28, d * 1.05), 0.008, 2, taper=(0.2, 0.7)), lambda c, n: s["fur_dark"],
+                   Matrix.Rotation(-tilt * sx, 4, "Z") @ Matrix.Translation((0, h * 0.86, 0)))
     return p
 
 
 def build_tail(s):
+    """Chain of rounded boxes following the tail curve."""
     p = Part()
     kind = s["tail"]
     pts = []
-    n = 16
-    for i in range(n):
-        t = i / (n - 1)
+    n = 8
+    for i in range(n + 1):
+        t = i / n
         if kind == "lizard":
-            pos = (0, -0.45 + 0.08 * math.sin(t * 3.0), 0.05 + t * 0.95)
-            r = lerp(0.1, 0.025, t)
+            pos, r = Vector((0, -0.45 + 0.08 * math.sin(t * 3.0), 0.05 + t * 0.95)), lerp(0.1, 0.03, t)
         elif kind == "fennec":
-            pos = (0, -0.15 + t * 0.25, 0.05 + t * 0.55)
-            r = lerp(0.06, 0.11, math.sin(t * math.pi * 0.85))
+            pos, r = Vector((0, -0.15 + t * 0.25, 0.05 + t * 0.55)), lerp(0.06, 0.12, math.sin(t * math.pi * 0.85))
         else:
-            pos = (0, -0.1 + t * 0.55, 0.05 + math.sin(t * 2.2) * 0.4)
-            r = lerp(0.05, 0.035, t)
+            pos, r = Vector((0, -0.1 + t * 0.55, 0.05 + math.sin(t * 2.2) * 0.4)), lerp(0.05, 0.04, t)
         pts.append((pos, r, t))
-    me = meta_mesh("tail2_" + kind, [("BALL", pp, r, None) for pp, r, _ in pts], resolution=0.03)
-
-    def col(co, nrm):
-        best = min(pts, key=lambda q: (Vector(q[0]) - co).length)
-        t = best[2]
-        if kind == "fennec" and t > 0.82:
-            return (0.12, 0.08, 0.07)
-        if kind == "cat" and math.sin(t * 26) > 0.45:
-            return s["fur_dark"]
-        if kind == "lizard" and nrm.y > 0.5 and hash3(co.x * 9, co.y * 9, co.z * 9) > 0.6:
-            return s["fur_dark"]
-        return s["fur"]
-    p.add_mesh(me, col)
+    for i in range(n):
+        a, b = pts[i], pts[i + 1]
+        d = b[0] - a[0]
+        mid = (a[0] + b[0]) * 0.5
+        r = (a[1] + b[1]) * 0.5
+        t = a[2]
+        if kind == "fennec" and t > 0.8:
+            col = (0.12, 0.08, 0.07)
+        elif kind == "cat" and i % 2 == 1:
+            col = s["fur_dark"]
+        elif kind == "lizard" and i % 3 == 1:
+            col = s["fur_dark"]
+        else:
+            col = s["fur"]
+        rot = Vector((0, 1, 0)).rotation_difference(d.normalized()).to_matrix().to_4x4()
+        p.add_mesh(rbox((r * 2, d.length * 1.25, r * 2), r * 0.45, 2), lambda c, nn, col=col: col,
+                   Matrix.Translation(mid) @ rot)
     return p
 
 
-def build_paw(s, foot=False):
+def build_hand(s, pose):
+    """Right paw, palm down, fingers toward -Z, thumb on the inner (-X) side.
+    Poses: open (walking), fist (running/punching), grip (holding the sword),
+    thumbs_up, peace."""
     p = Part()
     fur, pad = s["fur"], s.get("pad", (0.95, 0.62, 0.62))
     claw = s["head"] == "lizard"
-    if foot:
-        # Leather sandal (naal) under a furry foot.
-        sole, strap = (0.36, 0.22, 0.12), (0.55, 0.3, 0.14)
-        p.add_mesh(prim("sphere", r=0.07, u=12, v=8), lambda c, n: fur, T((0, 0.02, -0.03), scale=(0.95, 0.7, 1.5)))
-        box_part(p, (0, -0.035, -0.035), (0.13, 0.025, 0.25), sole)
-        box_part(p, (0, 0.01, -0.07), (0.14, 0.03, 0.03), strap)
-        for k in (-1, 0, 1):
-            p.add_mesh(prim("sphere", r=0.025, u=6, v=4), lambda c, n: (0.95, 0.95, 0.85) if claw else fur,
-                       T((k * 0.035, -0.005, -0.13), scale=(0.9, 0.8, 1.4 if claw else 1.0)))
-    else:
-        p.add_mesh(prim("sphere", r=0.065, u=12, v=8), lambda c, n: pad if c.z < -0.035 and c.y < 0.0 else fur,
-                   T(scale=(0.9, 1.0, 1.1)))
-        for k in (-1, 0, 1):
-            p.add_mesh(prim("sphere", r=0.024, u=6, v=4), lambda c, n: (0.95, 0.95, 0.85) if claw else fur,
-                       T((k * 0.032, -0.02, -0.065), scale=(0.9, 0.9, 1.6 if claw else 1.3)))
-        p.add_mesh(prim("sphere", r=0.024, u=6, v=4), lambda c, n: fur, T((0.055, 0.02, -0.025)))
+    tip = (0.95, 0.95, 0.85) if claw else fur
+
+    def palm_col(co, n):
+        return pad if co.y < -0.03 else fur
+    add_box(p, (0.15, 0.08, 0.13), (0, 0, 0), palm_col, r=0.035)
+    fx = [0.05, 0.017, -0.017, -0.05]
+
+    def straight(x, length=0.1, rot=(0, 0, 0), y=0.0):
+        add_box(p, (0.034, 0.034, length), (x, y, -0.065 - length * 0.5), fur, r=0.014, rot=rot)
+        if claw:
+            add_box(p, (0.02, 0.02, 0.025), (x, y, -0.065 - length - 0.008), tip, r=0.008)
+
+    def curled(xs):
+        for x in xs:
+            add_box(p, (0.036, 0.05, 0.05), (x, -0.012, -0.085), fur, r=0.016)
+
+    if pose == "open":
+        for x in fx:
+            straight(x)
+        add_box(p, (0.036, 0.036, 0.085), (-0.095, 0.0, -0.035), fur, r=0.015, rot=(0, 0.55, 0))
+    elif pose == "fist":
+        curled(fx)
+        add_box(p, (0.08, 0.034, 0.036), (-0.03, 0.03, -0.095), fur, r=0.014)  # thumb across the knuckles
+    elif pose == "grip":
+        for x in fx:  # fingers wrapped under the hilt
+            add_box(p, (0.036, 0.03, 0.06), (x, -0.045, -0.09), fur, r=0.012)
+        add_box(p, (0.036, 0.034, 0.075), (-0.07, 0.035, -0.09), fur, r=0.014)  # thumb along the top
+    elif pose == "thumbs_up":
+        curled(fx)
+        add_box(p, (0.038, 0.1, 0.038), (-0.07, 0.085, -0.045), fur, r=0.016)
+    elif pose == "peace":
+        curled(fx[:2])
+        straight(fx[2], 0.13, rot=(0, -0.34, 0))
+        straight(fx[3], 0.13, rot=(0, 0.4, 0))
+        add_box(p, (0.07, 0.034, 0.036), (0.02, 0.03, -0.095), fur, r=0.014)
+    p.verts = [v * HAND_SCALE for v in p.verts]
+    return p
+
+
+def build_shoe(s):
+    """Chunky leather boot with a toe cap and a coloured strap."""
+    p = Part()
+    leather, sole = (0.55, 0.32, 0.16), (0.3, 0.18, 0.1)
+    add_box(p, (0.17, 0.11, 0.27), (0, 0.0, -0.04), leather, r=0.05)
+    add_box(p, (0.175, 0.03, 0.28), (0, -0.055, -0.04), sole, r=0.012)
+    add_box(p, (0.15, 0.06, 0.08), (0, 0.02, -0.15), mix(leather, (1, 1, 1), 0.12), r=0.025)
+    add_box(p, (0.178, 0.03, 0.05), (0, 0.035, -0.02), s["embroidery"], r=0.01)
+    add_box(p, (0.12, 0.07, 0.11), (0, 0.075, 0.02), s["fur"], r=0.035)  # ankle tuft
     return p
 
 
 def build_daraa_wing(s, sx):
-    """The daraa's side panels opened as a sail for gliding."""
     part = Part()
     grid = prim("grid", xs=12, ys=8)
     for v in grid.vertices:
@@ -553,21 +606,24 @@ def build_species(name):
         ("Head", build_head(s), HEAD_C),
         ("Eyes", build_eyes(s), (0, HEAD_C[1] + eye_y, 0)),
         ("Tail", build_tail(s), TAIL_C),
-        ("HandR", build_paw(s), HAND_C),
-        ("HandL", build_paw(s), (-HAND_C[0], HAND_C[1], HAND_C[2])),
-        ("FootR", build_paw(s, True), FOOT_C),
-        ("FootL", build_paw(s, True), (-FOOT_C[0], FOOT_C[1], FOOT_C[2])),
+        ("FootR", build_shoe(s), FOOT_C),
+        ("FootL", mirrored(build_shoe(s)), (-FOOT_C[0], FOOT_C[1], FOOT_C[2])),
         ("DaraaR", build_daraa_wing(s, 1), (0, 1.3, 0.02)),
         ("DaraaL", build_daraa_wing(s, -1), (0, 1.3, 0.02)),
     ]
+    for pose in HAND_POSES:
+        hand = build_hand(s, pose)
+        rows.append(("HandR_" + pose, hand, HAND_C))
+        rows.append(("HandL_" + pose, mirrored(hand), (-HAND_C[0], HAND_C[1], HAND_C[2])))
     if s["ears"] != "none":
-        _, _, base, _ = ear_layout(s)
+        _, base, _ = ear_layout(s)
         rows.append(("EarR", build_ear(s, 1), (base[0], HEAD_C[1] + base[1], base[2])))
         rows.append(("EarL", build_ear(s, -1), (-base[0], HEAD_C[1] + base[1], base[2])))
     tris = 0
     for pname, part, pivot in rows:
         _, f = emit(pname, part, pivot)
-        tris += f
+        if not pname.startswith("Hand") or pname.endswith("_open"):
+            tris += f
     export(os.path.join(OUT, name + ".glb"))
     return tris
 
@@ -596,21 +652,33 @@ def build_equipment():
     sword.add_mesh(prim("sphere", r=0.038, u=10, v=6), lambda c, n: (0.85, 0.65, 0.25), T((0, 0, 0.13)))
     emit("Sword", sword, (0, 0, 0), smooth=False)
 
-    # Round leather shield with a painted geometric ring and a brass boss; faces -X.
+    # Rectangular leather shield (aghar-inspired): rounded box, painted
+    # cross and triangle pattern projected as crisp geometry, brass boss.
     shield = Part()
-    disc = prim("sphere", r=0.27, u=48, v=24)
+    leather, red, dark, brass = (0.74, 0.55, 0.32), (0.58, 0.14, 0.08), (0.14, 0.09, 0.06), (0.85, 0.65, 0.25)
+    add_box(shield, (0.05, 0.5, 0.36), (0, 0, 0), leather, r=0.02)
+    add_box(shield, (0.03, 0.04, 0.04), (-0.035, 0, 0), brass, r=0.01)
 
-    def shield_col(c, n):
-        r = math.hypot(c.y, c.z)
-        ang = math.atan2(c.y, c.z)
-        if r < 0.06:
-            return (0.85, 0.65, 0.25)
-        if 0.15 < r < 0.21:
-            return (0.55, 0.12, 0.08) if math.sin(ang * 12) > 0 else (0.12, 0.08, 0.06)
-        if r > 0.245:
-            return (0.3, 0.17, 0.08)
-        return (0.72, 0.52, 0.3)
-    shield.add_mesh(disc, shield_col, T(scale=(0.12, 1, 1)))
+    def pattern(u, v):
+        x, y = (u - 0.5) * 0.36, (v - 0.5) * 0.5
+        if abs(x) < 0.012 or abs(y) < 0.012:
+            return dark
+        if abs(abs(x) - 0.15) < 0.01 or abs(abs(y) - 0.225) < 0.01:
+            return red
+        tri = abs(((y * 20) % 2) - 1)
+        if abs(x) > 0.11 and abs(x) - 0.11 < 0.035 * tri:
+            return red
+        return None
+    # Project onto the outer face (-X): rotate a temporary copy so the face
+    # points at the projector, then rotate the decal back.
+    rot_in = Matrix.Rotation(-math.pi / 2, 4, "Y")
+    tmp = Part()
+    tmp.verts = [rot_in @ v for v in shield.verts]
+    tmp.faces = shield.faces
+    decal = project_patch(tmp, (0, 0), (0.36, 0.5), (40, 56), pattern, offset=0.003)
+    rot_out = Matrix.Rotation(math.pi / 2, 4, "Y")
+    decal.verts = [rot_out @ v for v in decal.verts]
+    merge(shield, decal)
     emit("Shield", shield, (0, 0, 0))
 
     export(os.path.join(OUT, "equipment.glb"))
