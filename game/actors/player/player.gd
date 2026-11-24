@@ -57,8 +57,10 @@ const GLIDE_COST := 7.0
 
 const COMBO: Array[Dictionary] = [
 	{"windup": 0.10, "active": 0.10, "recovery": 0.26, "damage": 10.0, "range": 2.3, "arc": 110.0, "cost": 7.0, "lunge": 2.5, "stagger": 0},
-	{"windup": 0.10, "active": 0.10, "recovery": 0.26, "damage": 11.0, "range": 2.3, "arc": 110.0, "cost": 7.0, "lunge": 2.5, "stagger": 0},
-	{"windup": 0.16, "active": 0.12, "recovery": 0.42, "damage": 18.0, "range": 2.6, "arc": 140.0, "cost": 10.0, "lunge": 4.0, "stagger": 1},
+	# stab: narrow, long reach, deep lunge
+	{"windup": 0.10, "active": 0.10, "recovery": 0.28, "damage": 11.0, "range": 3.2, "arc": 50.0, "cost": 7.0, "lunge": 4.5, "stagger": 0},
+	# spinning sweep finisher: hits all around
+	{"windup": 0.16, "active": 0.14, "recovery": 0.42, "damage": 18.0, "range": 2.7, "arc": 360.0, "cost": 10.0, "lunge": 2.5, "stagger": 1},
 ]
 const HEAVY_ATTACK: Dictionary = {"windup": 0.22, "active": 0.14, "recovery": 0.5, "damage": 32.0, "range": 2.8, "arc": 160.0, "cost": 18.0, "lunge": 5.0, "stagger": 2}
 
@@ -1287,7 +1289,7 @@ func _animate(delta: float, horizontal: Vector3) -> void:
 	var t := 0.0
 	var anim_state := state_name()
 	if state == State.ATTACK:
-		var total: float = float(current_attack["windup"]) + float(current_attack["active"])
+		var total: float = float(current_attack["windup"]) + float(current_attack["active"]) + float(current_attack["recovery"])
 		t = clampf(state_time / total, 0.0, 1.0)
 		if is_heavy:
 			anim_state = "HEAVY"
@@ -1303,5 +1305,15 @@ func _animate(delta: float, horizontal: Vector3) -> void:
 		"sprinting": sprinting and state == State.MOVE,
 		"vel": velocity,
 		"rising": velocity.y > 0.5,
-		"windup_frac": (float(current_attack["windup"]) / (float(current_attack["windup"]) + float(current_attack["active"]))) if state == State.ATTACK else 0.4,
+		"windup_frac": _phase_frac(0) if state == State.ATTACK else 0.25,
+		"active_frac": _phase_frac(1) if state == State.ATTACK else 0.45,
 	})
+
+
+## End of the wind-up (0) or the active window (1) as a fraction of the
+## whole attack (wind-up + active + recovery), for animation timing.
+func _phase_frac(which: int) -> float:
+	var w: float = current_attack["windup"]
+	var a: float = current_attack["active"]
+	var r: float = current_attack["recovery"]
+	return (w if which == 0 else w + a) / maxf(w + a + r, 0.001)

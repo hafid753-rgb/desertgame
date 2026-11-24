@@ -13,17 +13,42 @@ var heavy_until := -1.0
 var taps := 0
 var dead_at := -1.0
 var release_queue: Array = []
+var side_cam := false
+var _cam_pos := Vector3.ZERO
+
+
+## Side-on fight camera: perpendicular to the cat-jinn line, framing both.
+func _process(delta: float) -> void:
+	if not side_cam or p == null:
+		return
+	var cam: Camera3D = main.camera_rig.camera
+	var a := p.global_position
+	var b := a + p.global_transform.basis * Vector3(0, 0, -2.0)
+	if main.jinn != null and is_instance_valid(main.jinn) and not main.jinn.is_dead():
+		b = main.jinn.global_position
+	var mid := (a + b) * 0.5
+	var line := Combat.flat(b - a)
+	if line.length() < 0.1:
+		line = Vector3(0, 0, -1)
+	var perp := Vector3(-line.z, 0, line.x).normalized()
+	# stay on the open (courtyard-centre) side so walls never block the shot
+	if Combat.flat(mid + perp * 3.6).length() > Combat.flat(mid - perp * 3.6).length() + 1.5:
+		perp = -perp
+	var want := mid + perp * 3.6 + Vector3(0, 1.35, 0) - line.normalized() * 0.6
+	_cam_pos = want if _cam_pos == Vector3.ZERO else _cam_pos.lerp(want, 1.0 - exp(-3.0 * delta))
+	cam.global_position = _cam_pos
+	cam.look_at(mid + Vector3(0, 0.8, 0))
 
 
 func _ready() -> void:
+	process_priority = 1000  # run after the camera rig, then override the view
 	main = preload("res://game/main.tscn").instantiate()
 	add_child(main)
 	p = main.player
 	p.global_position = Vector3(0, 0.1, 7)
 	p.reset_physics_interpolation()
 	if OS.get_cmdline_user_args().has("close"):
-		main.camera_rig.distance = 3.1
-		main.camera_rig.height = 1.25
+		side_cam = true
 		main.hud.visible = false
 
 
@@ -47,6 +72,9 @@ func _physics_process(delta: float) -> void:
 			get_tree().quit()
 		return
 	var j: Jinn = main.jinn
+	if side_cam and j != null and is_instance_valid(j) and not j.has_meta("reel_hp"):
+		j.set_meta("reel_hp", true)
+		j.hp = 150.0
 	if t < 1.2 or j == null or not is_instance_valid(j):
 		GameInput.touch_move = Vector2.ZERO
 		return

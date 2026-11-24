@@ -557,10 +557,17 @@ const RIG_PATH := "res://game/art/rig/hafid_rig.glb"
 const RIG_SCALE := 0.8
 const RIG_LOOPS: Array[String] = ["Idle", "Unarmed_Idle", "Walking_A", "Walking_B", "Running_A", "Running_B",
 	"Blocking", "Jump_Idle", "Spellcasting", "2H_Melee_Idle"]
-const ATTACK_CLIPS: Array[String] = ["1H_Melee_Attack_Slice_Diagonal", "1H_Melee_Attack_Slice_Horizontal",
-	"1H_Melee_Attack_Chop"]
-## Fraction of each attack clip where the blade connects.
-const ATTACK_IMPACT := 0.38
+## Combo: diagonal sweep, reaching stab, spinning sweep. Heavy: overhead chop.
+const ATTACK_CLIPS: Array[String] = ["1H_Melee_Attack_Slice_Diagonal", "1H_Melee_Attack_Stab", "2H_Melee_Attack_Spin"]
+const HEAVY_CLIP := "2H_Melee_Attack_Chop"
+## Fraction of each clip where the blade connects (peak hand speed, measured).
+const IMPACT := {"1H_Melee_Attack_Slice_Diagonal": 0.38, "1H_Melee_Attack_Stab": 0.22,
+	"2H_Melee_Attack_Spin": 0.48, "2H_Melee_Attack_Chop": 0.42}
+## Lunge footwork per clip: [front foot fwd, back foot back, body fwd, body drop, reach]
+const FOOTWORK := {"1H_Melee_Attack_Slice_Diagonal": [0.28, 0.16, 0.22, 0.07, 0.05],
+	"1H_Melee_Attack_Stab": [0.45, 0.25, 0.38, 0.1, 0.3],
+	"2H_Melee_Attack_Spin": [0.12, 0.12, 0.1, 0.12, 0.08],
+	"2H_Melee_Attack_Chop": [0.4, 0.22, 0.3, 0.16, 0.1]}
 static var use_rig := true
 
 var rig: Node3D
@@ -569,6 +576,16 @@ var anim: AnimationPlayer
 var anim_name := ""
 var _attach: Dictionary = {}
 var _robe_pivot: Node3D
+var _foot_base_r := Transform3D.IDENTITY
+var _foot_base_l := Transform3D.IDENTITY
+var _spread: ArmSpread
+var _exag: Exaggerate
+var _lunge := 0.0
+var _trail: MeshInstance3D
+var _trail_mesh: ImmediateMesh
+var _trail_pts: Array = []
+var _trail_on := false
+var _trail_mat: StandardMaterial3D
 var _ear_v := Vector2.ZERO
 var _ear_back := 0.0
 var _ear_tw := 0.0
@@ -650,6 +667,13 @@ func _build_rig() -> void:
 	_mount(foot_l, "foot.l", Transform3D(Basis(), Vector3(fl.x, 0, fl.z)))
 	_bone_attach("handslot.r")
 	_bone_attach("handslot.l")
+	_foot_base_r = foot_r.transform
+	_foot_base_l = foot_l.transform
+	_spread = spread
+	_exag = Exaggerate.new()
+	skel.add_child(_exag)
+	_exag.setup(anim, "Idle")
+	_build_trail()
 	_build_dust()
 	_play("Unarmed_Idle", 0.0)
 
@@ -726,14 +750,25 @@ func _animate_rig(delta: float, info: Dictionary, state: String, move: float, t:
 	else:
 		match state:
 			"ATTACK", "HEAVY":
-				var clip := "1H_Melee_Attack_Chop" if state == "HEAVY" else ATTACK_CLIPS[posmod(combo, ATTACK_CLIPS.size())]
+				var clip := HEAVY_CLIP if state == "HEAVY" else ATTACK_CLIPS[posmod(combo, ATTACK_CLIPS.size())]
 				var length := anim.get_animation(clip).length
-				var w: float = info.get("windup_frac", 0.4)
-				var at := (t / maxf(w, 0.01)) * ATTACK_IMPACT if t < w else ATTACK_IMPACT + (t - w) / maxf(1.0 - w, 0.01) * (0.8 - ATTACK_IMPACT)
+				var w: float = info.get("windup_frac", 0.25)
+				var a: float = info.get("active_frac", 0.45)
+				var imp: float = IMPACT.get(clip, 0.4)
+				var at: float
+				if t < w:
+					at = (t / maxf(w, 0.01)) * imp
+				elif t < a:
+					at = imp + (t - w) / maxf(a - w, 0.01) * 0.08
+				else:
+					at = imp + 0.08 + (t - a) / maxf(1.0 - a, 0.01) * (0.92 - imp - 0.08)
 				_scrub(clip, at * length)
+				_combat_pose(clip, t, w, a)
+				attack_trail(true)
 			"HEAVY_CHARGE":
-				# Anticipation: hold the wind-up of the overhead chop.
-				_scrub("1H_Melee_Attack_Chop", 0.26 * anim.get_animation("1H_Melee_Attack_Chop").length, 0.12)
+				# Anticipation: hold (and exaggerate) the overhead wind-up.
+				_scrub(HEAVY_CLIP, 0.3 * anim.get_animation(HEAVY_CLIP).length)
+				_combat_pose(HEAVY_CLIP, 0.18, 0.4, 0.6)
 			"GUARD", "DEFENSE":
 				_play("Blocking", 0.1)
 			"DODGE", "MOBILITY":
@@ -775,7 +810,11 @@ func _animate_rig(delta: float, info: Dictionary, state: String, move: float, t:
 				else:
 					# walk 0..0.62 of top speed, scaled so feet don't slide
 					_play("Walking_A" if move < 0.38 else "Running_A", 0.18, lerpf(0.7, 1.15, move / 0.62))
+	if not state in ["ATTACK", "HEAVY", "HEAVY_CHARGE"]:
+		_combat_pose("", 0.0, 1.0, 1.0)
+		attack_trail(false)
 	_secondary_motion(delta, info, move)
+	_update_trail()
 
 
 ## Robe and tail lag behind the body: springs driven by acceleration.
@@ -916,3 +955,94 @@ func _ears_and_head(delta: float, move: float) -> void:
 		head.transform = _head_base.translated_local(_head_base.basis.inverse() * Vector3(0, hop * 1.25, 0))
 	else:
 		head.transform = head.transform.interpolate_with(_head_base, 1.0 - exp(-12.0 * delta))
+
+
+
+# --- Combat exaggeration ------------------------------------------------------
+
+## Lunge curve: rises through the wind-up, peaks at impact, eases out in
+## recovery. Drives body lunge, footwork, reach and rotation exaggeration.
+func _combat_pose(clip: String, t: float, w: float, a: float) -> void:
+	var c := 0.0
+	if clip != "":
+		if t < w:
+			c = smoothstep(0.0, 1.0, t / maxf(w, 0.01)) * 0.55
+		elif t < a:
+			c = lerpf(0.55, 1.0, (t - w) / maxf(a - w, 0.01))
+		else:
+			c = 1.0 - smoothstep(0.0, 1.0, (t - a) / maxf(1.0 - a, 0.01))
+	_lunge = lerpf(_lunge, c, 0.5) if clip != "" else lerpf(_lunge, 0.0, 0.25)
+	var fw: Array = FOOTWORK.get(clip, [0.0, 0.0, 0.0, 0.0, 0.0])
+	var k := _lunge
+	if _exag:
+		_exag.amount = minf(1.0, k * 1.2) if clip != "" else _lunge
+	if _spread:
+		_spread.forward = 0.06 + float(fw[4]) * k
+	if rig:
+		# body drives forward and down into the strike (model -Z is forward)
+		rig.position = Vector3(0.0, -float(fw[3]) * k, -float(fw[2]) * k)
+	# floating boots: front (left) foot steps in, back (right) foot plants
+	if foot_l and foot_r and _foot_base_l != Transform3D.IDENTITY:
+		foot_l.transform = _foot_base_l
+		foot_r.transform = _foot_base_r
+		var fwd := global_transform.basis * Vector3(0, 0, -1)
+		var side := global_transform.basis * Vector3(1, 0, 0)
+		var body_fwd := float(fw[2]) * k
+		foot_l.global_position += fwd * (float(fw[0]) * k) - side * 0.06 * k + Vector3(0, float(fw[3]) * k, 0)
+		foot_r.global_position += fwd * (-float(fw[1]) * k - body_fwd) + side * 0.08 * k + Vector3(0, float(fw[3]) * k, 0)
+		# keep the boots on the ground while lunging
+		if k > 0.01:
+			for f in [foot_l, foot_r]:
+				var gp: Vector3 = f.global_position
+				gp.y = global_position.y + clampf(gp.y - global_position.y, 0.0, 0.1)
+				f.global_position = gp
+
+
+func _build_trail() -> void:
+	_trail_mesh = ImmediateMesh.new()
+	_trail = MeshInstance3D.new()
+	_trail.mesh = _trail_mesh
+	_trail.top_level = true
+	_trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_trail_mat = StandardMaterial3D.new()
+	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_trail_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_trail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_trail_mat.vertex_color_use_as_albedo = true
+	_trail.material_override = _trail_mat
+	add_child(_trail)
+	_trail.global_transform = Transform3D.IDENTITY
+
+
+func attack_trail(on: bool) -> void:
+	_trail_on = on
+
+
+## Ribbon behind the blade: the last ~0.25 s of base/tip positions, fading.
+func _update_trail() -> void:
+	if _trail_mesh == null:
+		return
+	if _trail_on and sword and sword.is_inside_tree() and armed:
+		var x := sword.global_transform
+		_trail_pts.push_front([x * Vector3(0, 0, -0.2), x * Vector3(0, 0, -0.82)])
+	elif not _trail_pts.is_empty():
+		_trail_pts.pop_back()
+	while _trail_pts.size() > 9:
+		_trail_pts.pop_back()
+	_trail.global_transform = Transform3D.IDENTITY
+	_trail_mesh.clear_surfaces()
+	if _trail_pts.size() < 2:
+		return
+	var col := Color(1.0, 0.97, 0.9)
+	if enchanted:
+		col = _flash_color.lerp(Color(0.6, 0.85, 1.0), 0.5)
+	_trail_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	var n := _trail_pts.size()
+	for i in n:
+		var a := 0.7 * (1.0 - float(i) / float(n - 1))
+		_trail_mesh.surface_set_color(Color(col.r, col.g, col.b, a * 0.6))
+		_trail_mesh.surface_add_vertex(_trail_pts[i][0])
+		_trail_mesh.surface_set_color(Color(col.r, col.g, col.b, a))
+		_trail_mesh.surface_add_vertex(_trail_pts[i][1])
+	_trail_mesh.surface_end()

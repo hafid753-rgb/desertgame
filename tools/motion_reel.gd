@@ -9,17 +9,17 @@ const SEQ := [
 	[2.7, "MOVE", 0.3, 2.2, {}],
 	[4.5, "MOVE", 1.0, 6.6, {"sprinting": true}],
 	[5.0, "MOVE", 0.0, 0.0, {}],
-	[5.55, "ATTACK", 0.0, 0.0, {"combo": 0}],
-	[6.1, "ATTACK", 0.0, 0.0, {"combo": 1}],
-	[6.75, "ATTACK", 0.0, 0.0, {"combo": 2}],
-	[7.4, "MOVE", 0.0, 0.0, {}],
-	[8.2, "HEAVY_CHARGE", 0.0, 0.0, {}],
-	[8.7, "HEAVY", 0.0, 0.0, {}],
-	[9.2, "MOVE", 0.0, 0.0, {}],
-	[9.95, "AIR", 0.0, 2.5, {}],
-	[10.8, "MOVE", 0.0, 0.0, {}],
-	[12.2, "EMOTE", 0.0, 0.0, {}],
-	[12.8, "MOVE", 0.0, 0.0, {}],
+	[5.46, "ATTACK", 0.0, 0.0, {"combo": 0, "windup_frac": 0.22, "active_frac": 0.43}],
+	[5.94, "ATTACK", 0.0, 0.0, {"combo": 1, "windup_frac": 0.21, "active_frac": 0.42}],
+	[6.66, "ATTACK", 0.0, 0.0, {"combo": 2, "windup_frac": 0.22, "active_frac": 0.42}],
+	[7.3, "MOVE", 0.0, 0.0, {}],
+	[8.1, "HEAVY_CHARGE", 0.0, 0.0, {}],
+	[8.96, "HEAVY", 0.0, 0.0, {"windup_frac": 0.26, "active_frac": 0.42}],
+	[9.4, "MOVE", 0.0, 0.0, {}],
+	[10.15, "AIR", 0.0, 2.5, {}],
+	[11.0, "MOVE", 0.0, 0.0, {}],
+	[12.4, "EMOTE", 0.0, 0.0, {}],
+	[13.0, "MOVE", 0.0, 0.0, {}],
 ]
 
 var m: CreatureModel
@@ -130,7 +130,7 @@ func _process(delta: float) -> void:
 		vel.y = y_vel
 	m.global_position.z += vel.z * delta
 	var info := {"state": state, "move": clampf(speed / 7.1, 0.0, 1.0), "t": p, "vel": vel,
-		"windup_frac": 0.45, "rising": y_vel > 0.5}
+		"rising": y_vel > 0.5}
 	info.merge(s[4], true)
 	if state in ["ATTACK", "HEAVY"]:
 		info["state"] = "ATTACK" if state == "ATTACK" else "HEAVY"
