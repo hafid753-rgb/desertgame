@@ -1,9 +1,13 @@
 class_name Jinn
 extends CharacterBody3D
-## Ordinary shadow jinn. Three readable, telegraphed attacks:
-##   swipe  (orange eyes, 0.6 s): close arc in front
-##   lunge  (red eyes, 0.9 s): dash at the player
-##   burst  (violet eyes, 1.2 s): ring of smoke around itself
+## Shadow jinn (ICO-style shadow creature, see ShadowLook). Telegraphed
+## attacks; the golden rings flare to the attack colour:
+##   swipe    (orange, 0.6 s): hook punch, close arc in front
+##   lunge    (red, 0.9 s): dashing punch
+##   burst    (violet, 1.2 s): smoke detonation around itself
+##   fireball (amber, 0.85 s): wind-up throw, homing fireball
+##   vanish   (grey, 0.5 s): melts into its pool, gone for 2 s; a pool opens
+##            behind the player 0.5 s before it erupts into an ambush kick
 ## Facing locks at 70% of the telegraph so the player can read and react.
 
 signal defeated(jinn: Jinn)
@@ -20,7 +24,19 @@ const ATTACKS := {
 		"color": Color(1.0, 0.12, 0.1), "stun": 0.5, "knockback": 6.0, "dash_speed": 14.0},
 	"burst": {"telegraph": 1.2, "active": 0.2, "recovery": 1.0, "damage": 24.0, "range": 3.4, "arc": 360.0,
 		"color": Color(0.75, 0.35, 1.0), "stun": 0.6, "knockback": 7.0},
+	"fireball": {"telegraph": 0.85, "active": 0.15, "recovery": 0.7, "damage": 16.0, "range": 14.0, "arc": 360.0,
+		"color": Color(1.0, 0.45, 0.1), "stun": 0.4, "knockback": 4.0},
+	"vanish": {"telegraph": 0.5, "active": 2.0, "recovery": 0.0, "damage": 0.0, "range": 0.0, "arc": 0.0,
+		"color": Color(0.7, 0.7, 0.78), "stun": 0.0, "knockback": 0.0},
+	"ambush": {"telegraph": 0.55, "active": 0.15, "recovery": 0.6, "damage": 18.0, "range": 2.4, "arc": 140.0,
+		"color": Color(0.85, 0.75, 1.0), "stun": 0.45, "knockback": 5.0},
 }
+## Clip + impact fraction (peak limb speed) for each attack on the shadow rig.
+const CLIPS := {"swipe": ["Unarmed_Melee_Attack_Punch_A", 0.28], "lunge": ["Unarmed_Melee_Attack_Punch_B", 0.28],
+	"burst": ["Spellcast_Raise", 0.45], "fireball": ["Throw", 0.5], "vanish": ["Spellcast_Long", 0.3],
+	"ambush": ["Unarmed_Melee_Attack_Kick", 0.34], "slam": ["Unarmed_Melee_Attack_Punch_B", 0.28],
+	"summon": ["Spellcast_Raise", 0.45]}
+const VANISH_TIME := 2.0
 const CHASE_SPEED := 3.2
 const CIRCLE_SPEED := 2.0
 const STAGGER_PARRIED := 1.4
@@ -76,6 +92,20 @@ var _wisps: CPUParticles3D
 var ring_count: int = 3
 var _immune_popup_at: int = -10000
 var _recent: Array[String] = []
+var _anim: AnimationPlayer
+var _anim_clip := ""
+var _exag: Exaggerate
+var _pool: MeshInstance3D
+var _pool_mat: StandardMaterial3D
+var _emitters: Array = []
+var _eyes: Array = []
+var _skel: Skeleton3D
+## Head bone anchor (crowns etc. ride on it).
+var head_anchor: Node3D
+var hidden := false
+var _vanish_cd := 0.0
+var _ambush_at := Vector3.ZERO
+var _range_cd := 0.0
 
 
 func _ready() -> void:
@@ -149,7 +179,7 @@ func apply_chill(seconds: float, speed_multiplier: float = 0.6) -> void:
 
 
 func take_damage(info: Dictionary) -> void:
-	if state == S.DEAD:
+	if state == S.DEAD or hidden:
 		return
 	var amount: float = info.get("amount", 0.0)
 	var element: int = info.get("element", Combat.Element.NONE)
@@ -207,6 +237,8 @@ func _pass_through(info: Dictionary, element: int) -> void:
 
 func _physics_process(delta: float) -> void:
 	state_time += delta
+	_vanish_cd = maxf(0.0, _vanish_cd - delta)
+	_range_cd = maxf(0.0, _range_cd - delta)
 	if chill_time > 0.0:
 		chill_time = maxf(0.0, chill_time - delta)
 		if chill_time <= 0.0:
@@ -253,8 +285,11 @@ func _physics_process(delta: float) -> void:
 				_veil_mat.set_shader_parameter("dissolve", clampf(state_time / 0.85, 0.0, 1.0))
 			for r in _gold_rings:
 				r.scale = Vector3.ONE * maxf(0.01, 1.0 + state_time * 1.5)
-			if _wisps:
-				_wisps.emitting = false
+			for e in _emitters:
+				(e as CPUParticles3D).emitting = false
+			if _pool_mat:
+				_pool_mat.albedo_color.a = 0.85 * (1.0 - clampf(state_time / 1.2, 0.0, 1.0))
+			_drive_anim(1.0 / 60.0)
 			if state_time > 1.3:
 				defeated.emit(self)
 				queue_free()
@@ -287,6 +322,11 @@ func _tick_chase(delta: float) -> Vector3:
 	if to.length() < 3.2:
 		_enter(S.CIRCLE)
 		return Vector3.ZERO
+	# from range: throw fire or step into the shadows
+	if ai_enabled and state_time > 1.0 and to.length() > 5.0 and to.length() < 13.0 and _range_cd <= 0.0 and attacks.has("fireball"):
+		_range_cd = 2.5
+		_begin_telegraph("vanish" if attacks.has("vanish") and _vanish_cd <= 0.0 and _rng.randf() < 0.3 else "fireball")
+		return Vector3.ZERO
 	return to.normalized() * chase_speed * chill_multiplier
 
 
@@ -315,12 +355,20 @@ func _tick_circle(delta: float) -> Vector3:
 ## so the player has to read the telegraph instead of memorising a rhythm.
 func _choose_attack(dist: float) -> String:
 	var pick: String
+	var r := _rng.randf()
+	var can_vanish := attacks.has("vanish") and _vanish_cd <= 0.0
+	var can_fire := attacks.has("fireball")
 	if dist > 3.6:
-		pick = "lunge"
+		pick = "fireball" if can_fire and r < 0.45 else ("vanish" if can_vanish and r < 0.65 else "lunge")
 	elif dist < 2.0:
-		pick = "burst" if _rng.randf() < 0.55 else "swipe"
+		pick = "vanish" if can_vanish and r < 0.12 else ("burst" if r < 0.5 else "swipe")
 	else:
-		pick = "swipe" if _rng.randf() < 0.6 else "burst"
+		if can_vanish and r < 0.15:
+			pick = "vanish"
+		elif can_fire and r < 0.32:
+			pick = "fireball"
+		else:
+			pick = "swipe" if _rng.randf() < 0.65 else "burst"
 	if _recent.size() >= 2 and _recent[-1] == pick and _recent[-2] == pick:
 		pick = "burst" if pick == "swipe" else "swipe"
 	_recent.append(pick)
@@ -355,6 +403,8 @@ func _tick_telegraph(delta: float) -> Vector3:
 	var h := Vector3.ZERO
 	if current == "lunge":
 		h = -_forward() * 0.8 * (1.0 - p)  # pull back
+	if current == "vanish":
+		_smoke_mat.set_shader_parameter("dissolve", smoothstep(0.35, 1.0, p))
 	if state_time >= tel:
 		_enter(S.ATTACK)
 		_eye_mat.albedo_color = Color(1, 1, 1)
@@ -380,10 +430,76 @@ func _tick_attack(_delta: float) -> Vector3:
 			if not attack_hit_done:
 				attack_hit_done = true
 				Fx.ring(fx_parent, global_position, Color(0.5, 0.25, 0.8, 0.7), float(atk["range"]))
+				Fx.burst(fx_parent, global_position + Vector3(0, 1.0, 0), Color(0.02, 0.01, 0.04, 0.85), float(atk["range"]) * 0.8, 0.45)
+				_try_hit(atk)
+		"fireball":
+			if not attack_hit_done:
+				attack_hit_done = true
+				var from := global_position + Vector3(0, 1.7, 0) * visual_scale / DEFAULT_VISUAL_SCALE + _forward() * 0.6
+				var aim := _forward()
+				if target:
+					aim = (target.global_position + Vector3(0, 0.9, 0) - from).normalized()
+				Fireball.spawn(fx_parent, from, aim, atk, target, visual_scale / DEFAULT_VISUAL_SCALE)
+		"vanish":
+			return _tick_vanish()
+		"ambush":
+			if not attack_hit_done:
+				attack_hit_done = true
+				Fx.burst(fx_parent, global_position + _forward() * 1.2 + Vector3(0, 0.8, 0), Color(0.02, 0.01, 0.04, 0.8), 1.4, 0.25)
 				_try_hit(atk)
 	if state_time >= active:
 		_enter(S.RECOVER)
 	return h
+
+
+## Melted into the ground for VANISH_TIME: intangible and invisible. Half a
+## second before it returns, a pool opens behind the player (the tell).
+func _tick_vanish() -> Vector3:
+	if not hidden:
+		_set_hidden(true)
+		Fx.burst(fx_parent, global_position + Vector3(0, 0.5, 0), Color(0.02, 0.01, 0.04, 0.8), 1.6, 0.4)
+		_vanish_cd = 7.0
+	var warn_at := VANISH_TIME - 0.5
+	if state_time >= warn_at and _ambush_at == Vector3.ZERO:
+		var back := Vector3(0, 0, 1)
+		if target:
+			back = target.global_transform.basis.z
+			back.y = 0.0
+			back = back.normalized()
+			_ambush_at = target.global_position + back * 2.0
+			_ambush_at.y = global_position.y
+		else:
+			_ambush_at = global_position
+		global_position = _ambush_at
+		_pool.visible = true
+		_pool_mat.albedo_color.a = 0.0
+		Juice.play("tel_burst", _ambush_at, 0.7)
+	if _ambush_at != Vector3.ZERO and _pool:
+		_pool_mat.albedo_color.a = 0.85 * clampf((state_time - warn_at) / 0.4, 0.0, 1.0)
+	if state_time >= VANISH_TIME:
+		_set_hidden(false)
+		_ambush_at = Vector3.ZERO
+		if target:
+			_face(Combat.flat(target.global_position - global_position), 1.0)
+		_begin_telegraph("ambush" if attacks.has("ambush") else "swipe")
+	return Vector3.ZERO
+
+
+func _set_hidden(on: bool) -> void:
+	hidden = on
+	collision_layer = 0 if on else Combat.LAYER_JINN
+	if on:
+		remove_from_group("jinn")
+	elif not subdued:
+		add_to_group("jinn")
+	if _visual:
+		_visual.visible = not on
+	if _pool:
+		_pool.visible = not on
+	for e in _emitters:
+		(e as CPUParticles3D).emitting = not on
+	if not on:
+		_smoke_mat.set_shader_parameter("dissolve", 0.0)
 
 
 func _try_hit(atk: Dictionary) -> void:
@@ -459,63 +575,110 @@ func _animate(delta: float) -> void:
 	var tel_p := 0.0
 	if state == S.TELEGRAPH:
 		tel_p = clampf(state_time / telegraph_time(current), 0.0, 1.0)
-	var hover := 0.35 + sin(Time.get_ticks_msec() * 0.003 + get_instance_id()) * 0.08
-	_visual.position.y = hover
-	if subdued:  # kneeling, bowed
-		_visual.position.y = lerpf(_visual.position.y, -0.25, 0.5)
-		_visual.rotation.x = lerpf(_visual.rotation.x, 0.45, 1.0 - exp(-4.0 * delta))
-	var swell := 1.0 + tel_p * 0.18
-	if state == S.TELEGRAPH and current == "burst":
-		swell = 1.0 + tel_p * 0.4
-	if state == S.STAGGER:
-		_visual.rotation.z = sin(state_time * 20.0) * 0.12
-	else:
-		_visual.rotation.z = 0.0
-	_visual.scale = _visual.scale.lerp(Vector3(swell, 1.0 / sqrt(swell), swell) * visual_scale, 1.0 - exp(-12.0 * delta))
-	# Arms read the attack: swipe winds one claw back, burst spreads both,
-	# lunge sweeps both behind. Idle: slow drifting sway.
-	var t_ms := Time.get_ticks_msec() * 0.002
-	var ar := Vector3(sin(t_ms) * 0.12, 0, 0.1 + sin(t_ms * 1.3) * 0.08)
-	var al := Vector3(sin(t_ms + 1.0) * 0.12, 0, -0.1 - sin(t_ms * 1.1) * 0.08)
-	if state == S.TELEGRAPH:
-		match current:
-			"swipe":
-				ar = Vector3(-1.2 * tel_p, -0.8 * tel_p, 0.9 * tel_p)
-			"burst":
-				ar = Vector3(0, 0, 1.3 * tel_p)
-				al = Vector3(0, 0, -1.3 * tel_p)
-			"lunge":
-				ar = Vector3(0.9 * tel_p, 0, 0.3)
-				al = Vector3(0.9 * tel_p, 0, -0.3)
-	elif state == S.ATTACK and current == "swipe":
-		ar = Vector3(0.9, 1.0, 0.2)
-	elif state == S.STAGGER:
-		ar = Vector3(0.6, 0, 0.9)
-		al = Vector3(0.6, 0, -0.9)
-	var k := 1.0 - exp(-14.0 * delta)
-	if _arm_r:
-		_arm_r.rotation = _arm_r.rotation.lerp(ar, k)
-	if _arm_l:
-		_arm_l.rotation = _arm_l.rotation.lerp(al, k)
-
+	if _visual:
+		var hover := 0.05 + sin(Time.get_ticks_msec() * 0.002 + get_instance_id()) * 0.04
+		_visual.position.y = lerpf(_visual.position.y, hover, 1.0 - exp(-8.0 * delta))
+		if state == S.STAGGER:
+			_visual.rotation.z = sin(state_time * 20.0) * 0.08
+		else:
+			_visual.rotation.z = 0.0
+	_drive_anim(delta)
 	_flash = maxf(0.0, _flash - delta * 6.0)
 	_smoke_mat.set_shader_parameter("flash", _flash * 0.8)
-	_smoke_mat.set_shader_parameter("warning", tel_p * 0.40)
-	if _veil_mat:
-		_veil_mat.set_shader_parameter("agitation", tel_p * 1.5 if state == S.TELEGRAPH else 0.0)
+	_smoke_mat.set_shader_parameter("warning", tel_p * 0.55)
+	# eyes flare to the attack colour during a telegraph
+	var eye_col := Color(1, 1, 1)
+	if state == S.TELEGRAPH:
+		eye_col = Color(1, 1, 1).lerp(attacks[current]["color"], tel_p)
+	for e in _eyes:
+		((e as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = eye_col
 	JinnLook.spin(_gold_rings, delta, tel_p if state == S.TELEGRAPH else (0.6 if state == S.ATTACK else 0.0))
 
 
+func _jplay(clip: String, blend: float = 0.2, speed: float = 1.0) -> void:
+	if _anim == null or not _anim.has_animation(clip):
+		return
+	if clip == _anim_clip and _anim.is_playing():
+		_anim.speed_scale = speed
+		return
+	_anim_clip = clip
+	_anim.play(clip, blend)
+	_anim.speed_scale = speed
+
+
+func _jscrub(clip: String, frac: float) -> void:
+	if _anim == null or not _anim.has_animation(clip):
+		return
+	if clip != _anim_clip:
+		_anim_clip = clip
+		_anim.play(clip, 0.0)
+	_anim.speed_scale = 0.0
+	var length := _anim.get_animation(clip).length
+	_anim.seek(clampf(frac, 0.0, 0.98) * length, true)
+
+
+## Skeletal animation for every state. Attacks are scrubbed from the state
+## timers so the hit lands on the clip's impact frame.
+func _drive_anim(delta: float) -> void:
+	if _anim == null:
+		return
+	var ex := 0.3
+	var clip_info: Array = CLIPS.get(current, ["Unarmed_Melee_Attack_Punch_A", 0.28])
+	var clip: String = clip_info[0]
+	var imp: float = clip_info[1]
+	match state:
+		S.TELEGRAPH:
+			var p := clampf(state_time / telegraph_time(current), 0.0, 1.0)
+			_jscrub(clip, p * imp * 0.85)
+			ex = 0.3 + 0.7 * p
+		S.ATTACK:
+			if current == "vanish":
+				return
+			var active: float = attacks[current]["active"]
+			_jscrub(clip, imp * 0.85 + clampf(state_time / maxf(active, 0.01), 0.0, 1.0) * imp * 0.3)
+			ex = 1.0
+		S.RECOVER:
+			var rec: float = attacks[current]["recovery"]
+			var r := clampf(state_time / maxf(rec, 0.01), 0.0, 1.0)
+			_jscrub(clip, imp * 1.15 + r * (0.95 - imp * 1.15))
+			ex = lerpf(1.0, 0.3, r)
+		S.CHASE, S.RETURN:
+			_jplay("Walking_B", 0.25, 0.75 * chill_multiplier)
+		S.CIRCLE:
+			_jplay("Running_Strafe_Right" if circle_dir > 0.0 else "Running_Strafe_Left", 0.25, 0.5 * chill_multiplier)
+		S.STAGGER:
+			_jplay("Hit_A", 0.05, 1.0)
+		S.DEAD:
+			_jplay("Death_A", 0.1, 1.2)
+			ex = 0.0
+		S.SUBDUED:
+			_jplay("Sit_Floor_Idle", 0.4, 0.8)
+			ex = 0.0
+		_:
+			_jplay("Unarmed_Idle", 0.3, 0.6)
+	if _exag:
+		_exag.amount = lerpf(_exag.amount, ex, 1.0 - exp(-12.0 * delta))
+
+
 func _build_visual() -> void:
-	var look := JinnLook.build(self, visual_scale, ring_count, Color(0.04, 0.02, 0.08), Color(0.42, 0.24, 0.66))
+	var look := ShadowLook.build(self, visual_scale, ring_count)
 	_visual = look["visual"]
 	_smoke_mat = look["smoke_mat"]
 	# _eye_mat drives the golden rings: they carry the attack colours.
 	_eye_mat = look["ring_mat"]
 	_gold_rings = look["rings"]
 	_wisps = look["wisps"]
-	_arm_r = (look["arms"] as Dictionary).get("ArmR")
-	_arm_l = (look["arms"] as Dictionary).get("ArmL")
+	_emitters = look["emitters"]
+	_eyes = look["eyes"]
+	_anim = look["anim"]
+	_exag = look["exag"]
+	_pool = look["pool"]
+	_pool_mat = look["pool_mat"]
+	_skel = look["skel"]
+	head_anchor = BoneAttachment3D.new()
+	(head_anchor as BoneAttachment3D).bone_name = "head"
+	_skel.add_child(head_anchor)
+	_jplay("Unarmed_Idle", 0.0, 0.6)
 	# Telegraph ring on the ground.
 	var ring := TorusMesh.new()
 	ring.inner_radius = 0.92

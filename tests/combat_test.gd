@@ -27,6 +27,7 @@ func _ready() -> void:
 
 func _run_all() -> void:
 	await _test_spirit_visual()
+	await _test_shadow_attacks()
 	await _test_elemental_props()
 	await _test_light_combo()
 	await _test_heavy_attack()
@@ -101,6 +102,31 @@ func _test_heavy_attack() -> void:
 	GameInput.release("attack")
 	await _frames(40)
 	_check("heavy strike lands (10 light + 32 heavy)", is_equal_approx(jinn.damage_taken_total, 42.0), "got %.1f" % jinn.damage_taken_total)
+
+
+func _test_shadow_attacks() -> void:
+	# Fireball: thrown after its 0.85 s wind-up, homes in, deals 16.
+	await _reset(Vector3(0, 0, -7.0))
+	jinn.force_attack("fireball")
+	await _frames(60)
+	_check("fireball is thrown", not get_tree().root.find_children("*", "Fireball", true, false).is_empty() or player.hp < 100.0, "")
+	await _frames(70)
+	_check("fireball hits for 16", is_equal_approx(player.hp, 84.0), "hp %.1f" % player.hp)
+	# Vanish: gone and intangible for 2 s, then reappears behind the player.
+	await _reset(Vector3(0, 0, -3.0))
+	jinn.force_attack("vanish")
+	await _frames(45)
+	_check("vanished jinn is hidden and intangible", jinn.hidden and jinn.collision_layer == 0 and not jinn._visual.visible, "")
+	var hp0 := jinn.hp
+	jinn.take_damage({"amount": 20.0, "element": Combat.Element.WATER})
+	_check("vanished jinn cannot be hit", jinn.hp == hp0, "")
+	await _frames(110)
+	_check("returns after ~2 s", not jinn.hidden, jinn.state_name())
+	var behind := player.global_transform.basis.z.dot(Combat.flat(jinn.global_position - player.global_position).normalized())
+	_check("reappears behind the player", behind > 0.5, "%.2f" % behind)
+	_check("follows up with the ambush kick", jinn.current == "ambush", jinn.current)
+	# ICO-style body: skeletal, black silhouette shader.
+	_check("jinn is an animated shadow body", jinn._anim != null and jinn._smoke_mat.shader.resource_path.ends_with("shadow_being.gdshader"), "")
 
 
 func _test_taking_hit() -> void:

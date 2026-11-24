@@ -101,8 +101,12 @@ func _tick_attack(delta: float) -> Vector3:
 func _build_crown() -> void:
 	# Gold crown of spikes above the smoke head; rides on the visual so it scales.
 	var crown := Node3D.new()
-	crown.position = Vector3(0, 1.78, -0.25)
-	_visual.add_child(crown)
+	if head_anchor:
+		head_anchor.add_child(crown)
+		crown.position = Vector3(0, 1.0, 0)  # top of the hood (rig space)
+	else:
+		crown.position = Vector3(0, 1.78, -0.25)
+		_visual.add_child(crown)
 	_crown_mat = CharacterArt.toon_material(Color(0.25, 0.15, 0.02), 0.006)
 	_crown_mat.set_shader_parameter("tint", Color(1.0, 0.78, 0.25))
 	var band := CylinderMesh.new()
