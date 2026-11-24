@@ -517,6 +517,11 @@ func _animate_face(delta: float, state: String) -> void:
 	var back := 0.6 if state in ["HITSTUN", "GLIDE", "DODGE", "MOBILITY"] else 0.0
 	var tw := sin(_twitch_t * 40.0) * 0.35 if _twitch_t > 0.0 else 0.0
 	var k := 1.0 - exp(-18.0 * delta)
+	if rig:
+		_ear_back = lerpf(_ear_back, back, k)
+		_ear_tw = tw
+		_ear_tw_side = _twitch_side
+		return
 	if ear_r:
 		ear_r.rotation.x = lerpf(ear_r.rotation.x, back, k)
 		ear_r.rotation.z = lerpf(ear_r.rotation.z, tw if _twitch_side > 0.0 else 0.0, k)
@@ -564,6 +569,16 @@ var anim: AnimationPlayer
 var anim_name := ""
 var _attach: Dictionary = {}
 var _robe_pivot: Node3D
+var _ear_v := Vector2.ZERO
+var _ear_back := 0.0
+var _ear_tw := 0.0
+var _ear_tw_side := 1.0
+var _ear_o := Vector2.ZERO
+var _last_head_pos := Vector3.ZERO
+var _head_vel := Vector3.ZERO
+var _ear_base_r := Transform3D.IDENTITY
+var _ear_base_l := Transform3D.IDENTITY
+var _head_base := Transform3D.IDENTITY
 var _robe_base := Transform3D.IDENTITY
 var _tail_base := Transform3D.IDENTITY
 var _robe_sway := Vector2.ZERO
@@ -613,6 +628,11 @@ func _build_rig() -> void:
 	_robe_pivot.add_child(body)
 	body.transform = Transform3D(Basis(), Vector3(0, BODY_Y, 0) - neck)
 	_robe_base = _robe_pivot.transform
+	_head_base = head.transform
+	if ear_r:
+		_ear_base_r = ear_r.transform
+	if ear_l:
+		_ear_base_l = ear_l.transform
 	_mount(tail, "hips", Transform3D(Basis(), Vector3(0, 0.5, 0.24)))
 	if tail:
 		_tail_base = tail.transform
@@ -782,6 +802,7 @@ func _secondary_motion(delta: float, info: Dictionary, move: float) -> void:
 	_robe_sway = _robe_sway.clamp(Vector2(-0.4, -0.3), Vector2(0.4, 0.3))
 	if _robe_pivot:
 		_robe_pivot.transform = _robe_base * Transform3D(Basis.from_euler(Vector3(-_robe_sway.x, 0.0, _robe_sway.y)), Vector3.ZERO)
+	_ears_and_head(delta, move)
 	if tail:
 		var ty := _tail_sway + sin(Time.get_ticks_msec() * 0.003) * 0.12 * (1.0 - move)
 		tail.transform = _tail_base * Transform3D(Basis(Vector3.UP, ty), Vector3.ZERO)
@@ -863,3 +884,35 @@ func _footstep_dust() -> void:
 		var side := foot_r if fmod(anim.current_animation_position / len, 1.0) < 0.5 else foot_l
 		puff(side.global_position if side else global_position, 4)
 	_step_prev = ph
+
+
+
+## Ears lag behind the head (spring on head velocity), flop on landings and
+## hits; the hop adds a little bounce to every stride.
+func _ears_and_head(delta: float, move: float) -> void:
+	if head == null:
+		return
+	var hp := head.global_position
+	var hv := (hp - _last_head_pos) / maxf(delta, 0.001)
+	_last_head_pos = hp
+	var acc := (hv - _head_vel) / maxf(delta, 0.001)
+	_head_vel = hv
+	var acc_l := global_transform.basis.inverse() * acc
+	var steps := clampi(ceili(delta * 120.0), 1, 12)
+	var h := minf(delta, 0.1) / float(steps)
+	for i in steps:
+		var target := Vector2(clampf(acc_l.y * 0.012 + acc_l.z * 0.006, -0.6, 0.6), clampf(-acc_l.x * 0.008, -0.4, 0.4))
+		var a := (target - _ear_o) * 220.0 - _ear_v * 10.0
+		_ear_v += a * h
+		_ear_o += _ear_v * h
+	if ear_r and _ear_base_r != Transform3D.IDENTITY:
+		ear_r.transform = _ear_base_r * Transform3D(Basis.from_euler(Vector3(_ear_o.x + _ear_back, 0, _ear_o.y + (_ear_tw if _ear_tw_side > 0.0 else 0.0))), Vector3.ZERO)
+	if ear_l and _ear_base_l != Transform3D.IDENTITY:
+		ear_l.transform = _ear_base_l * Transform3D(Basis.from_euler(Vector3(_ear_o.x + _ear_back, 0, _ear_o.y - (_ear_tw if _ear_tw_side < 0.0 else 0.0))), Vector3.ZERO)
+	# hop: two bounces per walk/run cycle
+	if anim and anim_name in ["Walking_A", "Running_A"] and anim.current_animation_length > 0.0:
+		var ph := anim.current_animation_position / anim.current_animation_length
+		var hop := absf(sin(ph * TAU)) * 0.05 * clampf(move * 2.0, 0.0, 1.0)
+		head.transform = _head_base.translated_local(_head_base.basis.inverse() * Vector3(0, hop * 1.25, 0))
+	else:
+		head.transform = head.transform.interpolate_with(_head_base, 1.0 - exp(-12.0 * delta))
