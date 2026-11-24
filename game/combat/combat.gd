@@ -25,6 +25,12 @@ const LAYER_PLAYER := 2
 const LAYER_JINN := 4
 
 
+## Jinn are smoke: only a Water- or Earth-enchanted blade or spell harms
+## them. Steel, Wind and Fire pass through (Fire is for PvP and props).
+static func harms_jinn(element: int) -> bool:
+	return element == Element.WATER or element == Element.EARTH
+
+
 static func flat(v: Vector3) -> Vector3:
 	return Vector3(v.x, 0.0, v.z)
 

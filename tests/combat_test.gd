@@ -54,15 +54,17 @@ func _run_all() -> void:
 	await _test_mesa_only_lizard()
 	await _test_pause_menu()
 	await _test_hand_poses()
+	await _test_jinn_enchantment_rule()
 
 
 # --- Tests ------------------------------------------------------------------
 
 func _test_spirit_visual() -> void:
 	await _reset(Vector3(0, 0, -3.0))
-	var ribbons := jinn.get_node_or_null("Visual/SpiritVeil")
-	# Node name is assigned in the visual constructor; also allow direct mesh check.
-	_check("jinn has original spectral silhouette", ribbons is MeshInstance3D, str(ribbons))
+	# Smoke body, rising wisps, golden rings; no mask.
+	_check("jinn is smoke with rising wisps", jinn._wisps != null and jinn._wisps.emitting, "")
+	_check("jinn has three golden rings", jinn._gold_rings.size() == 3, str(jinn._gold_rings.size()))
+	_check("jinn wears no mask", jinn.find_children("Mask", "", true, false).is_empty(), "")
 
 
 func _test_elemental_props() -> void:
@@ -161,9 +163,9 @@ func _test_charge_tiers_and_cast() -> void:
 	await _tap("attack", 2)
 	await _frames(30)
 	GameInput.release("special")
-	# fire tier 3 = 55, x1.3 fire bonus = 71.5, then burn ticks 3/s
-	_check("fire tier-3 strike deals >= 71.5", jinn.damage_taken_total >= 71.5, "got %.1f" % jinn.damage_taken_total)
-	_check("fire applies burn", jinn.burn_time > 0.0, "%.2f" % jinn.burn_time)
+	# Jinn are smoke: fire passes through (fire is for PvP and props).
+	_check("fire tier-3 strike does not harm a jinn", is_equal_approx(jinn.damage_taken_total, 0.0) and jinn.immune_hits > 0, "got %.1f, immune %d" % [jinn.damage_taken_total, jinn.immune_hits])
+	_check("fire does not burn a jinn", jinn.burn_time <= 0.0, "%.2f" % jinn.burn_time)
 	player.element = Combat.Element.WIND
 
 
@@ -180,6 +182,7 @@ func _test_release_special_cancels() -> void:
 
 func _test_elemental_mobility() -> void:
 	await _reset(Vector3(6, 0, -6))
+	player.element = Combat.Element.WIND
 	var start := player.global_position
 	GameInput.press("special")
 	await _frames(25)
@@ -216,7 +219,7 @@ func _test_water_chill() -> void:
 	await _frames(23)
 	GameInput.release("special")
 	_check("ice attack slows jinn", jinn.chill_time > 0.0 and jinn.chill_multiplier < 1.0, "chill %.2f mult %.2f" % [jinn.chill_time, jinn.chill_multiplier])
-	_check("ice attack does less damage than fire", jinn.damage_taken_total > 0.0 and jinn.damage_taken_total < 18.0, "%.1f" % jinn.damage_taken_total)
+	_check("ice attack harms a jinn (water cuts smoke)", jinn.damage_taken_total > 0.0 and jinn.damage_taken_total < 18.0, "%.1f" % jinn.damage_taken_total)
 
 
 func _test_water_defense() -> void:
@@ -443,6 +446,23 @@ func _test_hand_poses() -> void:
 	_check("calm again: sword sheathed, hands open", not m.armed and m.hand_pose_r == "open", "%s %s" % [m.armed, m.hand_pose_r])
 
 
+func _test_jinn_enchantment_rule() -> void:
+	for e in [Combat.Element.WIND, Combat.Element.FIRE]:
+		await _reset(Vector3(0, 0, -1.6))
+		player.element = e
+		await _tap("attack", 3)
+		await _frames(30)
+		_check("%s sword passes through a jinn" % Combat.ELEMENT_NAMES[e], is_equal_approx(jinn.damage_taken_total, 0.0) and jinn.immune_hits > 0, "%.1f" % jinn.damage_taken_total)
+	for e in [Combat.Element.WATER, Combat.Element.EARTH]:
+		await _reset(Vector3(0, 0, -1.6))
+		player.element = e
+		await _frames(2)
+		_check("%s enchants the sword" % Combat.ELEMENT_NAMES[e], player.model.enchanted, "")
+		await _tap("attack", 3)
+		await _frames(30)
+		_check("%s-enchanted sword cuts a jinn (10 dmg)" % Combat.ELEMENT_NAMES[e], is_equal_approx(jinn.damage_taken_total, 10.0), "%.1f" % jinn.damage_taken_total)
+
+
 # --- Helpers ----------------------------------------------------------------
 
 func _reset(jinn_offset: Vector3) -> void:
@@ -460,7 +480,7 @@ func _reset(jinn_offset: Vector3) -> void:
 	player.rotation = Vector3.ZERO
 	player.camera_rig.yaw = 0.0
 	player.counter_window = 0.0
-	player.element = Combat.Element.WIND
+	player.element = Combat.Element.WATER
 	player.charge_cancelled = true
 	jinn = Jinn.new()
 	jinn.ai_enabled = false

@@ -8,6 +8,8 @@ extends CharacterBody3D
 
 signal defeated(jinn: Jinn)
 signal health_changed(hp: float, max_hp: float)
+## A hit that could not harm this jinn (wrong element).
+signal immune_hit(element: int)
 
 enum S { IDLE, CHASE, CIRCLE, TELEGRAPH, ATTACK, RECOVER, STAGGER, DEAD, RETURN, SUBDUED }
 
@@ -55,6 +57,7 @@ var chill_time: float = 0.0
 var chill_multiplier: float = 1.0
 var fx_parent: Node
 var damage_taken_total: float = 0.0
+var immune_hits: int = 0
 
 var _smoke_mat: ShaderMaterial
 var _veil_mat: ShaderMaterial
@@ -67,8 +70,11 @@ var _flash: float = 0.0
 var _rng := RandomNumberGenerator.new()
 var _arm_r: Node3D
 var _arm_l: Node3D
-var _mask: MeshInstance3D
-var _mask_mat: ShaderMaterial
+var _gold_rings: Array[Node3D] = []
+var _wisps: CPUParticles3D
+## Golden rings orbiting the smoke (the King has more).
+var ring_count: int = 3
+var _immune_popup_at: int = -10000
 var _recent: Array[String] = []
 
 
@@ -120,6 +126,7 @@ func subdue() -> void:
 	# The shadow lifts: core softens, rim turns pale turquoise.
 	_smoke_mat.set_shader_parameter("core_color", Color(0.1, 0.1, 0.22))
 	_smoke_mat.set_shader_parameter("rim_color", Color(0.5, 0.85, 0.95))
+	_eye_mat.albedo_color = Color(0.6, 0.95, 1.0)
 
 
 func state_name() -> String:
@@ -147,10 +154,10 @@ func take_damage(info: Dictionary) -> void:
 	var amount: float = info.get("amount", 0.0)
 	var element: int = info.get("element", Combat.Element.NONE)
 	var stagger: int = info.get("stagger", 0)
-	if element == Combat.Element.FIRE:
-		amount *= 1.3
-		burn_time = 3.0
-	elif element == Combat.Element.WATER:
+	if not Combat.harms_jinn(element):
+		_pass_through(info, element)
+		return
+	if element == Combat.Element.WATER:
 		# Water extinguishes burn and reduces movement temporarily.
 		burn_time = 0.0
 		apply_chill(float(info.get("chill_seconds", 2.0)), 0.6)
@@ -182,6 +189,20 @@ func take_damage(info: Dictionary) -> void:
 	var interrupts := stagger >= 2 or (stagger >= 1 and (state == S.TELEGRAPH and element == Combat.Element.WIND or state == S.RECOVER or state == S.CIRCLE))
 	if interrupts:
 		_stagger(0.6 + 0.15 * stagger)
+
+
+## Steel, Wind and Fire pass through the smoke: no damage, no burn.
+## Wind still pushes the jinn back (crowd control, not harm).
+func _pass_through(info: Dictionary, element: int) -> void:
+	immune_hits += 1
+	if element == Combat.Element.WIND:
+		var from: Vector3 = info.get("from", global_position)
+		knock_velocity = Combat.flat(global_position - from).normalized() * float(info.get("knockback", 1.5))
+	Fx.burst(fx_parent, global_position + Vector3(0, 1.2, 0), Color(0.3, 0.2, 0.45, 0.4), 1.0, 0.35)
+	if Time.get_ticks_msec() - _immune_popup_at > 600:
+		_immune_popup_at = Time.get_ticks_msec()
+		Fx.popup(fx_parent, global_position + Vector3(0, 2.3, 0), "immune", Color(0.75, 0.7, 0.85), 40)
+	immune_hit.emit(element)
 
 
 func _physics_process(delta: float) -> void:
@@ -230,8 +251,10 @@ func _physics_process(delta: float) -> void:
 			_smoke_mat.set_shader_parameter("dissolve", clampf(state_time / 1.2, 0.0, 1.0))
 			if _veil_mat:
 				_veil_mat.set_shader_parameter("dissolve", clampf(state_time / 0.85, 0.0, 1.0))
-			if _mask:
-				_mask.scale = Vector3.ONE * maxf(0.01, 1.0 - state_time / 1.0)
+			for r in _gold_rings:
+				r.scale = Vector3.ONE * maxf(0.01, 1.0 + state_time * 1.5)
+			if _wisps:
+				_wisps.emitting = false
 			if state_time > 1.3:
 				defeated.emit(self)
 				queue_free()
@@ -252,7 +275,7 @@ func _enter(s: int) -> void:
 		circle_time = _rng.randf_range(0.8, 1.8)
 		circle_dir = -1.0 if _rng.randf() < 0.5 else 1.0
 	if s != S.TELEGRAPH and s != S.ATTACK:
-		_eye_mat.albedo_color = Color(0.95, 0.9, 0.7)
+		_eye_mat.albedo_color = JinnLook.GOLD
 
 
 func _tick_chase(delta: float) -> Vector3:
@@ -480,48 +503,19 @@ func _animate(delta: float) -> void:
 	_smoke_mat.set_shader_parameter("warning", tel_p * 0.40)
 	if _veil_mat:
 		_veil_mat.set_shader_parameter("agitation", tel_p * 1.5 if state == S.TELEGRAPH else 0.0)
-	if _mask_mat:
-		_mask_mat.set_shader_parameter("flash", _flash * 0.6)
+	JinnLook.spin(_gold_rings, delta, tel_p if state == S.TELEGRAPH else (0.6 if state == S.ATTACK else 0.0))
 
 
 func _build_visual() -> void:
-	_visual = Node3D.new()
-	_visual.name = "Visual"
-	_visual.scale = Vector3.ONE * visual_scale
-	add_child(_visual)
-	_smoke_mat = ShaderMaterial.new()
-	_smoke_mat.shader = preload("res://game/actors/jinn/jinn_smoke.gdshader")
-	var parts := CharacterArt.load_parts("res://game/art/characters/jinn.glb")
-	for n in ["Body", "ArmR", "ArmL"]:
-		if parts.has(n):
-			var mi: MeshInstance3D = parts[n]
-			mi.material_override = _smoke_mat
-			_visual.add_child(mi)
-	_arm_r = parts.get("ArmR")
-	_arm_l = parts.get("ArmL")
-	# Eight tapering smoke ribbons add Ico-like, dissolving silhouettes without
-	# reusing any Sony assets. One mesh / one transparent draw surface.
-	_veil = _build_spirit_veil()
-	_visual.add_child(_veil)
-	if parts.has("Mask"):
-		_mask = parts["Mask"]
-		_mask_mat = CharacterArt.toon_material(Color(0.05, 0.03, 0.06), 0.008)
-		_mask.material_override = _mask_mat
-		_visual.add_child(_mask)
-	_eye_mat = StandardMaterial3D.new()
-	_eye_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_eye_mat.albedo_color = Color(0.95, 0.9, 0.7)
-	var eye := SphereMesh.new()
-	eye.radius = 0.05
-	eye.height = 0.07
-	for side in [-1.0, 1.0]:
-		var e := MeshInstance3D.new()
-		e.mesh = eye
-		e.material_override = _eye_mat
-		e.position = Vector3(0.11 * side, 1.41, -0.535)
-		e.scale = Vector3(1.2, 0.8, 0.5)
-		e.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_visual.add_child(e)
+	var look := JinnLook.build(self, visual_scale, ring_count, Color(0.04, 0.02, 0.08), Color(0.42, 0.24, 0.66))
+	_visual = look["visual"]
+	_smoke_mat = look["smoke_mat"]
+	# _eye_mat drives the golden rings: they carry the attack colours.
+	_eye_mat = look["ring_mat"]
+	_gold_rings = look["rings"]
+	_wisps = look["wisps"]
+	_arm_r = (look["arms"] as Dictionary).get("ArmR")
+	_arm_l = (look["arms"] as Dictionary).get("ArmL")
 	# Telegraph ring on the ground.
 	var ring := TorusMesh.new()
 	ring.inner_radius = 0.92
@@ -539,48 +533,4 @@ func _build_visual() -> void:
 	_ring.visible = false
 	add_child(_ring)
 
-## A single procedural ribbon mesh: 8 strips x 6 divisions, ~100 triangles.
-## No per-frame geometry allocation, just inexpensive vertex displacement.
-func _build_spirit_veil() -> MeshInstance3D:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var strips := 8
-	var steps := 6
-	for strand in strips:
-		var angle := TAU * float(strand) / float(strips)
-		for segment in steps:
-			var y0 := float(segment) / float(steps)
-			var y1 := float(segment + 1) / float(steps)
-			var v00 := _veil_vertex(angle, y0, 0.0)
-			var v10 := _veil_vertex(angle, y0, 1.0)
-			var v01 := _veil_vertex(angle, y1, 0.0)
-			var v11 := _veil_vertex(angle, y1, 1.0)
-			_veil_point(st, v00, Vector2(0.0, y0))
-			_veil_point(st, v10, Vector2(1.0, y0))
-			_veil_point(st, v11, Vector2(1.0, y1))
-			_veil_point(st, v00, Vector2(0.0, y0))
-			_veil_point(st, v11, Vector2(1.0, y1))
-			_veil_point(st, v01, Vector2(0.0, y1))
-	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	_veil_mat = ShaderMaterial.new()
-	_veil_mat.shader = preload("res://game/actors/jinn/spirit_veil.gdshader")
-	mi.material_override = _veil_mat
-	mi.name = "SpiritVeil"
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	return mi
 
-
-func _veil_vertex(angle: float, h: float, side: float) -> Vector3:
-	var twist := angle + h * 0.38
-	var across := (side - 0.5) * (0.55 - 0.25 * h)
-	var r := 0.29 + 0.13 * sin(angle * 3.0) - 0.11 * h
-	return Vector3(cos(twist) * r - sin(twist) * across,
-		0.02 + 1.65 * h,
-		sin(twist) * r + cos(twist) * across)
-
-
-func _veil_point(st: SurfaceTool, pos: Vector3, uv: Vector2) -> void:
-	st.set_uv(uv)
-	st.set_normal(pos.normalized())
-	st.add_vertex(pos)

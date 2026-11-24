@@ -53,7 +53,7 @@ func _run() -> void:
 	_check("King summons more shadow jinn", village._alive_minions() > before, "%d -> %d" % [before, village._alive_minions()])
 
 	# Rage at half health.
-	village.king.take_damage({"amount": village.king.max_hp * 0.55, "element": Combat.Element.NONE, "from": player.global_position, "stagger": 0})
+	village.king.take_damage({"amount": village.king.max_hp * 0.55, "element": Combat.Element.WATER, "from": player.global_position, "stagger": 0})
 	_check("King rages below half health", village.king.raging and village.king.tempo > 1.0, str(village.king.tempo))
 
 	# Salvage before conquest is allowed (ruins are dangerous but open).
@@ -67,7 +67,7 @@ func _run() -> void:
 	_check("mosque locked while haunted", not village.mosque_site.can_interact(), village.mosque_site.prompt_text())
 
 	# Defeat the King.
-	village.king.take_damage({"amount": 99999.0, "element": Combat.Element.NONE, "from": player.global_position, "stagger": 2})
+	village.king.take_damage({"amount": 99999.0, "element": Combat.Element.WATER, "from": player.global_position, "stagger": 2})
 	await _frames(100)
 	_check("defeating the King claims the village", village.stage() == "claimed", village.stage())
 	_check("claim is owned by the player", WorldState.village(village.village_id)["owner"] == "player", "")

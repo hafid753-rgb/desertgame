@@ -49,6 +49,8 @@ var _twitch_side := 1.0
 
 var _mat: ShaderMaterial
 var _cloth_mat: ShaderMaterial
+var _sword_mat: ShaderMaterial
+var enchanted: bool = false
 var _glow_mat: StandardMaterial3D
 var _walk_phase := 0.0
 var _flash := 0.0
@@ -89,7 +91,8 @@ func build(data: Dictionary) -> void:
 
 	if gear.has("Sword"):
 		sword = gear["Sword"]
-		(sword as MeshInstance3D).material_override = CharacterArt.toon_material(Color(0.1, 0.08, 0.08), 0.006)
+		_sword_mat = CharacterArt.toon_material(Color(0.1, 0.08, 0.08), 0.006)
+		(sword as MeshInstance3D).material_override = _sword_mat
 	if gear.has("Shield"):
 		shield = gear["Shield"]
 		(shield as MeshInstance3D).material_override = _mat
@@ -142,6 +145,16 @@ func set_armed(on: bool, force: bool = false) -> void:
 func emote(pose: String, seconds: float = 1.6) -> void:
 	_emote = pose
 	_emote_t = seconds
+
+
+## Water/Earth enchantment: the blade glows with the element's colour.
+func set_enchant(on: bool, color: Color) -> void:
+	enchanted = on
+	if _sword_mat == null:
+		return
+	var pulse := 0.45 + 0.15 * sin(Time.get_ticks_msec() * 0.006)
+	_sword_mat.set_shader_parameter("flash", pulse if on else 0.0)
+	_sword_mat.set_shader_parameter("flash_color", color)
 
 
 func is_emoting() -> bool:

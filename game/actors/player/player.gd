@@ -71,7 +71,7 @@ var max_stamina: float = BASE_STAMINA
 var stamina: float = BASE_STAMINA
 var move_speed: float = BASE_SPEED
 var climb_mult: float = 1.0
-var element: int = Combat.Element.WIND
+var element: int = Combat.Element.WATER
 
 var state: int = State.MOVE
 var state_time: float = 0.0
@@ -129,6 +129,7 @@ var highest_y: float = 0.0
 const SHEATHE_AFTER := 5.0
 const DRAW_RANGE := 9.0
 var last_combat_time: float = -100.0
+var _hint_at: float = -100.0
 
 ## Nearest usable Interactable in range (shown on the HUD's ACT button).
 var current_interactable: Interactable = null
@@ -671,17 +672,28 @@ func _tick_attack(_delta: float) -> Vector3:
 	return h
 
 
+## The blade carries the chosen element only for Water and Earth; those are
+## the enchantments that can cut through jinn smoke.
+func sword_element() -> int:
+	return element if Combat.harms_jinn(element) else Combat.Element.NONE
+
+
 func _melee_hit(atk: Dictionary) -> void:
 	var mult := 1.5 if counter_window > 0.0 else 1.0
 	var dmg: float = float(atk["damage"]) * mult
 	var hit_any := false
+	var blade := sword_element()
 	for j in _jinn_in_reach():
 		if Combat.in_arc(global_position, _forward(), j.global_position, float(atk["range"]) + j.radius, float(atk["arc"])):
 			j.take_damage({
-				"amount": dmg, "element": Combat.Element.NONE, "from": global_position,
+				"amount": dmg, "element": blade, "from": global_position,
 				"knockback": 5.0 if is_heavy else 1.5, "stagger": int(atk["stagger"]), "counter": counter_window > 0.0,
 			})
-			hit_any = true
+			if Combat.harms_jinn(blade):
+				hit_any = true
+			elif now - _hint_at > 6.0:
+				_hint_at = now
+				announced.emit("Steel passes through smoke: enchant with Water or Earth (ELM)", Color(0.8, 0.9, 1.0))
 	if hit_any:
 		Fx.burst(fx_parent, global_position + _forward() * 1.4 + Vector3(0, 0.9, 0), Color(1, 1, 0.9, 0.8), 0.7, 0.12)
 		Juice.play("hit", global_position, 0.85 if is_heavy else 1.0)
@@ -1170,6 +1182,7 @@ func _update_armed() -> void:
 	var fighting := near or now - last_combat_time < SHEATHE_AFTER
 	var hands_busy := state in [State.CLIMB, State.MANTLE, State.GLIDE]
 	if model:
+		model.set_enchant(Combat.harms_jinn(element), Combat.ELEMENT_COLORS[element])
 		# Celebrating puts the sword away so the hand is free to gesture.
 		model.set_armed(fighting and not hands_busy and not model.is_emoting())
 

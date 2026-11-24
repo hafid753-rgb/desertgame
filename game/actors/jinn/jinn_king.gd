@@ -19,6 +19,7 @@ func _init() -> void:
 	max_hp = 650.0
 	radius = 1.05
 	visual_scale = 2.1
+	ring_count = 5
 	chase_speed = 2.4
 	attacks = Jinn.ATTACKS.duplicate(true)
 	attacks["swipe"]["range"] = 3.9
@@ -98,7 +99,7 @@ func _tick_attack(delta: float) -> Vector3:
 
 
 func _build_crown() -> void:
-	# Gold crown of spikes above the mask; ride on the visual so it scales.
+	# Gold crown of spikes above the smoke head; rides on the visual so it scales.
 	var crown := Node3D.new()
 	crown.position = Vector3(0, 1.78, -0.25)
 	_visual.add_child(crown)
