@@ -3,8 +3,8 @@ extends StaticBody3D
 ## Greybox arena: an abandoned Saharan courtyard, 24 x 24 m, mud-brick walls
 ## (walkable on top) with triangular merlons, an open gate, a well and palms.
 ## Outside the gate: dunes, a ruined wall, a 10 m pillar and a 20 m mesa.
-## Climb budgets on a full bar: Cat ~15.5 m, Fennec ~17 m, Lizard ~19 m, plus
-## ~2.5 m of mantle reach, so only the Lizard tops the mesa in one go. Built from primitives so the artist's
+## Climb budgets on a full bar: Cat ~15.5 m, Fennec ~17 m, Rabbit ~19 m, plus
+## ~2.5 m of mantle reach, so only the Rabbit tops the mesa in one go. Built from primitives so the artist's
 ## modular kit can replace it without touching gameplay.
 
 const MUD := Color(0.7, 0.47, 0.3)
@@ -67,7 +67,7 @@ func _outside() -> void:
 	_box(Vector3(3, 10, 3), Vector3(12, 5, 25), STONE)
 	_box(Vector3(9, MESA_H, 9), Vector3(-17, MESA_H / 2, 31), Color(0.66, 0.46, 0.32))
 	_sign("Pillar 10 m", Vector3(12, 2.5, 22.3))
-	_sign("Mesa 20 m — only the Lizard makes it in one climb", Vector3(-17, 2.5, 25.0))
+	_sign("Mesa 20 m — only the Rabbit makes it in one climb", Vector3(-17, 2.5, 25.0))
 	_palm(Vector3(-13, MESA_H, 31), 0.05)  # a lone palm on the mesa as a goal
 	# Dunes.
 	for d in [

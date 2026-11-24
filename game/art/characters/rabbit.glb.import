@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cqy3ush4p54jd"
-path="res://.godot/imported/lizard.glb-6d7da89fa35fc21c918c7f182ab131ac.scn"
+uid="uid://d2qd00kyveogl"
+path="res://.godot/imported/rabbit.glb-9d041323cbaea62824a57da0076ad428.scn"
 
 [deps]
 
-source_file="res://game/art/characters/lizard.glb"
-dest_files=["res://.godot/imported/lizard.glb-6d7da89fa35fc21c918c7f182ab131ac.scn"]
+source_file="res://game/art/characters/rabbit.glb"
+dest_files=["res://.godot/imported/rabbit.glb-9d041323cbaea62824a57da0076ad428.scn"]
 
 [params]
 

@@ -30,6 +30,8 @@ var tail: Node3D
 var sword: Node3D
 var scabbard: Node3D
 var hawli: Node3D
+var eyes_closed: Node3D
+var eyes_shut := false
 var turban: Node3D
 ## Diagonal across the back, hilt over the right shoulder.
 const BACK_SWORD := Transform3D(Basis(Vector3.FORWARD, 0.7) * Basis(Vector3.RIGHT, -PI / 2), Vector3(0.16, 0.44, 0.3))
@@ -78,6 +80,9 @@ func build(data: Dictionary) -> void:
 	foot_l = _take(parts, "FootL", Vector3(-FOOT.x, FOOT.y, FOOT.z))
 	# Face parts ride on the head so blinks and ear twitches follow it.
 	eyes = _attach_to_head(parts, "Eyes")
+	eyes_closed = _attach_to_head(parts, "EyesClosed")
+	if eyes_closed:
+		eyes_closed.visible = false
 	ear_r = _attach_to_head(parts, "EarR")
 	ear_l = _attach_to_head(parts, "EarL")
 	# Hawli / tagelmust: neck wrap and/or turban, worn per species.
@@ -402,8 +407,13 @@ func _animate_face(delta: float, state: String) -> void:
 		_blink_in = randf_range(2.0, 5.0) if randf() > 0.2 else 0.25
 	_blink_t = maxf(0.0, _blink_t - delta)
 	if eyes:
-		var shut := _blink_t > 0.0 or state == "HITSTUN"
-		eyes.scale.y = lerpf(eyes.scale.y, 0.12 if shut else 1.0, 1.0 - exp(-40.0 * delta))
+		eyes_shut = _blink_t > 0.0 or state == "HITSTUN" or state == "DEAD"
+		if eyes_closed:
+			# Closed eyes read as "> <".
+			eyes.visible = not eyes_shut
+			eyes_closed.visible = eyes_shut
+		else:
+			eyes.scale.y = lerpf(eyes.scale.y, 0.12 if eyes_shut else 1.0, 1.0 - exp(-40.0 * delta))
 	# Ear twitch, and ears flatten back when hit or gliding.
 	_twitch_in -= delta
 	if _twitch_in <= 0.0:

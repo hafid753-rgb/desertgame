@@ -1864,13 +1864,15 @@ def build_species(name):
     rows = [
         ("Body", build_robe(s), BODY_C),
         ("Head", build_head(s), HEAD_C),
-        ("Eyes", build_eyes(s), (0, HEAD_C[1] + eye_y, 0)),
+        ("Eyes", build_eyes(s), HEAD_C),
+        ("EyesClosed", build_eyes_closed(s), HEAD_C) if "build_eyes_closed" in globals() else ("Eyes2", Part(), HEAD_C),
         ("Tail", build_tail(s), TAIL_C),
         ("FootR", build_shoe(s), FOOT_C),
         ("FootL", mirrored(build_shoe(s)), (-FOOT_C[0], FOOT_C[1], FOOT_C[2])),
         ("DaraaR", build_daraa_wing(s, 1), (0, 1.3, 0.02)),
         ("DaraaL", build_daraa_wing(s, -1), (0, 1.3, 0.02)),
     ]
+    rows = [r for r in rows if r[0] != "Eyes2"]
     if s["hawli_on"] in ("neck", "both"):
         rows.append(("Hawli", build_hawli_neck(s), (0, 1.42, 0.0)))
     if s["hawli_on"] in ("head", "both"):
@@ -1881,8 +1883,8 @@ def build_species(name):
         rows.append(("HandL_" + pose, mirrored(hand), (-HAND_C[0], HAND_C[1], HAND_C[2])))
     if s["ears"] != "none":
         _, base, _ = ear_layout(s)
-        rows.append(("EarR", build_ear(s, 1), (base[0], HEAD_C[1] + base[1], base[2])))
-        rows.append(("EarL", build_ear(s, -1), (-base[0], HEAD_C[1] + base[1], base[2])))
+        for sx, nm in ((1, "EarR"), (-1, "EarL")):
+            rows.append((nm, build_ear(s, sx), (base[0] * sx, HEAD_C[1] + base[1], base[2])))
     rows = chibi(rows, s)
     bake_depth(rows)
     tris = 0
@@ -2227,10 +2229,8 @@ def chibi(rows, s):
     def robe_fn(w):
         return Vector((w.x * 0.96, ROBE_Y0 + (w.y - 0.24) * ROBE_SY, w.z))
     for name, part, pivot in rows:
-        if name in ("Head", "Eyes", "Turban") or name.startswith("Ear"):
+        if name in ("Head", "Eyes", "EyesClosed", "Turban") or name.startswith("Ear"):
             pivot = _remap(part, pivot, head_fn)
-            if name.startswith("Ear") and s["ears"] == "fennec":
-                part.verts = [v * 0.8 for v in part.verts]
         elif name == "Body":
             pivot = _remap(part, pivot, robe_fn)
             # keep the pivot where the game expects it
@@ -2352,13 +2352,15 @@ def build_species(name):
     rows = [
         ("Body", build_robe(s), BODY_C),
         ("Head", build_head(s), HEAD_C),
-        ("Eyes", build_eyes(s), (0, HEAD_C[1] + eye_y, 0)),
+        ("Eyes", build_eyes(s), HEAD_C),
+        ("EyesClosed", build_eyes_closed(s), HEAD_C) if "build_eyes_closed" in globals() else ("Eyes2", Part(), HEAD_C),
         ("Tail", build_tail(s), TAIL_C),
         ("FootR", build_shoe(s), FOOT_C),
         ("FootL", mirrored(build_shoe(s)), (-FOOT_C[0], FOOT_C[1], FOOT_C[2])),
         ("DaraaR", build_daraa_wing(s, 1), (0, 1.3, 0.02)),
         ("DaraaL", build_daraa_wing(s, -1), (0, 1.3, 0.02)),
     ]
+    rows = [r for r in rows if r[0] != "Eyes2"]
     if s["hawli_on"] in ("neck", "both"):
         rows.append(("Hawli", build_hawli_neck(s), (0, 1.42, 0.0)))
     if s["hawli_on"] in ("head", "both"):
@@ -2369,8 +2371,8 @@ def build_species(name):
         rows.append(("HandL_" + pose, mirrored(hand), (-HAND_C[0], HAND_C[1], HAND_C[2])))
     if s["ears"] != "none":
         _, base, _ = ear_layout(s)
-        rows.append(("EarR", build_ear(s, 1), (base[0], HEAD_C[1] + base[1], base[2])))
-        rows.append(("EarL", build_ear(s, -1), (-base[0], HEAD_C[1] + base[1], base[2])))
+        for sx, nm in ((1, "EarR"), (-1, "EarL")):
+            rows.append((nm, build_ear(s, sx), (base[0] * sx, HEAD_C[1] + base[1], base[2])))
     rows = chibi(rows, s)
     furry = name in FUR_SPECIES
     masks = {}
@@ -2393,6 +2395,265 @@ def build_species(name):
     export(os.path.join(OUT, name + ".glb"))
     print(f"  {name}: fur faces per shell {fur_tris} x {FUR_SHELLS}")
     return tris
+
+
+# ===========================================================================
+# v0.9 vinyl-toy style (reference: smooth glossy figurine cats): mochi heads,
+# tall oval eyes, tiny nose, crisp colour patches, no fur. Species: Saharan
+# sand cat, fennec, desert hare ("rabbit", Lepus capensis, found in
+# Mauritania). Closed eyes are "> <" chevrons (EyesClosed part).
+# ===========================================================================
+FUR_SPECIES = {}
+
+SPECIES["cat"].update({
+    "fur": (0.85, 0.76, 0.6), "fur_dark": (0.45, 0.34, 0.24), "accent": (0.98, 0.96, 0.9),
+    "inner_ear": (0.93, 0.68, 0.58), "iris": (0.42, 0.74, 0.42), "streak": (0.8, 0.45, 0.25),
+    "nose": (0.18, 0.12, 0.12), "pad": (0.36, 0.26, 0.2),
+})
+SPECIES["fennec"].update({
+    "fur": (0.96, 0.86, 0.68), "fur_dark": (0.6, 0.46, 0.32), "accent": (0.99, 0.98, 0.95),
+    "inner_ear": (0.98, 0.82, 0.74), "iris": (0.06, 0.05, 0.06), "streak": (0.62, 0.46, 0.34),
+})
+lz = SPECIES.pop("lizard", None)
+SPECIES["rabbit"] = {
+    "fur": (0.74, 0.62, 0.48), "fur_dark": (0.38, 0.3, 0.24), "accent": (0.98, 0.97, 0.93),
+    "inner_ear": (0.92, 0.72, 0.68), "eye": (0.06, 0.05, 0.06), "nose": (0.62, 0.4, 0.38),
+    "pad": (0.4, 0.32, 0.26), "iris": (0.08, 0.06, 0.05), "streak": (0.5, 0.4, 0.3),
+    "robe": (0.16, 0.2, 0.42), "robe_dark": (0.1, 0.13, 0.3), "embroidery": (0.98, 0.95, 0.86),
+    "inner": (0.95, 0.93, 0.88), "hawli": (0.13, 0.2, 0.5), "hawli_dark": (0.08, 0.12, 0.34), "hawli_on": "both",
+    "ears": "rabbit", "head": "rabbit", "tail": "rabbit",
+}
+EYE_Y = {"round": 0.0, "fox": 0.0, "rabbit": 0.0}
+HEAD_EXT = {"round": (0.23, 0.18, 0.2), "fox": (0.205, 0.17, 0.19), "rabbit": (0.205, 0.19, 0.2)}
+EYE_X = {"round": 0.088, "fox": 0.08, "rabbit": 0.082}
+
+
+def _spow(v, e):
+    return math.copysign(abs(v) ** e, v)
+
+
+def _head_white(kind, p):
+    """True where the face/chin patch is white (old-frame head coords)."""
+    x, y, z = p.x, p.y, p.z
+    if y < -0.15:
+        return True
+    if z > -0.04:
+        return False
+    if kind == "round":
+        return (x / 0.13) ** 2 + ((y + 0.1) / 0.085) ** 2 < 1.0
+    if kind == "fox":
+        return (x / 0.16) ** 2 + ((y + 0.085) / 0.1) ** 2 < 1.0 or ((abs(x) - 0.08) / 0.03) ** 2 + ((y - 0.065) / 0.018) ** 2 < 1.0
+    return (x / 0.085) ** 2 + ((y + 0.1) / 0.07) ** 2 < 1.0
+
+
+def _seg_dist(px, py, ax, ay, bx, by):
+    vx, vy = bx - ax, by - ay
+    t = max(0.0, min(1.0, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy)))
+    return math.hypot(px - (ax + vx * t), py - (ay + vy * t))
+
+
+def build_head(s):
+    kind = s["head"]
+    ax, ay, az = HEAD_EXT[kind]
+    fur, dark, white = s["fur"], s["fur_dark"], s["accent"]
+    lat_n, lon_n = 64, 128
+    p = Part()
+    grid = []
+    for i in range(lat_n + 1):
+        th = -math.pi / 2 + math.pi * i / lat_n
+        row = []
+        for j in range(lon_n):
+            ph = math.tau * j / lon_n
+            e = 0.82
+            cx = _spow(math.cos(th), e) * _spow(math.cos(ph), e)
+            cy = _spow(math.sin(th), e)
+            cz = _spow(math.cos(th), e) * _spow(math.sin(ph), e)
+            widen = 1.0 + 0.09 * max(0.0, -cy)          # mochi: fuller cheeks
+            y = cy * ay
+            if cy < -0.75:
+                y = -ay * (0.75 + (abs(cy) - 0.75) * 0.6)   # softly flattened base
+            v = Vector((cx * ax * widen, y, cz * az * widen))
+            row.append(len(p.verts))
+            p.verts.append(v)
+            p.normals.append(Vector((cx / ax, cy / ay, cz / az)).normalized())
+            c = fur
+            if _head_white(kind, v):
+                c = white
+            if kind == "round":
+                for sx in (-1, 1):
+                    if v.z < 0 and _seg_dist(v.x, v.y, 0.12 * sx, -0.012, 0.2 * sx, -0.065) < 0.008:
+                        c = s["streak"]
+                if v.z < -0.05 and 0.085 < v.y < 0.16 and any(abs(v.x - k * 0.032) < 0.0065 for k in (-1, 0, 1)):
+                    c = dark                                 # faint tabby stripes on the brow
+            if kind == "rabbit" and v.z < 0:
+                for sx in (-1, 1):                           # pale eye rings
+                    d = math.hypot((v.x - EYE_X[kind] * sx) / 0.045, (v.y - 0.0) / 0.068)
+                    if 1.0 < d < 1.18:
+                        c = white
+            p.colors.append(c)
+        grid.append(row)
+    for i in range(lat_n):
+        for j in range(lon_n):
+            k = (j + 1) % lon_n
+            a, b, c2, d = grid[i][j], grid[i][k], grid[i + 1][k], grid[i + 1][j]
+            f = [a, b, c2, d]
+            n = (p.verts[b] - p.verts[a]).cross(p.verts[d] - p.verts[a])
+            ctr = (p.verts[a] + p.verts[c2]) * 0.5
+            if n.dot(ctr) < 0:
+                f.reverse()
+            p.faces.append(f)
+    return p
+
+
+def _surface(head, x, y):
+    from mathutils.bvhtree import BVHTree
+    bvh = BVHTree.FromPolygons([Vector(v) for v in head.verts], head.faces)
+    hit = bvh.ray_cast(Vector((x, y, -2.0)), Vector((0, 0, 1)))
+    return hit[0], hit[1]
+
+
+def build_eyes(s):
+    """Tall glossy ovals. Pivot is the head centre."""
+    kind = s["head"]
+    head = build_head(s)
+    p = Part()
+    for sx in (-1, 1):
+        x = EYE_X[kind] * sx
+        loc, nrm = _surface(head, x, 0.0)
+        out = Vector((0, 0, -1))
+        base = loc + out * 0.004
+        p.add_mesh(prim("sphere", r=1.0, u=24, v=16), lambda c, n: (0.05, 0.04, 0.05),
+                   T(base, scale=(0.032, 0.054, 0.016)))
+        if kind == "round":  # sand cat: green-yellow iris inside a dark rim
+            p.add_mesh(prim("sphere", r=1.0, u=24, v=16), lambda c, n: s["iris"],
+                       T(base + out * 0.004, scale=(0.025, 0.046, 0.014)))
+            p.add_mesh(prim("sphere", r=1.0, u=12, v=8), lambda c, n: (0.04, 0.03, 0.04),
+                       T(base + out * 0.007, scale=(0.008, 0.036, 0.01)))
+        p.add_mesh(prim("sphere", r=1.0, u=10, v=8), lambda c, n: (1, 1, 1),
+                   T(base + out * 0.012 + Vector((0.01 * sx, 0.022, 0)), scale=(0.009, 0.012, 0.005)))
+    # nose
+    loc, _ = _surface(head, 0.0, -0.045)
+    p.add_mesh(prim("sphere", r=1.0, u=12, v=8), lambda c, n: s["nose"],
+               T(loc + Vector((0, 0, -0.003)), scale=(0.014, 0.009, 0.008)))
+    return p
+
+
+def build_eyes_closed(s):
+    """'> <' — chevrons pointing toward the nose, hugging the face."""
+    kind = s["head"]
+    head = build_head(s)
+    p = Part()
+    for sx in (-1, 1):
+        x = EYE_X[kind] * sx
+        pts2 = [(x + 0.026 * sx, 0.032), (x - 0.02 * sx, 0.0), (x + 0.026 * sx, -0.032)]
+        path = []
+        for k in range(len(pts2) - 1):
+            (x0, y0), (x1, y1) = pts2[k], pts2[k + 1]
+            for t in [i / 8 for i in range(9 if k == len(pts2) - 2 else 8)]:
+                loc, _ = _surface(head, lerp(x0, x1, t), lerp(y0, y1, t))
+                path.append(loc + Vector((0, 0, -0.006)))
+        merge(p, sweep(path, lambda t: 0.009, lambda t: 0.007, lambda t, a: (0.05, 0.04, 0.05), sides=10))
+    loc, _ = _surface(head, 0.0, -0.045)
+    p.add_mesh(prim("sphere", r=1.0, u=12, v=8), lambda c, n: s["nose"],
+               T(loc + Vector((0, 0, -0.003)), scale=(0.014, 0.009, 0.008)))
+    return p
+
+
+EAR_SPEC = {
+    # base (x, y, z) on the head, height, half width, half depth, outward tilt, back tilt
+    "cat": ((0.13, 0.12, 0.02), 0.15, 0.075, 0.032, 0.42, 0.08),
+    "fennec": ((0.105, 0.12, 0.02), 0.28, 0.095, 0.03, 0.4, 0.1),
+    "rabbit": ((0.065, 0.15, 0.03), 0.32, 0.048, 0.026, 0.14, 0.2),
+}
+
+
+def ear_layout(s):
+    base, h, w, d, tilt, back = EAR_SPEC[s["ears"]]
+    return (w * 2, h, d * 2), base, tilt
+
+
+def build_ear(s, sx):
+    base, h, w, d, tilt, back = EAR_SPEC[s["ears"]]
+    secs = []
+    for i in range(15):
+        t = i / 14
+        if s["ears"] == "rabbit":
+            k = math.sqrt(max(0.0, 1 - t ** 2.4))
+        elif s["ears"] == "fennec":  # broad ears that taper into a rounded tip
+            k = math.sqrt(max(0.0, 1 - t ** 2.0)) * (1 - 0.45 * t)
+        else:
+            k = (1 - t) ** 0.75
+        secs.append((t * h, max(0.004, w * k), max(0.004, d * (0.6 + 0.4 * k)), 0.0))
+
+    def col(co, a):
+        t = co.y / h
+        if s["ears"] in ("cat", "rabbit") and t > (0.8 if s["ears"] == "cat" else 0.86):
+            return (0.1, 0.08, 0.08)                        # black tips
+        if co.z < -d * 0.2 and abs(co.x) < w * (1 - t) * 0.62 and 0.1 < t < 0.88:
+            return s["inner_ear"]
+        return s["fur"]
+    p = loft(secs, 32, col, None, squareness=2.4)
+    m = Matrix.Rotation(-tilt * sx, 4, "Z") @ Matrix.Rotation(back, 4, "X")
+    p.verts = [m @ v for v in p.verts]
+    p.normals = [(m.to_3x3() @ n).normalized() for n in p.normals]
+    return p
+
+
+def build_tail(s):
+    kind = s["tail"]
+    if kind == "rabbit":  # cotton tail
+        p = Part()
+        p.add_mesh(prim("sphere", r=0.075, u=20, v=14), lambda c, n: s["accent"], T((0, -0.05, 0.02)))
+        return p
+    pts = []
+    for i in range(24):
+        t = i / 23
+        if kind == "fennec":
+            pts.append(Vector((0.03 * math.sin(t * 2), -0.14 + t * 0.22, 0.04 + t * 0.5)))
+        else:
+            pts.append(Vector((0.02 * math.sin(t * 3), -0.1 + t * 0.48 + 0.04 * math.sin(t * 2), 0.04 + math.sin(t * 2.1) * 0.4)))
+
+    def rad(t):
+        if kind == "fennec":
+            return 0.045 + 0.06 * math.sin(min(1.0, t * 1.1) * math.pi * 0.9)
+        return lerp(0.048, 0.04, t)
+
+    def col(t, a):
+        if kind == "fennec":
+            return (0.1, 0.08, 0.07) if t > 0.8 else s["fur"]
+        if t > 0.86 or (0.5 < t < 0.56) or (0.67 < t < 0.73):
+            return (0.1, 0.08, 0.08)
+        return s["fur"]
+    return sweep(pts, rad, rad, col, sides=18)
+
+
+def build_hawli_head(s):
+    """Tagelmust turban sized to the mochi head; ears pass through."""
+    c1, c2 = s["hawli"], s["hawli_dark"]
+    ax, ay, az = HEAD_EXT[s["head"]]
+    rx, rz = ax * 0.9, az * 0.9
+    y0, y1 = ay * 0.66, ay * 0.86
+    p = Part()
+    wrap = _helix((0, 0, 0.0), rx, rz, y0, y1, 2.4, 150, tilt=0.025, wobble=0.006)
+    merge(p, sweep(wrap, lambda t: lerp(0.042, 0.036, t), lambda t: 0.02, _band_col(c1, c2), sides=12,
+                   twist_fn=lambda t: 0.6 * math.sin(t * 13), ripple_fn=lambda t: 0.7))
+    start = Vector((0.06, y0, rz))
+    tail = [start + Vector((0.03 * math.sin(t * 3), -t * 0.2, 0.05 * math.sin(t * 2.5) + 0.02 * t))
+            for t in [i / 17 for i in range(18)]]
+    merge(p, sweep(tail, lambda t: lerp(0.04, 0.06, t), lambda t: 0.012,
+                   _band_col(c1, c2, 0.15, s["embroidery"]), sides=10,
+                   twist_fn=lambda t: 1.4 + 0.3 * math.sin(t * 5), ripple_fn=lambda t: t))
+    return p
+
+
+_prev_build_species = build_species
+
+
+def build_species(name):
+    # Same pipeline, plus the closed-eye part; built in the old frame and
+    # remapped by chibi() (EyesClosed is treated like Eyes).
+    global build_eyes_closed_cache
+    return _prev_build_species(name)
 
 
 def main():

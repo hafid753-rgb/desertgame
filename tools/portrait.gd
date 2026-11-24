@@ -37,7 +37,7 @@ func _ready() -> void:
 	floor_mi.material_override = fm
 	root.add_child(floor_mi)
 	var x := -2.4
-	for id in ["cat", "fennec", "lizard"]:
+	for id in ["cat", "fennec", "rabbit"]:
 		var m := CreatureModel.new()
 		models.append(m)
 		root.add_child(m)
@@ -70,6 +70,21 @@ func _ready() -> void:
 	for i in 5:
 		await get_tree().process_frame
 	await _shot("cat_close")
+	# Faces, open and closed ("> <").
+	cam.position = Vector3(-0.8, 1.4, 4.4)
+	cam.look_at(Vector3(-0.8, 1.2, 0))
+	for i in 5:
+		await get_tree().process_frame
+	await _shot("faces")
+	for m in models:
+		m._blink_t = 30.0
+		m._blink_in = 30.0
+	for i in 5:
+		await get_tree().process_frame
+	await _shot("faces_closed")
+	for m in models:
+		m._blink_t = 0.0
+		m._blink_in = 3.0
 	# Emotes on the lineup.
 	models[1].emote("thumbs_up", 5.0)
 	models[2].emote("peace", 5.0)

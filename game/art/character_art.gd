@@ -8,10 +8,8 @@ const TOON_DOUBLE := preload("res://game/shaders/toon_double.gdshader")
 const OUTLINE := preload("res://game/shaders/outline.gdshader")
 const FUR := preload("res://game/shaders/fur_shell.gdshader")
 ## Per-species fur look: [length, density, thickness, droop].
-const FUR_STYLE := {
-	"cat": [0.028, 70.0, 0.9, 0.3],
-	"fennec": [0.034, 64.0, 0.9, 0.45],
-}
+## Empty in the vinyl-toy style (v0.9); the shell fur pipeline stays available.
+const FUR_STYLE := {}
 
 
 ## Shell fur material for a species, or null for scaly ones.

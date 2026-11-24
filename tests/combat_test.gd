@@ -51,7 +51,7 @@ func _run_all() -> void:
 	await _test_climb_wall_and_mantle()
 	await _test_glide()
 	await _test_fall_damage()
-	await _test_mesa_only_lizard()
+	await _test_mesa_only_rabbit()
 	await _test_pause_menu()
 	await _test_hand_poses()
 	await _test_jinn_enchantment_rule()
@@ -286,8 +286,8 @@ func _test_lock_on() -> void:
 
 func _test_species_stamina() -> void:
 	var cat := Species.get_data("cat")
-	var liz := Species.get_data("lizard")
-	_check("cat has less stamina than lizard", float(cat["stamina"]) < float(liz["stamina"]), "")
+	var liz := Species.get_data("rabbit")
+	_check("cat has less stamina than rabbit", float(cat["stamina"]) < float(liz["stamina"]), "")
 	_check("cat player max stamina = 70", is_equal_approx(player.max_stamina, 70.0), "%.1f" % player.max_stamina)
 
 
@@ -312,7 +312,7 @@ func _test_species_switch() -> void:
 	_check("species switch: cat -> fennec, stamina 100", player.species_id == "fennec" and is_equal_approx(player.max_stamina, 100.0), player.species_id)
 	await _tap("species", 2)
 	await _frames(2)
-	_check("species switch: fennec -> lizard, stamina 140", player.species_id == "lizard" and is_equal_approx(player.max_stamina, 140.0), player.species_id)
+	_check("species switch: fennec -> rabbit, stamina 140", player.species_id == "rabbit" and is_equal_approx(player.max_stamina, 140.0), player.species_id)
 	player.set_species("cat")
 
 
@@ -382,9 +382,9 @@ func _test_fall_damage() -> void:
 	_check("a 12 m drop without gliding hurts", player.hp < 100.0, "hp %.1f" % player.hp)
 
 
-func _test_mesa_only_lizard() -> void:
+func _test_mesa_only_rabbit() -> void:
 	var tops := {}
-	for sp in ["cat", "fennec", "lizard"]:
+	for sp in ["cat", "fennec", "rabbit"]:
 		await _reset(Vector3(0, 0, -40))
 		player.set_species(sp)
 		player.global_position = Vector3(-17, 0.05, 25.3)
@@ -406,7 +406,7 @@ func _test_mesa_only_lizard() -> void:
 	player.set_species("cat")
 	_check("Cat cannot top the 20 m mesa in one climb", float(tops["cat"]) < 19.0, str(tops))
 	_check("Fennec cannot top the 20 m mesa in one climb", float(tops["fennec"]) < 19.0, str(tops))
-	_check("Lizard tops the 20 m mesa", float(tops["lizard"]) > 19.9, str(tops))
+	_check("Rabbit tops the 20 m mesa", float(tops["rabbit"]) > 19.9, str(tops))
 
 
 func _test_pause_menu() -> void:
@@ -425,11 +425,8 @@ func _test_hand_poses() -> void:
 	var m := player.model
 	_check("character wears a hawli or turban", m.hawli != null or m.turban != null, "")
 	_check("takoba scabbard worn on the back", m.scabbard != null and m.scabbard.get_parent() == m.body, "")
-	var furry := m._species_key in ["cat", "fennec"]
-	_check("fur shells match species (furry=%s)" % furry, (m.fur_meshes.size() > 0) == furry, str(m.fur_meshes.size()))
-	if furry:
-		var f: MeshInstance3D = m.fur_meshes[0]
-		_check("fur is culled at distance", f.visibility_range_end > 0.0 and f.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "")
+	_check("vinyl style: no fur shells", m.fur_meshes.is_empty(), str(m.fur_meshes.size()))
+	_check("closed-eye '> <' part exists and starts hidden", m.eyes_closed != null and not m.eyes_closed.visible, "")
 	_check("idle, no enemy near: sword on the back", not m.armed, "")
 	_check("idle: open hands", m.hand_pose_r == "open" and m.hand_pose_l == "open", m.hand_pose_r)
 	GameInput.touch_move = Vector2(0, -1)
