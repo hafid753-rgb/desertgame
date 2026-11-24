@@ -63,6 +63,7 @@ var _cloth_mat: ShaderMaterial
 var _fabric_mat: ShaderMaterial
 var _gloss_mat: ShaderMaterial
 var _leather_mat: ShaderMaterial
+var _outline_color_cached := Color(0.2, 0.12, 0.08)
 var _sword_mat: ShaderMaterial
 var enchanted: bool = false
 var _glow_mat: StandardMaterial3D
@@ -75,6 +76,7 @@ var _species_key := "cat"
 func build(data: Dictionary) -> void:
 	_species_key = str(data["name"]).to_lower()
 	var oc := _outline_color(data)
+	_outline_color_cached = oc
 	_mat = CharacterArt.toon_material(oc, 0.007, "skin")
 	_fabric_mat = CharacterArt.toon_material(oc, 0.007, "fabric")
 	_gloss_mat = CharacterArt.toon_material(oc, 0.0, "gloss")
@@ -410,9 +412,16 @@ func _hand(parts: Dictionary, prefix: String, pos: Vector3, table: Dictionary) -
 
 ## Cloth reads matte with a velvet sheen, eyes glossy, boots leathery.
 func _apply_materials() -> void:
-	for n in [body, hawli, turban]:
+	if body is MeshInstance3D:
+		(body as MeshInstance3D).material_override = _fabric_mat
+	# Hawli/turban: matte cotton (no damask, no sheen streaks).
+	var cotton := CharacterArt.toon_material(_outline_color_cached, 0.007, "fabric")
+	cotton.set_shader_parameter("damask_strength", 0.0)
+	cotton.set_shader_parameter("sheen_strength", 0.03)
+	cotton.set_shader_parameter("rim_strength", 0.06)
+	for n in [hawli, turban]:
 		if n is MeshInstance3D:
-			(n as MeshInstance3D).material_override = _fabric_mat
+			(n as MeshInstance3D).material_override = cotton
 	for n in [foot_r, foot_l, scabbard]:
 		if n is MeshInstance3D:
 			(n as MeshInstance3D).material_override = _leather_mat

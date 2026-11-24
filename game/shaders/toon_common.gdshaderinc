@@ -35,7 +35,11 @@ void fragment() {
 	if (damask_strength > 0.0) {
 		vec3 an = abs(normalize(obj_nrm));
 		float m = mix(damask(obj_pos.xy * damask_scale), damask(obj_pos.zy * damask_scale), smoothstep(0.4, 0.8, an.x));
-		ALBEDO *= 1.0 + damask_strength * (m - 0.35);
+		// On pale cloth the pattern brightens (a woven sheen) instead of
+		// darkening, so white bazin stays clean.
+		float lum = dot(c, vec3(0.3, 0.59, 0.11));
+		float k = damask_strength * mix(1.0, 0.45, smoothstep(0.5, 0.85, lum));
+		ALBEDO *= 1.0 + k * (m - mix(0.35, 0.0, smoothstep(0.5, 0.85, lum)));
 	}
 	AO = ao;
 	AO_LIGHT_AFFECT = 0.35;
