@@ -3079,6 +3079,43 @@ def build_robe(s):
     return p
 
 
+# --- v1.4: Nintendo mittens -------------------------------------------------
+def build_hand(s, pose):
+    """Soft rounded mitts: one fused mitten shape per pose, chunky thumb,
+    only peace shows two fingers. Built from rounded boxes and spheres."""
+    p = Part()
+    fur, pad = s["fur"], s.get("pad", (0.95, 0.62, 0.62))
+    pad_c = mix(mix(pad, (0.96, 0.68, 0.64), 0.6), fur, 0.45)
+
+    def blob(size, loc, col=fur, rot=(0, 0, 0)):
+        r = min(size) * 0.48
+        add_box(p, size, loc, col, r=r, seg=5, rot=rot)
+
+    if pose == "open":
+        blob((0.17, 0.085, 0.2), (0, 0, -0.03))                      # flat mitten
+        blob((0.05, 0.05, 0.09), (-0.1, 0.0, -0.02), rot=(0, 0.55, 0))  # thumb
+        for x in (-0.042, 0.0, 0.042):                              # soft finger grooves
+            add_box(p, (0.006, 0.088, 0.07), (x, 0.0, -0.1), mix(fur, (0.4, 0.3, 0.25), 0.25), r=0.002, seg=1)
+    elif pose == "fist":
+        blob((0.17, 0.13, 0.15), (0, 0, -0.03))
+        blob((0.09, 0.05, 0.05), (-0.03, 0.045, -0.1))
+    elif pose == "grip":
+        blob((0.17, 0.13, 0.14), (0, -0.01, -0.03))
+        blob((0.05, 0.05, 0.08), (-0.07, 0.05, -0.08))
+    elif pose == "thumbs_up":
+        blob((0.17, 0.13, 0.15), (0, 0, -0.03))
+        blob((0.055, 0.12, 0.055), (-0.07, 0.1, -0.05))
+    elif pose == "peace":
+        blob((0.17, 0.12, 0.14), (0, 0, -0.02))
+        blob((0.048, 0.048, 0.13), (-0.03, 0.0, -0.13), rot=(0, -0.25, 0))
+        blob((0.048, 0.048, 0.13), (0.03, 0.0, -0.13), rot=(0, 0.25, 0))
+        blob((0.08, 0.045, 0.045), (0.02, 0.04, -0.09))
+    py = -0.04 if pose == "open" else -0.062
+    p.add_mesh(prim("sphere", r=1.0, u=16, v=10), lambda c, n: pad_c, T((0, py, 0.0), scale=(0.04, 0.008, 0.036)))
+    p.verts = [v * HAND_SCALE for v in p.verts]
+    return p
+
+
 def main():
     report = {}
     for sp in SPECIES:
