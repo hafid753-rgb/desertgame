@@ -90,6 +90,7 @@ func _build_environment() -> void:
 	sun.light_color = Color(1.0, 0.86, 0.67)
 	sun.light_energy = 0.85
 	sun.shadow_enabled = true
+	sun.shadow_blur = 2.5
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 40.0
 	add_child(sun)

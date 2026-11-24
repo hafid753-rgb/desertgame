@@ -2973,7 +2973,12 @@ def build_aghar():
     hide, rim, paint, dark, brass = (0.93, 0.87, 0.74), (0.55, 0.33, 0.19), (0.6, 0.17, 0.1), (0.2, 0.13, 0.09), (0.88, 0.68, 0.28)
     W, H = 0.34, 0.47
     sh = Part()
-    sh.add_mesh(rbox((W, H, 0.035), 0.03, 3), lambda c, n: hide)
+    back_leather = (0.6, 0.4, 0.25)
+    sh.add_mesh(rbox((W, H, 0.035), 0.03, 3), lambda c, n: hide if n.z < 0.3 else back_leather)
+    # grip strap and two crossing thongs on the back
+    add_box(sh, (0.05, 0.2, 0.03), (0, 0, 0.03), (0.42, 0.26, 0.15), r=0.012, seg=2)
+    for sx in (-1, 1):
+        add_box(sh, (0.018, 0.38, 0.012), (0, 0, 0.022), (0.36, 0.22, 0.13), r=0.005, rot=(0, 0, 0.55 * sx))
     for i, v in enumerate(sh.verts):             # curved hide, slightly waisted sides
         xn, yn = v.x / (W / 2), v.y / (H / 2)
         v.z -= 0.035 * (1 - xn * xn)
@@ -3006,6 +3011,72 @@ def build_aghar():
     sh.verts = [m @ v for v in sh.verts]
     sh.normals = [(m.to_3x3() @ n).normalized() for n in sh.normals]
     return sh
+
+
+# --- v1.2: mouths, richer daraa embroidery (front yoke + back) -------------
+def _mouth(head, s):
+    """Small 'ω' mouth under the nose (with a philtrum line for the hare)."""
+    p = Part()
+    col = (0.32, 0.18, 0.16)
+    for sx in (-1, 1):
+        pts = [(0.0, -0.058), (0.008 * sx, -0.068), (0.017 * sx, -0.07), (0.026 * sx, -0.064)]
+        merge(p, _decal_line(head, pts, lambda t: 0.0032, col, lift=0.0025, n=5))
+    if s["head"] == "rabbit":
+        merge(p, _decal_line(head, [(0.0, -0.05), (0.0, -0.058)], lambda t: 0.003, col, lift=0.0025, n=3))
+    return p
+
+
+_eyes_v1 = build_eyes
+_eyes_closed_v1 = build_eyes_closed
+
+
+def build_eyes(s):
+    p = _eyes_v1(s)
+    merge(p, _mouth(build_head(s, 64, 128, False), s))
+    return p
+
+
+def build_eyes_closed(s):
+    p = _eyes_closed_v1(s)
+    merge(p, _mouth(build_head(s, 64, 128, False), s))
+    return p
+
+
+_robe_v1 = build_robe
+
+
+def build_robe(s):
+    p = _robe_v1(s)
+    emb = s["embroidery"]
+    oy = BODY_C[1]
+    # Back embroidery: an arch of lozenges below the neck, and a medallion.
+    flip = Matrix.Rotation(math.pi, 4, "Y")
+    back = Part()
+    back.verts = [flip @ v for v in p.verts]
+    back.faces = p.faces
+    polys = []
+    for k in range(9):
+        a = math.pi * (0.15 + 0.7 * k / 8)
+        cx, cy = math.cos(a) * 0.16, 1.37 - oy - math.sin(a) * 0.1
+        polys.append(([(cx, cy + 0.018), (cx + 0.014, cy), (cx, cy - 0.018), (cx - 0.014, cy)], emb))
+    cy = 1.12 - oy
+    polys.append(([(0, cy + 0.07), (0.05, cy), (0, cy - 0.07), (-0.05, cy)], emb))
+    deco = project_poly(back, polys, offset=0.006, cuts=1)
+    inner = project_poly(back, [([(0, cy + 0.045), (0.03, cy), (0, cy - 0.045), (-0.03, cy)], s["robe"])], offset=0.009, cuts=1)
+    merge(deco, inner)
+    deco.verts = [flip @ v for v in deco.verts]
+    deco.normals = [(flip.to_3x3() @ n) for n in deco.normals]
+    merge(p, deco)
+    # Front: little lozenge chain running down each side of the V
+    front = []
+    for sx in (-1, 1):
+        for k in range(5):
+            t = k / 4
+            x = sx * lerp(0.165, 0.06, t)
+            y = lerp(1.385, 1.12, t) - oy
+            front.append(([(x, y + 0.012), (x + 0.009, y), (x, y - 0.012), (x - 0.009, y)], emb))
+    merge(p, project_poly(p, front, offset=0.006, cuts=1))
+    return p
 
 
 def main():

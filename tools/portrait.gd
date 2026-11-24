@@ -17,6 +17,7 @@ func _ready() -> void:
 	sun.rotation = Vector3(deg_to_rad(-45), deg_to_rad(30), 0)
 	sun.light_energy = 0.85
 	sun.shadow_enabled = true
+	sun.shadow_blur = 2.5
 	root.add_child(sun)
 	var env := Environment.new()
 	var sky := Sky.new()

@@ -46,7 +46,7 @@ static func cloth_material() -> ShaderMaterial:
 ##   leather a little sheen and a soft highlight
 const PRESETS := {
 	"skin": {"spec_strength": 0.16, "spec_power": 22.0, "spec_sharp": 0.0, "sheen_strength": 0.0, "rim_strength": 0.4},
-	"fabric": {"spec_strength": 0.0, "spec_power": 8.0, "spec_sharp": 0.0, "sheen_strength": 0.28, "rim_strength": 0.25},
+	"fabric": {"spec_strength": 0.0, "spec_power": 8.0, "spec_sharp": 0.0, "sheen_strength": 0.1, "rim_strength": 0.12, "damask_strength": 0.12},
 	"gloss": {"spec_strength": 0.9, "spec_power": 90.0, "spec_sharp": 1.0, "sheen_strength": 0.0, "rim_strength": 0.2},
 	"leather": {"spec_strength": 0.22, "spec_power": 30.0, "spec_sharp": 0.4, "sheen_strength": 0.1, "rim_strength": 0.25},
 }
