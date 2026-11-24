@@ -13,6 +13,9 @@ var jinn: Jinn
 var jinn_kills: int = 0
 var village: Village
 var env: Environment
+## Phase 1 low-res pixel render layer (see PixelRender).
+@export var pixel_render_enabled: bool = true
+var pixel_render: PixelRender
 var sun: DirectionalLight3D
 var _haunt: float = 0.0
 
@@ -34,6 +37,8 @@ func _ready() -> void:
 	camera_rig.follow = player
 	add_child(camera_rig)
 	player.camera_rig = camera_rig
+	if pixel_render_enabled and DisplayServer.get_name() != "headless":
+		pixel_render = PixelRender.attach(self, camera_rig.camera)
 	Juice.camera = camera_rig
 
 	hud = TouchHud.new()
@@ -61,9 +66,9 @@ func _process(delta: float) -> void:
 	var inside := Combat.flat(player.global_position - village.global_position).length() < 20.0
 	var target := 1.0 if inside and village.is_haunted() else 0.0
 	_haunt = lerpf(_haunt, target, 1.0 - exp(-1.5 * delta))
-	env.fog_light_color = Color(0.93, 0.82, 0.65).lerp(Color(0.36, 0.26, 0.48), _haunt)
-	env.fog_density = lerpf(0.004, 0.028, _haunt)
-	sun.light_energy = lerpf(0.85, 0.45, _haunt)
+	env.fog_light_color = Color(0.9, 0.82, 0.7).lerp(Color(0.36, 0.26, 0.48), _haunt)
+	env.fog_density = lerpf(0.0045, 0.03, _haunt)
+	sun.light_energy = lerpf(0.95, 0.5, _haunt)
 
 
 func spawn_jinn() -> Jinn:
@@ -87,31 +92,41 @@ func _on_jinn_defeated(_j: Jinn) -> void:
 func _build_environment() -> void:
 	sun = DirectionalLight3D.new()
 	sun.rotation = Vector3(deg_to_rad(-52), deg_to_rad(35), 0)
-	sun.light_color = Color(1.0, 0.86, 0.67)
-	sun.light_energy = 0.85
+	sun.light_color = Color("F1DDB6")  # palette: warm sunlight
+	sun.light_energy = 0.95
 	sun.shadow_enabled = true
-	sun.shadow_blur = 2.5
+	sun.shadow_blur = 1.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 40.0
 	add_child(sun)
 
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.29, 0.40, 0.64)
-	sky_mat.sky_horizon_color = Color(0.96, 0.70, 0.54)
-	sky_mat.ground_horizon_color = Color(0.89, 0.64, 0.49)
-	sky_mat.ground_bottom_color = Color(0.6, 0.45, 0.3)
+	# sun-bleached, dusty sky: pale horizon haze, restrained blue
+	sky_mat.sky_top_color = Color(0.42, 0.55, 0.72)
+	sky_mat.sky_horizon_color = Color(0.9, 0.8, 0.66)
+	sky_mat.ground_horizon_color = Color(0.88, 0.78, 0.62)
+	sky_mat.ground_bottom_color = Color(0.6, 0.5, 0.4)
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.45
+	# palette lighting: lavender ambient (#82788D) so shadows are never black
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color("82788D")
+	env.ambient_light_energy = 0.75
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_white = 1.6
+	# atmospheric depth: warm dusty haze, distant scenery loses contrast
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.83, 0.67, 0.62)
-	env.fog_density = 0.006
+	env.fog_light_color = Color(0.9, 0.82, 0.7)
+	env.fog_density = 0.0045
+	env.fog_aerial_perspective = 0.2
+	env.fog_sky_affect = 0.3
+	# restrained saturation
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 0.9
+	env.adjustment_contrast = 1.04
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)

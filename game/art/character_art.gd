@@ -45,17 +45,26 @@ static func cloth_material() -> ShaderMaterial:
 ##   gloss  sharp highlight (eyes, boots' polish is "leather")
 ##   leather a little sheen and a soft highlight
 const PRESETS := {
-	"skin": {"spec_strength": 0.16, "spec_power": 22.0, "spec_sharp": 0.0, "sheen_strength": 0.0, "rim_strength": 0.4},
-	"fabric": {"spec_strength": 0.0, "spec_power": 8.0, "spec_sharp": 0.0, "sheen_strength": 0.1, "rim_strength": 0.12, "damask_strength": 0.12},
-	"gloss": {"spec_strength": 0.9, "spec_power": 90.0, "spec_sharp": 1.0, "sheen_strength": 0.0, "rim_strength": 0.2},
-	"leather": {"spec_strength": 0.22, "spec_power": 30.0, "spec_sharp": 0.4, "sheen_strength": 0.1, "rim_strength": 0.25},
+	# Phase 1 pixel-art: no artificial gloss, pixel cluster detail instead.
+	"skin": {"spec_strength": 0.0, "spec_power": 22.0, "spec_sharp": 0.0, "sheen_strength": 0.0, "rim_strength": 0.12,
+		"pixel": "res://game/art/pixel/fur_detail_32.png", "pixel_strength": 0.55},
+	"fabric": {"spec_strength": 0.0, "spec_power": 8.0, "spec_sharp": 0.0, "sheen_strength": 0.0, "rim_strength": 0.06, "damask_strength": 0.0,
+		"pixel": "res://game/art/pixel/fabric_detail_32.png", "pixel_strength": 0.5},
+	"gloss": {"spec_strength": 0.5, "spec_power": 90.0, "spec_sharp": 1.0, "sheen_strength": 0.0, "rim_strength": 0.0},
+	"leather": {"spec_strength": 0.0, "spec_power": 30.0, "spec_sharp": 0.0, "sheen_strength": 0.0, "rim_strength": 0.08,
+		"pixel": "res://game/art/pixel/leather_detail_32.png", "pixel_strength": 0.5},
 }
 
 
 static func preset(m: ShaderMaterial, kind: String) -> ShaderMaterial:
 	var p: Dictionary = PRESETS.get(kind, PRESETS["skin"])
 	for k in p:
-		m.set_shader_parameter(k, p[k])
+		if k == "pixel":
+			m.set_shader_parameter("pixel_detail", load(p[k]))
+		elif k == "pixel_strength":
+			m.set_shader_parameter("pixel_detail_strength", p[k])
+		else:
+			m.set_shader_parameter(k, p[k])
 	return m
 
 

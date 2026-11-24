@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://gc4qlnr0oewr"
+
+[deps]
+
+files=["res://docs/pixel_lab/before/perf_baseline.fps.translation", "res://docs/pixel_lab/before/perf_baseline.ft.translation", "res://docs/pixel_lab/before/perf_baseline.ft.translation", "res://docs/pixel_lab/before/perf_baseline.ft.translation", "res://docs/pixel_lab/before/perf_baseline.ft.translation", "res://docs/pixel_lab/before/perf_baseline.draw.translation", "res://docs/pixel_lab/before/perf_baseline.primitives.translation", "res://docs/pixel_lab/before/perf_baseline.static.translation", "res://docs/pixel_lab/before/perf_baseline.input.translation", "res://docs/pixel_lab/before/perf_baseline.device.translation", "res://docs/pixel_lab/before/perf_baseline.renderer.translation", "res://docs/pixel_lab/before/perf_baseline.player.translation"]
+
+source_file="res://docs/pixel_lab/before/perf_baseline.csv"
+dest_files=["res://docs/pixel_lab/before/perf_baseline.fps.translation", "res://docs/pixel_lab/before/perf_baseline.ft.translation", "res://docs/pixel_lab/before/perf_baseline.ft.translation", "res://docs/pixel_lab/before/perf_baseline.ft.translation", "res://docs/pixel_lab/before/perf_baseline.ft.translation", "res://docs/pixel_lab/before/perf_baseline.draw.translation", "res://docs/pixel_lab/before/perf_baseline.primitives.translation", "res://docs/pixel_lab/before/perf_baseline.static.translation", "res://docs/pixel_lab/before/perf_baseline.input.translation", "res://docs/pixel_lab/before/perf_baseline.device.translation", "res://docs/pixel_lab/before/perf_baseline.renderer.translation", "res://docs/pixel_lab/before/perf_baseline.player.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

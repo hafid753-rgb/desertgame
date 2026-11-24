@@ -7,6 +7,12 @@ uniform vec4 tint : source_color = vec4(1.0);
 uniform float damask_strength : hint_range(0.0, 0.3) = 0.0;
 uniform float damask_scale = 26.0;
 
+// Phase 1 pixel-art detail: grayscale cluster map (fur / fabric / leather)
+// on the object-space texel grid modulates the vertex colour.
+uniform sampler2D pixel_detail : filter_nearest_mipmap, repeat_enable, hint_default_white;
+uniform float pixel_detail_size = 32.0;
+uniform float pixel_detail_strength : hint_range(0.0, 1.0) = 0.0;
+
 varying vec3 obj_pos;
 varying vec3 obj_nrm;
 
@@ -32,6 +38,12 @@ void fragment() {
 	}
 	float ao = mix(1.0, COLOR.a, ao_strength);
 	ALBEDO = c * tint.rgb * mix(0.62, 1.0, ao);
+	if (pixel_detail_strength > 0.0) {
+		vec3 an = abs(normalize(obj_nrm));
+		vec2 q = an.y >= an.x && an.y >= an.z ? obj_pos.xz : (an.x >= an.z ? vec2(obj_pos.z, -obj_pos.y) : vec2(obj_pos.x, -obj_pos.y));
+		float d = texture(pixel_detail, q * 32.0 / pixel_detail_size).r;
+		ALBEDO *= 1.0 + (d - 0.5) * 2.0 * pixel_detail_strength;
+	}
 	if (damask_strength > 0.0) {
 		vec3 an = abs(normalize(obj_nrm));
 		float m = mix(damask(obj_pos.xy * damask_scale), damask(obj_pos.zy * damask_scale), smoothstep(0.4, 0.8, an.x));

@@ -1,0 +1,16 @@
+t_s,fps,ft_mean_ms,ft_p95_ms,ft_p99_ms,ft_max_ms,draw_calls,primitives,static_mem_mb,input_to_action_ms_p50,device,renderer,player_state
+1.0,2,87.20,146.74,146.74,146.74,175,94254,82.7,-1.0,GenericDevice,mobile,MOVE
+2.1,13,73.42,87.95,87.95,87.95,143,85596,82.7,-1.0,GenericDevice,mobile,MOVE
+3.1,14,74.23,88.75,88.75,88.75,143,85594,82.7,-1.0,GenericDevice,mobile,MOVE
+4.2,13,71.25,80.80,80.80,80.80,146,86142,82.8,-1.0,GenericDevice,mobile,MOVE
+5.2,15,70.10,82.36,82.36,82.36,143,82931,82.8,-1.0,GenericDevice,mobile,MOVE
+6.3,14,69.33,124.68,124.68,124.68,113,118494,82.8,-1.0,GenericDevice,mobile,MOVE
+7.3,14,64.29,72.67,72.67,72.67,113,118496,82.8,-1.0,GenericDevice,mobile,MOVE
+8.3,12,67.40,138.74,138.74,138.74,100,75094,82.8,-1.0,GenericDevice,mobile,MOVE
+9.4,18,55.28,65.22,65.22,65.22,102,75754,82.8,-1.0,GenericDevice,mobile,CLIMB
+10.4,19,56.86,68.33,68.33,68.33,100,75716,82.8,-1.0,GenericDevice,mobile,CLIMB
+11.4,18,52.79,57.01,57.01,57.01,96,75396,82.9,-1.0,GenericDevice,mobile,AIR
+12.4,16,69.43,126.37,126.37,126.37,64,9634,82.9,-1.0,GenericDevice,mobile,AIR
+13.5,13,66.16,70.71,70.71,70.71,146,82415,83.0,-1.0,GenericDevice,mobile,GLIDE
+14.5,16,64.78,70.95,70.95,70.95,122,80946,83.0,-1.0,GenericDevice,mobile,GLIDE
+15.6,15,65.55,75.94,75.94,75.94,121,80766,83.0,-1.0,GenericDevice,mobile,GLIDE

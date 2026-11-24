@@ -5,6 +5,7 @@
 // https://www.alanzucconi.com/2019/10/08/journey-sand-shader-1/
 shader_type spatial;
 render_mode cull_back;
+#include "res://game/shaders/pixel_common.gdshaderinc"
 
 uniform vec4 sand_color : source_color = vec4(0.93, 0.74, 0.5, 1.0);
 uniform vec4 shadow_color : source_color = vec4(0.74, 0.5, 0.46, 1.0);
@@ -13,7 +14,7 @@ uniform float grain_density = 38.0;
 uniform float grain_strength : hint_range(0.0, 1.0) = 0.22;
 // ripples: shallow (flat, wind-aligned) vs steep (dune flanks)
 uniform float ripple_strength : hint_range(0.0, 1.0) = 0.7;
-uniform float sun_scale : hint_range(0.0, 1.5) = 0.62;
+uniform float sun_scale : hint_range(0.0, 1.5) = 0.55;
 uniform float shallow_freq = 3.2;
 uniform float steep_freq = 6.5;
 uniform float steepness_sharpness = 3.0;
@@ -27,10 +28,15 @@ uniform float ocean_power = 48.0;
 uniform float ocean_strength = 0.16;
 // glitter: rare, very bright sparkles from randomly oriented grains
 uniform float glitter_density = 70.0;
-uniform float glitter_threshold : hint_range(0.9, 1.0) = 0.992;
+uniform float glitter_threshold : hint_range(0.9, 1.0) = 0.985;
 uniform float glitter_strength = 2.2;
 // keep the old parameter so existing materials stay valid
 uniform float ripple_frequency = 5.0;
+// Phase 1 pixel-art: base colour is a pixel-art sand texture on the world
+// texel grid; ripple, grain and glitter are evaluated per texel, so every
+// sparkle is a single stable texel that turns on/off with view and light.
+uniform sampler2D sand_tex : source_color, filter_nearest_mipmap, repeat_enable;
+uniform bool pixel_mode = true;
 
 varying vec3 world_p;
 varying vec3 world_n;
@@ -57,22 +63,30 @@ vec2 ripple_grad(vec2 p, vec2 d, float freq) {
 
 void fragment() {
 	vec3 n = normalize(world_n);
+	vec3 wp = world_p;
+	if (pixel_mode) {
+		wp = (floor(world_p * PIXELS_PER_METRE) + 0.5) / PIXELS_PER_METRE;
+	}
 	// Steepness: 1 on flat sand, 0 on vertical flanks; sharpened.
 	float s = pow(clamp(n.y, 0.0, 1.0), steepness_sharpness);
 	vec2 wind = normalize(wind_dir);
 	vec2 slope_dir = length(n.xz) > 0.01 ? normalize(n.xz) : wind;
-	vec2 g_shallow = ripple_grad(world_p.xz, wind, shallow_freq);
-	vec2 g_steep = ripple_grad(world_p.xz, slope_dir, steep_freq) * 1.4;
+	vec2 g_shallow = ripple_grad(wp.xz, wind, shallow_freq);
+	vec2 g_steep = ripple_grad(wp.xz, slope_dir, steep_freq) * 1.4;
 	vec2 g = mix(g_steep, g_shallow, s) * ripple_strength;
 	vec3 rn = normalize(n + vec3(-g.x, 0.0, -g.y) * 0.6);
 	// Sand grain: random normals per grain cell, nlerp with the surface normal.
-	vec3 cell = floor(world_p * grain_density);
+	vec3 cell = floor(wp * (pixel_mode ? PIXELS_PER_METRE : grain_density));
 	vec3 gr = normalize(hash33(cell) * 2.0 - 1.0);
 	vec3 nn = normalize(mix(rn, gr, grain_strength));
 	NORMAL = normalize((VIEW_MATRIX * vec4(nn, 0.0)).xyz);
 	// Large-scale tonal variation so the floor is not flat colour.
-	float vary = sin(world_p.x * 0.31 + world_p.z * 0.17) * 0.5 + 0.5;
-	ALBEDO = sand_color.rgb * mix(0.94, 1.04, vary);
+	float vary = sin(wp.x * 0.31 + wp.z * 0.17) * 0.5 + 0.5;
+	vec3 base = sand_color.rgb;
+	if (pixel_mode) {
+		base = texture(sand_tex, pixel_uv(world_p, vec3(0.0, 1.0, 0.0), 128.0)).rgb * sand_color.rgb / vec3(0.839, 0.745, 0.58);
+	}
+	ALBEDO = base * mix(0.94, 1.04, vary);
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 }
@@ -95,7 +109,7 @@ void light() {
 	vec3 spec = clamp(max(rim * rim_color.rgb, ocean * ocean_color.rgb), 0.0, 1.0) * ATTENUATION;
 	// Glitter: a random grain mirror; sparkle only when its reflection of the
 	// sun lines up with the eye. Stable as the camera moves.
-	vec3 gcell = floor(world_p * glitter_density);
+	vec3 gcell = floor(world_p * (pixel_mode ? PIXELS_PER_METRE : glitter_density));
 	vec3 gn = normalize(hash33(gcell + 17.0) * 2.0 - 1.0);
 	float rdv = max(0.0, dot(reflect(-l_w, gn), v_w));
 	float glitter = rdv > glitter_threshold ? (rdv - glitter_threshold) / (1.0 - glitter_threshold) : 0.0;

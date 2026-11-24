@@ -195,10 +195,49 @@ func _cylinder(radius: float, h: float, pos: Vector3, color: Color, collide: boo
 		add_child(col)
 
 
-func _mat(color: Color) -> StandardMaterial3D:
+## Pixel-art surface families (Phase 1): architecture and props use the
+## shared texel-grid shader; anything not mapped keeps a plain material.
+const PIXEL_SHADER := preload("res://game/shaders/pixel_world.gdshader")
+const PIXEL_FAMILIES := {
+	"mud": ["res://game/art/pixel/sandstone_128.png", 128.0, Color(1.0, 0.97, 0.94)],
+	"mud_dark": ["res://game/art/pixel/sandstone_128.png", 128.0, Color(0.88, 0.82, 0.78)],
+	"stone": ["res://game/art/pixel/sandstone_128.png", 128.0, Color(0.82, 0.8, 0.82)],
+	"mesa": ["res://game/art/pixel/sandstone_128.png", 128.0, Color(0.95, 0.78, 0.66)],
+	"floor": ["res://game/art/pixel/earth_128.png", 128.0, Color(1.0, 0.95, 0.9)],
+	"wood": ["res://game/art/pixel/wood_64.png", 64.0, Color(1.0, 1.0, 1.0)],
+}
+
+
+func _family(color: Color) -> String:
+	if color == MUD:
+		return "mud"
+	if color == MUD_DARK:
+		return "mud_dark"
+	if color == STONE:
+		return "stone"
+	if color == WOOD:
+		return "wood"
+	if color.is_equal_approx(Color(0.66, 0.46, 0.32)):
+		return "mesa"
+	if color.is_equal_approx(Color(0.7, 0.55, 0.38)):
+		return "floor"
+	return ""
+
+
+func _mat(color: Color) -> Material:
 	var key := color.to_html()
 	if _materials.has(key):
 		return _materials[key]
+	var fam := _family(color)
+	if fam != "":
+		var f: Array = PIXEL_FAMILIES[fam]
+		var pm := ShaderMaterial.new()
+		pm.shader = PIXEL_SHADER
+		pm.set_shader_parameter("tex", load(f[0]))
+		pm.set_shader_parameter("tex_size", f[1])
+		pm.set_shader_parameter("tint", f[2])
+		_materials[key] = pm
+		return pm
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
 	m.roughness = 1.0
@@ -212,7 +251,8 @@ func _sand_mat(tint: Color) -> ShaderMaterial:
 		return _materials[key] as ShaderMaterial
 	var m := ShaderMaterial.new()
 	m.shader = _sand_shader
-	m.set_shader_parameter("sand_color", tint)
+	m.set_shader_parameter("sand_color", Color("D2B286") * (tint / SAND) if tint != SAND else Color("D2B286"))
+	m.set_shader_parameter("sand_tex", load("res://game/art/pixel/sand_128.png"))
 	_materials[key] = m
 	return m
 

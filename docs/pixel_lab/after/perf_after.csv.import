@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://dpb3wnnjha6l0"
+
+[deps]
+
+files=["res://docs/pixel_lab/after/perf_after.fps.translation", "res://docs/pixel_lab/after/perf_after.ft.translation", "res://docs/pixel_lab/after/perf_after.ft.translation", "res://docs/pixel_lab/after/perf_after.ft.translation", "res://docs/pixel_lab/after/perf_after.ft.translation", "res://docs/pixel_lab/after/perf_after.draw.translation", "res://docs/pixel_lab/after/perf_after.primitives.translation", "res://docs/pixel_lab/after/perf_after.static.translation", "res://docs/pixel_lab/after/perf_after.input.translation", "res://docs/pixel_lab/after/perf_after.device.translation", "res://docs/pixel_lab/after/perf_after.renderer.translation", "res://docs/pixel_lab/after/perf_after.player.translation"]
+
+source_file="res://docs/pixel_lab/after/perf_after.csv"
+dest_files=["res://docs/pixel_lab/after/perf_after.fps.translation", "res://docs/pixel_lab/after/perf_after.ft.translation", "res://docs/pixel_lab/after/perf_after.ft.translation", "res://docs/pixel_lab/after/perf_after.ft.translation", "res://docs/pixel_lab/after/perf_after.ft.translation", "res://docs/pixel_lab/after/perf_after.draw.translation", "res://docs/pixel_lab/after/perf_after.primitives.translation", "res://docs/pixel_lab/after/perf_after.static.translation", "res://docs/pixel_lab/after/perf_after.input.translation", "res://docs/pixel_lab/after/perf_after.device.translation", "res://docs/pixel_lab/after/perf_after.renderer.translation", "res://docs/pixel_lab/after/perf_after.player.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

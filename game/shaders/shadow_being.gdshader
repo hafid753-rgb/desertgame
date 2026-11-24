@@ -20,6 +20,11 @@ uniform float fuzz : hint_range(0.0, 1.5) = 0.95;
 uniform float wobble : hint_range(0.0, 0.2) = 0.045;
 uniform float noise_scale = 1.0;
 uniform bool debug_fres = false;
+// Phase 1 pixel-art: charcoal/purple pixel-cluster body; the fraying edge and
+// the dissolve cut whole texels, so the form breaks into pixel clusters.
+uniform sampler2D body_tex : source_color, filter_nearest_mipmap, repeat_enable, hint_default_black;
+uniform bool pixel_mode = true;
+uniform float texels_per_unit = 24.0;
 
 varying vec3 obj_p;
 
@@ -46,8 +51,9 @@ void vertex() {
 
 void fragment() {
 	float fres = 1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
-	float n = noise3(obj_p * 9.0 + vec3(0.0, -TIME * 2.4, 0.0)) * 0.65
-		+ noise3(obj_p * 24.0 + vec3(TIME * 1.3, 0.0, TIME * 0.7)) * 0.35;
+	vec3 q = pixel_mode ? (floor(obj_p * texels_per_unit) + 0.5) / texels_per_unit : obj_p;
+	float n = noise3(q * 9.0 + vec3(0.0, -TIME * 2.4, 0.0)) * 0.65
+		+ noise3(q * 24.0 + vec3(TIME * 1.3, 0.0, TIME * 0.7)) * 0.35;
 	// frayed, moving silhouette
 	float edge = smoothstep(0.5, 1.0, fres);
 	if (edge * fuzz > n * 0.95 + 0.04) {
@@ -57,6 +63,10 @@ void fragment() {
 		discard;
 	}
 	vec3 c = core_color.rgb;
+	if (pixel_mode) {
+		vec3 an = abs(normalize(NORMAL));
+		c = texture(body_tex, (abs(dot(an, vec3(0, 1, 0))) > 0.6 ? q.xz : q.xy) * texels_per_unit / 32.0).rgb;
+	}
 	c = mix(c, rim_color.rgb, pow(fres, 2.5) * 0.9);
 	c += warning_color.rgb * warning * pow(fres, 4.0) * 1.8;
 	c = mix(c, vec3(1.0, 0.45, 0.15), burn * 0.35 * n);

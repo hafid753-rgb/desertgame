@@ -67,6 +67,7 @@ static func build(parent: Node3D, scale: float, ring_count: int, ring_color: Col
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://game/shaders/shadow_being.gdshader")
 	mat.set_shader_parameter("noise_scale", 1.0 / maxf(scale, 0.5))
+	mat.set_shader_parameter("body_tex", load("res://game/art/pixel/jinn_shadow_32.png"))
 	var head_aabb := AABB()
 	for mi in rig.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).material_override = mat
