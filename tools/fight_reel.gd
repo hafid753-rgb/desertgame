@@ -21,6 +21,10 @@ func _ready() -> void:
 	p = main.player
 	p.global_position = Vector3(0, 0.1, 7)
 	p.reset_physics_interpolation()
+	if OS.get_cmdline_user_args().has("close"):
+		main.camera_rig.distance = 3.1
+		main.camera_rig.height = 1.25
+		main.hud.visible = false
 
 
 func _tap(action: String, hold: float = 0.06) -> void:
