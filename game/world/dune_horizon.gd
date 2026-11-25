@@ -22,28 +22,26 @@ func _ready() -> void:
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
-## Asymmetric dune profile: long gentle windward slope, short steep lee
-## (slip face), crest kept sharp, valleys rounded.
-static func _ridge(t: float) -> float:
+## Smooth asymmetric swell: long windward rise, shorter lee fall, rounded
+## crest and trough (smoothstep has zero slope at both ends).
+static func _swell(t: float) -> float:
 	var s := t - floorf(t)
-	var up := s / 0.72
-	var down := (1.0 - s) / 0.28
-	var h := minf(up, down)
-	return h * h * (3.0 - 2.0 * h) * 0.85 + h * 0.15
+	if s < 0.66:
+		var u := s / 0.66
+		return u * u * (3.0 - 2.0 * u)
+	var d := (1.0 - s) / 0.34
+	return d * d * (3.0 - 2.0 * d)
 
 
+## Low, wide dunes only (owner direction): long smooth curves, 1-5 m high.
 func height_at(x: float, z: float) -> float:
 	var r := Vector2(x, z).length()
-	var rise := smoothstep(inner, inner + 30.0, r)
-	var warp := _noise.get_noise_2d(x * 0.5, z * 0.5) * 14.0
-	var a := _ridge((x * 0.92 + z * 0.38 + warp) / 52.0)
-	var b := _ridge((x * -0.3 + z * 0.95 + warp * 0.7) / 33.0)
-	var mass := _noise.get_noise_2d(x, z) * 0.5 + 0.5
-	var h := (a * 0.7 + b * 0.45) * (6.0 + mass * 16.0)
-	# a few great dunes like the one in the reference
-	for c in [Vector3(-150, 48, -40), Vector3(40, 38, -165), Vector3(150, 30, 70), Vector3(-60, 26, 160)]:
-		var d := Vector2(x - c.x, z - c.z).length() / 55.0
-		h += c.y * maxf(0.0, 1.0 - d * d) * (0.75 + 0.25 * a)
+	var rise := smoothstep(inner, inner + 40.0, r)
+	var warp := _noise.get_noise_2d(x * 0.35, z * 0.35) * 22.0
+	var a := _swell((x * 0.92 + z * 0.38 + warp) / 95.0)
+	var b := _swell((x * -0.3 + z * 0.95 + warp * 0.6) / 62.0)
+	var mass := _noise.get_noise_2d(x * 0.5, z * 0.5) * 0.5 + 0.5
+	var h := (a * 0.75 + b * 0.35) * (1.6 + mass * 4.4)
 	return h * rise - 0.4 * (1.0 - rise)
 
 

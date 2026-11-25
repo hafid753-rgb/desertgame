@@ -24,6 +24,8 @@ uniform float sway_amount = 0.0;
 // camera-aware fade: foliage between the lens and the player dissolves in
 // a 4x4 ordered-dither pattern (pixel-art screen door) instead of blocking.
 uniform float fade_near = 2.6;
+uniform float cel_split = 0.42;     // ndl where shade turns to light
+uniform float cel_up = 0.4;         // how much card normals lean to world up
 
 varying float h;
 
@@ -81,7 +83,7 @@ void fragment() {
 	ALPHA = c.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	// cards light like the ground they grow from (no harsh two-sided flips)
-	NORMAL = normalize(mix(NORMAL * (FRONT_FACING ? 1.0 : -1.0), (VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz, 0.65));
+	NORMAL = normalize(mix(NORMAL * (FRONT_FACING ? 1.0 : -1.0), (VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz, cel_up));
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 }
@@ -91,8 +93,12 @@ uniform float translucency = 0.18;
 uniform vec4 transmit : source_color = vec4(1.0, 0.86, 0.5, 1.0);
 
 void light() {
-	float ndl = dot(NORMAL, LIGHT) * 0.7 + 0.3;
-	DIFFUSE_LIGHT += LIGHT_COLOR * pixel_light_ramp(ndl, ATTENUATION) / PI;
+	// slight cel shading: two flat tones split by a crisp step, so leaf and
+	// blade orientation (and canopy self-shadow) read as clean bands
+	float ndl = dot(NORMAL, LIGHT) * 0.8 + 0.2;
+	float band = smoothstep(cel_split - 0.03, cel_split + 0.03, ndl) * ATTENUATION;
+	vec3 cel = mix(vec3(0.74, 0.56, 0.48), vec3(1.0, 0.92, 0.82), band);
+	DIFFUSE_LIGHT += LIGHT_COLOR * cel / PI;
 	if (kind != 3) {
 		float back = pow(clamp(dot(VIEW, -LIGHT), 0.0, 1.0), 3.0);
 		DIFFUSE_LIGHT += LIGHT_COLOR * transmit.rgb * back * translucency * ATTENUATION / PI;

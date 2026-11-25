@@ -86,17 +86,45 @@ func _outside() -> void:
 		add_child(col)
 
 
+## Low, long dune: a smooth bump (height (1 - r^2)^2, so it meets the floor
+## tangentially) stretched along the prevailing wind, with a slightly steeper
+## lee side. Uses the shared sand material; convex collision as before.
 func _dune(center: Vector3, size: Vector3) -> void:
-	var sm := SphereMesh.new()
-	sm.radius = 1.0
-	sm.height = 2.0
-	sm.radial_segments = 16
-	sm.rings = 8
-	_batch.add(sm, Transform3D(Basis.from_scale(size), center), DUNE, self)
+	var length := maxf(size.x, size.z) * 1.7
+	var width := minf(size.x, size.z) * 1.15
+	var height := size.y * 0.6
+	var yaw := atan2(0.38, 0.92)            # along the wind (sand_ripple wind_dir)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nu := 40
+	var nv := 20
 	var pts := PackedVector3Array()
-	for v in sm.get_mesh_arrays()[Mesh.ARRAY_VERTEX]:
-		if v.y >= -0.05:
-			pts.append(v * size)
+	for i in nu + 1:
+		for j in nv + 1:
+			var u := float(i) / nu * 2.0 - 1.0
+			var v := float(j) / nv * 2.0 - 1.0
+			var uu := u * (1.15 if u > 0.0 else 0.9)   # lee side steeper
+			var r2 := clampf(uu * uu + v * v, 0.0, 1.0)
+			var hgt := height * (1.0 - r2) * (1.0 - r2)
+			var p := Vector3(u * length, hgt - 0.02, v * width).rotated(Vector3.UP, yaw)
+			st.add_vertex(p)
+			if hgt > 0.05:
+				pts.append(p)
+	for i in nu:
+		for j in nv:
+			var a0 := i * (nv + 1) + j
+			var b0 := a0 + 1
+			var c0 := a0 + nv + 1
+			var d0 := c0 + 1
+			for k in [a0, c0, b0, b0, c0, d0]:   # front face up (see DuneHorizon)
+				st.add_index(k)
+	st.generate_normals()
+	var mesh := st.commit()
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = center
+	mi.material_override = _sand_mat(SAND)
+	add_child(mi)
 	var shape := ConvexPolygonShape3D.new()
 	shape.points = pts
 	var col := CollisionShape3D.new()

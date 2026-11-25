@@ -150,6 +150,12 @@ func _compare_shots(o: Vector3) -> void:
 		else:
 			await _wait(25)
 		await _shot("cmp_%s_%s" % [v[0], tag])
+	# character close-up, sun on one side, to judge the cel bands
+	_place(o + Vector3(9.0, 0.05, 4.0), 0.4, -0.08)
+	main.camera_rig.yaw = 0.4 + PI * 0.75
+	main.camera_rig.distance = 2.3
+	await _wait(40)
+	await _shot("cmp_char_%s" % tag)
 	main.camera_rig.distance = 5.2
 
 
