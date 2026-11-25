@@ -33,6 +33,9 @@ const CAPTIONS := {
 	"surf": "SAND SURFING  —  shield board · dust plume · daraa glide · face veil",
 	"fight": "COMBAT  —  takoba combos · shadow jinn · pixel hit effects",
 	"sun": "LIGHT  —  sun disc · glare · chromatic ghosts · diffraction",
+	"surfclose": "SAND SURFING  —  shield board · tagelmust veil · dust plume",
+	"glideclose": "GLIDE  —  daraa opens · hawli veil · slow fall",
+	"board": "SHIELD BOARD  —  groove in the sand · warm dust plume",
 }
 
 
@@ -76,7 +79,7 @@ func _ready() -> void:
 		"run":
 			_place(Vector3(10.0, 0.05, -40.0), PI * 0.5)
 			dur = 8.0
-		"surf":
+		"surf", "surfclose", "glideclose", "board":
 			_place(Vector3(-28.5, 8.3, 46.0), -PI * 0.5)
 			dur = 8.5
 		"fight":
@@ -122,15 +125,22 @@ func _physics_process(delta: float) -> void:
 			mv = Vector2(0, -1.0) if t > 0.4 and t < 7.6 else Vector2.ZERO
 			if t > 2.4 and fmod(t, 1.6) < delta and t < 7.0:
 				_tap("jump", 0.22)
-		"surf":
+		"surf", "surfclose", "glideclose", "board":
 			mv = Vector2(sin(t * 1.3) * 0.25, -1.0) if t > 0.4 else Vector2.ZERO
 		"fight":
 			mv = _fight_bot(delta)
 	GameInput.touch_move = mv
+	if OS.get_cmdline_user_args().has("stills") and fmod(t, 0.7) < get_physics_process_delta_time():
+		_still()
 	if t > dur:
 		get_tree().quit()
 
 
+func _still() -> void:
+	await RenderingServer.frame_post_draw
+	DirAccess.make_dir_recursive_absolute("user://shots")
+	get_viewport().get_texture().get_image().save_png("user://shots/cine_%s_%04.1f.png" % [shot, t])
+	print("still ", shot, " t=", snappedf(t, 0.1), " state=", p.state_name())
 func _fight_bot(delta: float) -> Vector2:
 	var j: Jinn = main.jinn
 	if j == null or not is_instance_valid(j) or j.is_dead():
@@ -219,6 +229,24 @@ func _process(delta: float) -> void:
 				pos = Vector3(9.0, 2.8, 39.0) if t < 5.4 else pp + side * 4.5 + Vector3(0, 1.4, 0)
 				look = pp + Vector3(0, 0.8, 0)
 			smooth = 5.0
+		"surfclose":
+			# in front of the rider, looking back at the face, shield and plume
+			pos = pp + fwd * 2.6 + side * 0.9 + Vector3(0, 1.0, 0)
+			look = pp + Vector3(0, 0.75, 0)
+			cam.fov = 45.0
+			smooth = 9.0
+		"board":
+			# low beside the board
+			pos = pp + side * 2.2 + fwd * 0.3 + Vector3(0, 0.35, 0)
+			look = pp + Vector3(0, 0.35, 0)
+			cam.fov = 45.0
+			smooth = 10.0
+		"glideclose":
+			# beside the rider all the way, closest during the glide
+			pos = pp + side * 2.4 + fwd * 0.6 + Vector3(0, 0.9, 0)
+			look = pp + Vector3(0, 0.9, 0)
+			cam.fov = 48.0
+			smooth = 9.0
 		"fight":
 			var j: Jinn = main.jinn
 			var jp := j.global_position if j and is_instance_valid(j) else pp + fwd * 2.0

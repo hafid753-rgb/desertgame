@@ -371,7 +371,8 @@ func animate(delta: float, info: Dictionary) -> void:
 
 	var gliding := state == "GLIDE"
 	daraa.visible = gliding or daraa.scale.x > 0.25
-	daraa.scale = daraa.scale.lerp(Vector3.ONE if gliding else Vector3(0.2, 1, 0.2), 1.0 - exp(-14.0 * delta))
+	# gliding: the daraa opens wide like a sail (owner: open the daraa to glide)
+	daraa.scale = daraa.scale.lerp(Vector3(1.9, 1.25, 1.6) if gliding else Vector3(0.2, 1, 0.2), 1.0 - exp(-12.0 * delta))
 	if gliding:
 		daraa.rotation.x = sin(_walk_phase * 3.0) * 0.06
 
@@ -792,7 +793,10 @@ func _surf_and_veil(delta: float, state: String, info: Dictionary) -> void:
 				shield.get_parent().remove_child(shield)
 			add_child(shield)
 			# lay the shield flat under the boots, nose forward
-			shield.transform = Transform3D(Basis(Vector3.RIGHT, -PI / 2).scaled(Vector3.ONE * 1.35), Vector3(0, 0.05, -0.02))
+			# the shield mesh is a disc in its YZ plane (normal +X): turn the
+			# normal up and the long axis along the direction of travel
+			var b := Basis(Vector3.UP, PI / 2) * Basis(Vector3(0, 0, 1), PI / 2)
+			shield.transform = Transform3D(b.scaled(Vector3.ONE * 2.3), Vector3(0, 0.07, -0.05))
 		elif not surf:
 			set_armed(armed, true)
 			if rig:
@@ -812,6 +816,17 @@ func _surf_and_veil(delta: float, state: String, info: Dictionary) -> void:
 		_surf_dust.speed_scale = clampf(0.6 + spd / 14.0, 0.6, 1.4) if surf else 0.7
 		_surf_dust.global_position = global_position + Vector3(0, 0.08, 0) - Vector3(v.x, 0, v.z).normalized() * 0.35
 		_surf_dust.direction = (-Vector3(v.x, 0, v.z).normalized() + Vector3(0, 0.8, 0)).normalized()
+	# glide: the daraa sail opens wide (rig mode never reaches the old
+	# procedural path, so it is driven here)
+	var gliding := state == "GLIDE"
+	daraa.visible = gliding or daraa.scale.x > 0.25
+	daraa.scale = daraa.scale.lerp(Vector3(1.6, 1.15, 1.4) if gliding else Vector3(0.2, 1, 0.2), 1.0 - exp(-12.0 * delta))
+	if gliding:
+		daraa.rotation.x = sin(Wind.time * 9.0) * 0.06
+		if _robe_pivot:
+			body.scale = body.scale.lerp(Vector3(1.25, 0.92, 1.25), 1.0 - exp(-8.0 * delta))
+	elif body.scale.x > 1.01:
+		body.scale = body.scale.lerp(Vector3.ONE, 1.0 - exp(-8.0 * delta))
 	# veil
 	var want := 1.0 if state in ["SURF", "GLIDE"] else 0.0
 	_veil_k = move_toward(_veil_k, want, delta * 4.0)
@@ -824,6 +839,9 @@ func _build_surf_fx() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://game/shaders/dust_dither.gdshader")
 	mat.set_shader_parameter("quad_size", 0.5)
+	# warm sand plume (not grey): lit peach top, rosy-sand shade
+	mat.set_shader_parameter("lit", Color(0.98, 0.78, 0.64))
+	mat.set_shader_parameter("shade", Color(0.88, 0.62, 0.5))
 	var quad := QuadMesh.new()
 	quad.size = Vector2(0.5, 0.5)
 	quad.material = mat
@@ -861,10 +879,8 @@ func _build_veil() -> void:
 	if hm == null or hm.mesh == null:
 		return
 	var box := hm.mesh.get_aabb()
-	var eye_bottom := box.position.y + box.size.y * 0.42
-	if eyes is MeshInstance3D and (eyes as MeshInstance3D).mesh:
-		var eb := (eyes as MeshInstance3D).mesh.get_aabb()
-		eye_bottom = eyes.position.y + eb.position.y - 0.012
+	# chibi face: the eyes sit just above mid-height; the veil stops below them
+	var eye_bottom := box.position.y + box.size.y * 0.44
 	var c := box.get_center()
 	var r := box.size * 0.5 * 1.08
 	var col := _hawli_color()
@@ -875,6 +891,29 @@ func _build_veil() -> void:
 	var y1 := minf(eye_bottom, box.position.y + box.size.y * 0.62)
 	var rings := 6
 	var segs := 28
+	# shrink-wrap: measure the real head surface (a rounded box, fuller than
+	# an ellipsoid) per height band and angle, then sit the cloth just outside
+	var reach := []
+	for i in rings + 1:
+		var row := []
+		row.resize(segs + 1)
+		row.fill(0.0)
+		reach.append(row)
+	for si in hm.mesh.get_surface_count():
+		for vert in hm.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]:
+			var v: Vector3 = vert
+			var fi: float = (v.y - y0) / (y1 - y0) * rings
+			if fi < -0.6 or fi > rings + 0.6:
+				continue
+			var ri := clampi(int(round(fi)), 0, rings)
+			var a := fposmod(atan2(v.x - c.x, -(v.z - c.z)), TAU)
+			var sj := int(round(a / TAU * segs)) % segs
+			var d := Vector2(v.x - c.x, v.z - c.z).length()
+			for dj in [-1, 0, 1]:
+				var jj := posmod(sj + dj, segs)
+				reach[ri][jj] = maxf(reach[ri][jj], d)
+	for i in rings + 1:
+		reach[i][segs] = reach[i][0]
 	var pts := []
 	for i in rings + 1:
 		var y := lerpf(y0, y1, float(i) / rings)
@@ -884,8 +923,12 @@ func _build_veil() -> void:
 		for j in segs + 1:
 			var a := TAU * float(j) / segs
 			# wrap folds: a slight ripple in the radius
-			var fold := 1.0 + 0.025 * sin(a * 7.0 + float(i) * 1.3)
-			row.append(Vector3(c.x + sin(a) * r.x * k * fold, y, c.z - cos(a) * r.z * k * fold))
+			var fold := 1.0 + 0.03 * sin(a * 7.0 + float(i) * 1.3)
+			var rr: float = reach[i][j]
+			if rr <= 0.0:
+				rr = Vector2(r.x * k * sin(a), r.z * k * cos(a)).length()
+			rr = (rr + 0.022) * fold
+			row.append(Vector3(c.x + sin(a) * rr, y, c.z - cos(a) * rr))
 		pts.append(row)
 	for i in rings:
 		for j in segs:
