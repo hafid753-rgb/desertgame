@@ -15,6 +15,11 @@ extends Node3D
 const ART_DIR := "res://game/art/characters/"
 # Adventurer proportions (~1.75 m), see tools/blender/build_characters.py.
 const HEAD_Y := 1.28
+## Head size relative to the authored chibi head (owner: smaller head).
+const HEAD_SHRINK := 0.8
+const HEAD_DROP := 0.09
+## Hawli ribbon colour per species (indigo tagelmust cloth).
+const HAWLI_COLORS := {"cat": Color(0.2, 0.26, 0.55), "fennec": Color(0.16, 0.22, 0.52), "rabbit": Color(0.13, 0.2, 0.5)}
 const BODY_Y := 0.7312
 const HAND := Vector3(0.5, 0.66, -0.1)
 const FOOT := Vector3(0.15, 0.0, 0.0)
@@ -634,7 +639,7 @@ func _build_rig() -> void:
 		if anim.has_animation(n):
 			anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
 	# Head (face parts already ride on it).
-	_mount(head, "head", Transform3D(Basis(), Vector3(0, HEAD_Y, 0)))
+	_mount(head, "head", Transform3D(Basis().scaled(Vector3.ONE * HEAD_SHRINK), Vector3(0, HEAD_Y - HEAD_DROP, 0)))
 	# Robe on a neck pivot so it can swing.
 	var neck := Vector3(0, 1.06, 0)
 	_robe_pivot = Node3D.new()
@@ -644,7 +649,9 @@ func _build_rig() -> void:
 	body.get_parent().remove_child(body)
 	_robe_pivot.add_child(body)
 	body.transform = Transform3D(Basis(), Vector3(0, BODY_Y, 0) - neck)
+	_journey_robe(body)
 	_robe_base = _robe_pivot.transform
+	_build_scarf()
 	_head_base = head.transform
 	if ear_r:
 		_ear_base_r = ear_r.transform
@@ -676,6 +683,55 @@ func _build_rig() -> void:
 	_build_trail()
 	_build_dust()
 	_play("Unarmed_Idle", 0.0)
+
+
+## Reshape the daraa into a long cone like Journey's cloak: narrow at the
+## shoulders, flaring to a wide hem just above the ground (feet barely
+## showing). Vertex colours (embroidery, hem band) are kept.
+const ROBE_FLARE := 0.38
+const ROBE_EXTEND := 0.1
+
+func _journey_robe(node: Node3D) -> void:
+	var mi := node as MeshInstance3D
+	if mi == null or not (mi.mesh is ArrayMesh):
+		return
+	var src := mi.mesh as ArrayMesh
+	var top := -INF
+	var bottom := INF
+	for si in src.get_surface_count():
+		for v in src.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]:
+			top = maxf(top, v.y)
+			bottom = minf(bottom, v.y)
+	var span := maxf(top - bottom, 0.01)
+	var dst := ArrayMesh.new()
+	for si in src.get_surface_count():
+		var mdt := MeshDataTool.new()
+		if mdt.create_from_surface(src, si) != OK:
+			return
+		for i in mdt.get_vertex_count():
+			var v := mdt.get_vertex(i)
+			var t := clampf((top - v.y) / span, 0.0, 1.0)
+			var s := (0.9 + 0.1 * t) * (1.0 + ROBE_FLARE * pow(t, 1.6))
+			mdt.set_vertex(i, Vector3(v.x * s, v.y - ROBE_EXTEND * t * t, v.z * s))
+		mdt.commit_to_surface(dst)
+	mi.mesh = dst
+
+
+## Long hawli ribbon trailing from the back of the neck (see HawliScarf).
+var scarf: HawliScarf
+
+func _build_scarf() -> void:
+	if _robe_pivot == null:
+		return
+	var anchor := Node3D.new()
+	anchor.name = "ScarfAnchor"
+	_robe_pivot.add_child(anchor)
+	anchor.position = Vector3(0, 0.06, 0.2)
+	scarf = HawliScarf.new()
+	scarf.color = HAWLI_COLORS.get(_species_key, Color(0.2, 0.26, 0.55))
+	scarf.anchor = anchor
+	scarf.body_root = self
+	add_child(scarf)
 
 
 func _model_xform(n: Node3D) -> Transform3D:

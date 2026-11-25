@@ -5,8 +5,8 @@ shader_type spatial;
 render_mode unshaded, cull_disabled, shadows_disabled;
 #include "res://game/shaders/pixel_common.gdshaderinc"
 
-uniform vec4 lit : source_color = vec4(0.95, 0.78, 0.6, 1.0);
-uniform vec4 shade : source_color = vec4(0.84, 0.66, 0.5, 1.0);
+uniform vec4 lit : source_color = vec4(0.95, 0.76, 0.66, 1.0);
+uniform vec4 shade : source_color = vec4(0.84, 0.62, 0.55, 1.0);
 uniform float quad_size = 0.32;
 
 varying float sz;

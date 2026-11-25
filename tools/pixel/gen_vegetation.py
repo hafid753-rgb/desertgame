@@ -104,7 +104,7 @@ def fine_leaflet(pal, rng, w=6, h=6):
 def footprints():
     """Boot prints (right, left) 10x10 pressed into sand: shadowed hollow
     with a ridged sole, narrower heel, sand pushed up in front of the toe."""
-    hollow, deep, rim = (194, 136, 96, 255), (174, 118, 84, 255), (240, 196, 146, 255)
+    hollow, deep, rim = (196, 132, 112, 255), (176, 114, 98, 255), (242, 194, 170, 255)
     cells = []
     for flip in (False, True):
         im = Image.new("RGBA", (10, 10), CLEAR)

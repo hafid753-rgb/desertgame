@@ -38,6 +38,24 @@ func _ready() -> void:
 		await _probe(o)
 		get_tree().quit()
 		return
+	if OS.get_cmdline_user_args().has("sanddbg"):
+		var mats := {}
+		for mi in main.find_children("*", "MeshInstance3D", true, false):
+			var m = mi.material_override
+			if m is ShaderMaterial and m.shader and m.shader.resource_path.ends_with("sand_ripple.gdshader"):
+				mats[m] = true
+		print("sand mats ", mats.size())
+		for v in [["base", 0.42, 4.0], ["boost", 3.0, 60.0], ["dbg", 0.42, 4.0]]:
+			for m in mats:
+				m.set_shader_parameter("debug_spec", 1.0 if v[0] == "dbg" else 0.0)
+				m.set_shader_parameter("ocean_strength", v[1])
+				m.set_shader_parameter("glitter_strength", v[2])
+			_place(o + Vector3(18.0, 0.05, 12.0), deg_to_rad(35.0), -0.18)
+			main.camera_rig.distance = 4.0
+			await _wait(30)
+			await _shot("sanddbg_" + v[0])
+		get_tree().quit()
+		return
 	if OS.get_cmdline_user_args().has("cmp"):
 		await _compare_shots(o)
 		get_tree().quit()
@@ -137,6 +155,8 @@ func _compare_shots(o: Vector3) -> void:
 		["horizon", o + Vector3(-14.0, 0.05, 6.0), PI * 0.5, -0.1, 6.0, 0.0],
 		["horizon2", o + Vector3(8.0, 0.05, -10.0), PI * 1.25, -0.06, 6.0, 0.0],
 		["palm", o + Vector3(-3.4, 0.05, 2.8), PI * 1.75, 0.18, 3.2, 0.0],
+		["suna", o + Vector3(18.0, 0.05, 12.0), deg_to_rad(35.0), -0.18, 5.0, 0.0],
+		["sunb", o + Vector3(18.0, 0.05, 12.0), deg_to_rad(35.0) + PI, -0.18, 5.0, 0.0],
 	]
 	for v in views:
 		_place(v[1], v[2], v[3])
@@ -156,6 +176,19 @@ func _compare_shots(o: Vector3) -> void:
 	main.camera_rig.distance = 2.3
 	await _wait(40)
 	await _shot("cmp_char_%s" % tag)
+	# walking away into the wind: the hawli ribbon trails
+	_place(o + Vector3(14.0, 0.05, 10.0), 0.4, -0.12)
+	main.camera_rig.distance = 3.6
+	await _wait(10)
+	GameInput.touch_move = Vector2(0, -0.6)
+	await _wait_s(1.6)
+	await _shot("cmp_charrun_%s" % tag)
+	GameInput.touch_move = Vector2.ZERO
+	await _wait_s(0.8)
+	main.camera_rig.yaw = 0.4 + PI * 0.6
+	main.camera_rig.distance = 3.0
+	await _wait(30)
+	await _shot("cmp_charside_%s" % tag)
 	main.camera_rig.distance = 5.2
 
 

@@ -6,14 +6,14 @@
 //  mode 1  motes: tiny 2-3 texel grains (MultiMesh) advected by the same
 //          field, wrapped in a box around the player.
 shader_type spatial;
-render_mode unshaded, cull_disabled, shadows_disabled;
+render_mode cull_disabled;
 #include "res://game/shaders/pixel_common.gdshaderinc"
 #include "res://game/shaders/wind.gdshaderinc"
 
 uniform int mode = 0;
-uniform vec4 lit : source_color = vec4(0.95, 0.76, 0.56, 1.0);
-uniform vec4 shade : source_color = vec4(0.89, 0.68, 0.49, 1.0);
-uniform vec4 grain : source_color = vec4(0.8, 0.6, 0.42, 1.0);
+uniform vec4 lit : source_color = vec4(0.96, 0.74, 0.64, 1.0);
+uniform vec4 shade : source_color = vec4(0.9, 0.66, 0.57, 1.0);
+uniform vec4 grain : source_color = vec4(0.8, 0.56, 0.48, 1.0);
 uniform float amount = 1.0;
 uniform float radius = 22.0;          // sheet fade radius around the player
 uniform float speed = 3.2;            // m/s of blown sand per unit wind
@@ -103,5 +103,11 @@ void fragment() {
 			discard;
 		}
 		ALBEDO = n > 0.74 ? lit.rgb : shade.rgb;
+		NORMAL = (VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz;
 	}
+}
+
+// lit like the sand under it (no unshaded grey patches): flat sun + shadow
+void light() {
+	DIFFUSE_LIGHT += LIGHT_COLOR * mix(0.72, 1.0, ATTENUATION) * 0.62 / PI;
 }

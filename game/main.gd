@@ -37,8 +37,6 @@ func _ready() -> void:
 	var horizon := DuneHorizon.new()
 	# far dunes: same sand, but smooth (no patches or pebbles), as in the photo
 	var far_sand := courtyard._sand_mat(Courtyard.SAND).duplicate() as ShaderMaterial
-	far_sand.set_shader_parameter("mottle", 0.0)
-	far_sand.set_shader_parameter("pebble_density", 0.0)
 	far_sand.set_shader_parameter("y_squash", 0.75)
 	far_sand.set_shader_parameter("lambert_gain", 2.2)
 	horizon.material_override = far_sand
@@ -124,10 +122,10 @@ func _build_environment() -> void:
 
 	var sky_mat := ProceduralSkyMaterial.new()
 	# sun-bleached, dusty sky: pale horizon haze, restrained blue
-	sky_mat.sky_top_color = Color("D3CACD")      # hazy cream sky (reference photo)
-	sky_mat.sky_horizon_color = Color("EBD3B6")
+	sky_mat.sky_top_color = Color("E2D8BE")      # pale cream-gold (Journey daytime)      # hazy cream sky (reference photo)
+	sky_mat.sky_horizon_color = Color("F2DCC0")
 	sky_mat.ground_horizon_color = Color("F0D1B5")
-	sky_mat.ground_bottom_color = Color("D99A70")
+	sky_mat.ground_bottom_color = Color("D9A088")
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env = Environment.new()
@@ -143,7 +141,7 @@ func _build_environment() -> void:
 	# atmospheric depth: warm dusty haze, distant scenery loses contrast
 	env.fog_enabled = true
 	# strong warm aerial perspective: far dunes melt into the cream haze
-	env.fog_light_color = Color("F0D1B5")
+	env.fog_light_color = Color("F2D9C2")
 	# depth fog: near sand stays saturated, haze builds with distance and
 	# swallows the far dunes (reference photo)
 	env.fog_mode = Environment.FOG_MODE_DEPTH
@@ -154,6 +152,13 @@ func _build_environment() -> void:
 	env.fog_aerial_perspective = 0.35
 	env.fog_sky_affect = 1.0
 	# restrained saturation
+	# subtle bloom only on genuinely bright highlights (sand glints)
+	env.glow_enabled = true
+	env.glow_hdr_threshold = 1.15
+	env.glow_intensity = 0.35
+	env.glow_strength = 0.8
+	env.glow_bloom = 0.0
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 0.86
 	env.adjustment_contrast = 0.94

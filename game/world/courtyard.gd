@@ -74,6 +74,9 @@ func _outside() -> void:
 		[Vector3(18, 0, 40), Vector3(9, 2.2, 6)], [Vector3(-2, 0, 44), Vector3(12, 3.0, 7)],
 		[Vector3(-30, 0, 12), Vector3(7, 2.0, 10)], [Vector3(34, 0, -40), Vector3(8, 2.6, 12)],
 		[Vector3(0, 0, -34), Vector3(14, 3.2, 8)], [Vector3(-28, 0, -26), Vector3(9, 2.4, 9)],
+		# long low swells in the open desert (sand spec: flowing macro dunes)
+		[Vector3(-46, 0, 34), Vector3(14, 2.0, 8)], [Vector3(10, 0, -50), Vector3(16, 2.2, 9)],
+		[Vector3(-50, 0, -40), Vector3(12, 1.8, 7)], [Vector3(48, 0, 44), Vector3(12, 1.8, 7)],
 	]:
 		_dune(d[0], d[1])
 	# Invisible boundary.
@@ -266,18 +269,11 @@ func _sand_mat(tint: Color) -> ShaderMaterial:
 		return _materials[key] as ShaderMaterial
 	var m := ShaderMaterial.new()
 	m.shader = _sand_shader
-	# Saharan orange (owner reference photo): terracotta sand, rust shadows,
-	# peach sheen; low-contrast tonal patches rather than strong mottling
-	var sand := Color("D9864F")
+	# Journey-inspired sand (owner sand spec + references): pink-peach
+	# albedo, soft mauve shadow tone, broad sheen, crest rim, stable glitter
+	var sand := Color("DC967A")
 	m.set_shader_parameter("sand_color", sand * (tint / SAND) if tint != SAND else sand)
-	m.set_shader_parameter("shadow_color", Color("BC6E42"))
-	m.set_shader_parameter("rim_color", Color("FFD2AE"))
-	m.set_shader_parameter("ocean_color", Color("FFD9B8"))
-	m.set_shader_parameter("tone_dark", Color(0.95, 0.93, 0.92))
-	m.set_shader_parameter("tone_light", Color(1.04, 1.03, 1.02))
-	m.set_shader_parameter("pebble_light", Color("D8B49C"))
-	m.set_shader_parameter("pebble_dark", Color("A87A60"))
-	m.set_shader_parameter("pebble_density", 0.015)
+	m.set_shader_parameter("shadow_color", Color("C58474"))
 	m.set_shader_parameter("sand_tex", load("res://game/art/pixel/sand_128.png"))
 	_materials[key] = m
 	return m
