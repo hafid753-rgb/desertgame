@@ -6,3 +6,5 @@ build/
 *.keystore
 export_credentials.cfg
 .DS_Store
+tools/garment/*.blend1
+tools/garment/__pycache__/

@@ -44,6 +44,9 @@ var turban: Node3D
 const BACK_SWORD := Transform3D(Basis(Vector3.FORWARD, 0.7) * Basis(Vector3.RIGHT, -PI / 2), Vector3(0.16, 0.44, 0.3))
 var element_glow: MeshInstance3D
 var daraa: Node3D
+## The authentic daraa garment (pattern + drape, see DaraaGarment); null
+## falls back to the old robe mesh.
+var garment: DaraaGarment
 var eyes: Node3D
 var ear_r: Node3D
 var ear_l: Node3D
@@ -466,6 +469,8 @@ func _apply_materials() -> void:
 			_robe_set("robe_top", bb.position.y + bb.size.y * 0.82)
 			_robe_set("robe_bottom", bb.position.y)
 		(body as MeshInstance3D).material_override = _robe_mat
+	if garment and body is MeshInstance3D:
+		(body as MeshInstance3D).mesh = null
 	# Hawli/turban: matte cotton (no damask, no sheen streaks).
 	var cotton := CharacterArt.toon_material(_outline_color_cached, 0.007, "fabric")
 	cotton.set_shader_parameter("damask_strength", 0.0)
@@ -678,7 +683,15 @@ func _build_rig() -> void:
 	body.get_parent().remove_child(body)
 	_robe_pivot.add_child(body)
 	body.transform = Transform3D(Basis(), Vector3(0, BODY_Y, 0) - neck)
-	_journey_robe(body)
+	if DaraaGarment.available():
+		# the daraa replaces the robe mesh; body stays as the mount for the
+		# scabbard and for squash / sway
+		garment = DaraaGarment.new()
+		garment.setup(_species_key, _outline_color_cached)
+		body.add_child(garment)
+		garment.transform = Transform3D(Basis(), Vector3(0, -BODY_Y, 0))
+	else:
+		_journey_robe(body)
 	_robe_base = _robe_pivot.transform
 	_build_scarf()
 	_head_base = head.transform
@@ -877,6 +890,10 @@ func _surf_and_veil(delta: float, state: String, info: Dictionary) -> void:
 	elif body.scale.x > 1.01:
 		body.scale = body.scale.lerp(Vector3.ONE, 1.0 - exp(-8.0 * delta))
 	_update_robe_cloth(delta, v)
+	if garment:
+		# the daraa's own sides open as the glide sail (Spread blend shape)
+		daraa.visible = false
+		garment.update(delta, self, state, v, armed, [hand_r.global_position, hand_l.global_position], [foot_r.global_position, foot_l.global_position], [foot_r.global_basis.y.normalized(), foot_l.global_basis.y.normalized()])
 	# veil
 	var want := 1.0 if state in ["SURF", "GLIDE"] else 0.0
 	_veil_k = move_toward(_veil_k, want, delta * 4.0)

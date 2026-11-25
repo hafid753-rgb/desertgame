@@ -1,0 +1,220 @@
+{
+ "pattern": {
+  "panels": {
+   "body": {
+    "translation": [
+     0,
+     159.5,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "vertices": [
+     [
+      -108.75,
+      -176.9
+     ],
+     [
+      108.75,
+      -176.9
+     ],
+     [
+      108.75,
+      176.9
+     ],
+     [
+      -108.75,
+      176.9
+     ]
+    ],
+    "edges": [
+     {
+      "endpoints": [
+       0,
+       1
+      ],
+      "label": "front_hem_open"
+     },
+     {
+      "endpoints": [
+       1,
+       2
+      ],
+      "label": "side_+x"
+     },
+     {
+      "endpoints": [
+       2,
+       3
+      ],
+      "label": "back_hem_open"
+     },
+     {
+      "endpoints": [
+       3,
+       0
+      ],
+      "label": "side_-x"
+     }
+    ],
+    "fold": {
+     "line": [
+      [
+       -108.75,
+       0
+      ],
+      [
+       108.75,
+       0
+      ]
+     ],
+     "label": "shoulder_fold"
+    },
+    "cutouts": [
+     {
+      "label": "neck",
+      "ellipse": {
+       "rx": 12.325000000000001,
+       "front_depth": 37.7,
+       "back_depth": 8.7
+      }
+     }
+    ]
+   },
+   "pocket": {
+    "translation": [
+     -22.475,
+     -49.300000000000004,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "vertices": [
+     [
+      -12.325000000000001,
+      0
+     ],
+     [
+      12.325000000000001,
+      0
+     ],
+     [
+      12.325000000000001,
+      -20.299999999999997
+     ],
+     [
+      0,
+      -29.0
+     ],
+     [
+      -12.325000000000001,
+      -20.299999999999997
+     ]
+    ],
+    "edges": [
+     {
+      "endpoints": [
+       0,
+       1
+      ]
+     },
+     {
+      "endpoints": [
+       1,
+       2
+      ]
+     },
+     {
+      "endpoints": [
+       2,
+       3
+      ]
+     },
+     {
+      "endpoints": [
+       3,
+       4
+      ]
+     },
+     {
+      "endpoints": [
+       4,
+       0
+      ]
+     }
+    ],
+    "note": "patch pocket, top edge open, embroidered; sewn on the front body"
+   }
+  },
+  "stitches": [
+   [
+    {
+     "panel": "body",
+     "edge": 1,
+     "range": [
+      0.0,
+      0.32
+     ]
+    },
+    {
+     "panel": "body",
+     "edge": 1,
+     "range": [
+      0.6799999999999999,
+      1.0
+     ]
+    }
+   ],
+   [
+    {
+     "panel": "body",
+     "edge": 3,
+     "range": [
+      0.6799999999999999,
+      1.0
+     ]
+    },
+    {
+     "panel": "body",
+     "edge": 3,
+     "range": [
+      0.0,
+      0.32
+     ]
+    }
+   ],
+   [
+    {
+     "panel": "pocket",
+     "edges": [
+      1,
+      2,
+      3,
+      4
+     ]
+    },
+    {
+     "panel": "body",
+     "topstitch": true
+    }
+   ]
+  ],
+  "panel_order": [
+   "body",
+   "pocket"
+  ]
+ },
+ "properties": {
+  "units_in_meter": 100,
+  "garment": "Mauritanian daraa (Hafid)",
+  "character_scale": 0.6896551724137931,
+  "fabric": "bazin (damask cotton), stiff, slight sheen",
+  "assumptions": "see docs/garment/DARAA.md"
+ }
+}

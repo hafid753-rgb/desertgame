@@ -81,3 +81,16 @@ cloned, not used**; design references only.
 | HungryProton/scatter (Proton Scatter) | Not integrated | Scatter done with in-house noise-clumped placement (Oasis._build_scatter) |
 | TheMIU/Stylized-Fluffy-Tree-Shader | Not integrated | Spec lists it as shading reference only; individual leaves kept |
 | Garbage Country trailer (YouTube d4S9pdUVML8) | Not viewed | No video access from the build workspace |
+
+## Round 2026-11-25 (daraa reconstruction) — see docs/garment/DARAA.md
+| Repo / reference | Commit | License | Status | Notes |
+|---|---|---|---|---|
+| maria-korosteleva/GarmentCode | d449629 | MIT | Format followed | Pattern JSON layout only; no code copied |
+| opensew-2 | 86b4322 | GPL-3 | Studied only | |
+| blender_clothing_tools | 776370c | GPL-3 | Studied only | |
+| blender-seams-to-sewing-pattern | 919d031 | GPL | Studied only | |
+| freesewing | 8a8de5a2 | MIT | Studied only | |
+| godot-jigglebones | e861ae9 | MIT | Studied only | Springs written in-house |
+| bpy (Blender 5.3 module) | pip | GPL | Tool | Drape/shape keys/GLB export; output is project data |
+| democraticac.de, FIT boubou, textilevaluechain, custom-qamis, mauritania-travel, UCSC boubou, ami.mr | — | — | Text references | Construction facts; no images used |
+| Two YouTube daraa videos | — | — | Not viewed | Rate-limited |

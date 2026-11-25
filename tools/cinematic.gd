@@ -39,7 +39,12 @@ const CAPTIONS := {
 	"epic": "SAND SURFING  —  12 m dune · kicker lip · daraa glide",
 	"robe": "DARAA  —  cloth in the wind · hem lag and flutter",
 	"board": "SHIELD BOARD  —  groove in the sand · warm dust plume",
+	"daraa": "DARAA  —  draped: walk · run · jump · dodge",
 }
+const DARAA_CAPS := ["DARAA  —  draped: walk · run · jump · dodge",
+	"DARAA  —  one side thrown onto the shoulder: sword arm free",
+	"DARAA  —  both sides gathered: climbing",
+	"DARAA  —  sides held out as wings: glide"]
 
 
 func _ready() -> void:
@@ -94,6 +99,12 @@ func _ready() -> void:
 		"sun":
 			_place(Vector3(30, 0.05, -28), 0.0)
 			dur = 7.0
+		"daraa":
+			_place(Vector3(-10.5, 0.1, 2.0), -PI * 0.5)
+			if main.jinn:
+				main.jinn.ai_enabled = false
+				main.jinn.global_position = Vector3(0, 0.1, -8)
+			dur = 14.0
 
 
 func _place(at: Vector3, yaw: float) -> void:
@@ -137,6 +148,21 @@ func _physics_process(delta: float) -> void:
 			mv = Vector2(sin(t * 1.3) * 0.25, -1.0) if t > 0.4 else Vector2.ZERO
 		"fight":
 			mv = _fight_bot(delta)
+		"daraa":
+			if t > 0.8 and t < 2.6:
+				mv = Vector2(0, -0.4)
+			elif t > 2.6 and t < 3.9:
+				mv = Vector2(0, -1.0)
+				if absf(t - 3.0) < delta * 0.5:
+					_tap("jump", 0.22)
+				if absf(t - 3.75) < delta * 0.5:
+					_tap("dodge")
+			elif t > 5.0 and t < 7.2:
+				for at in [5.1, 5.6, 6.1, 6.6]:
+					if absf(t - at) < delta * 0.5:
+						_tap("attack")
+			elif t > 8.6:
+				mv = Vector2(0, -0.8)
 	GameInput.touch_move = mv
 	if OS.get_cmdline_user_args().has("trace") and fmod(t, 0.25) < get_physics_process_delta_time():
 		print("t %.2f %s pos %s v %.1f vy %.1f" % [t, p.state_name(), p.global_position.snapped(Vector3.ONE * 0.1), Vector2(p.velocity.x, p.velocity.z).length(), p.velocity.y])
@@ -320,6 +346,30 @@ func _process(delta: float) -> void:
 			pos.x = clampf(pos.x, -9.0, 9.0)
 			pos.z = clampf(pos.z, -9.0, 9.0)
 			smooth = 3.5
+		"daraa":
+			var seg := 0 if t < 2.6 else (1 if t < 4.9 else (2 if t < 8.4 else 3))
+			if seg != _seg:
+				_seg = seg
+				_first = true
+			_cap_text = DARAA_CAPS[0 if seg < 2 else (1 if seg == 2 else (3 if p.state == Player.State.GLIDE else 2))]
+			match seg:
+				0:   # front three-quarter: pocket and neck embroidery, hem
+					pos = pp + fwd * 2.8 + side * 1.4 + Vector3(0, 0.95, 0)
+					look = pp + Vector3(0, 0.7, 0)
+					cam.fov = 40.0
+				1:   # side tracking: inertia of the sides and the hem
+					pos = pp + side * 4.2 + fwd * 0.4 + Vector3(0, 0.8, 0)
+					look = pp + fwd * 0.6 + Vector3(0, 0.7, 0)
+					cam.fov = 42.0
+				2:   # combat, front-left: the right side gathered up
+					pos = pp + fwd * 2.6 - side * 1.6 + Vector3(0, 1.0, 0)
+					look = pp + Vector3(0, 0.8, 0)
+					cam.fov = 42.0
+				_:   # behind and to the side for the climb
+					pos = pp - fwd * 3.0 + side * 1.8 + Vector3(0, 1.3, 0)
+					look = pp + Vector3(0, 1.0, 0)
+					cam.fov = 48.0
+			smooth = 9.0
 		"sun":
 			var sd: Vector3 = main.sun.global_transform.basis.z
 			var a := lerpf(-0.7, 0.35, e)
