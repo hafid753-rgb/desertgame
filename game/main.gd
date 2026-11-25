@@ -29,10 +29,20 @@ const VILLAGE_AT := Vector3(40, 0, 0)
 
 func _ready() -> void:
 	_build_environment()
-	add_child(Courtyard.new())
+	var courtyard := Courtyard.new()
+	add_child(courtyard)
 	var oasis := Oasis.new()
 	oasis.position = OASIS_AT
 	add_child(oasis)
+	var horizon := DuneHorizon.new()
+	# far dunes: same sand, but smooth (no patches or pebbles), as in the photo
+	var far_sand := courtyard._sand_mat(Courtyard.SAND).duplicate() as ShaderMaterial
+	far_sand.set_shader_parameter("mottle", 0.0)
+	far_sand.set_shader_parameter("pebble_density", 0.0)
+	far_sand.set_shader_parameter("y_squash", 0.75)
+	far_sand.set_shader_parameter("lambert_gain", 2.2)
+	horizon.material_override = far_sand
+	add_child(horizon)
 	add_child(GroundFX.new())
 	var dust := WindDust.new()
 	add_child(dust)
@@ -77,8 +87,9 @@ func _process(delta: float) -> void:
 	var inside := Combat.flat(player.global_position - village.global_position).length() < 20.0
 	var target := 1.0 if inside and village.is_haunted() else 0.0
 	_haunt = lerpf(_haunt, target, 1.0 - exp(-1.5 * delta))
-	env.fog_light_color = Color(0.9, 0.82, 0.7).lerp(Color(0.36, 0.26, 0.48), _haunt)
-	env.fog_density = lerpf(0.003, 0.03, _haunt)
+	env.fog_light_color = Color("F0D1B5").lerp(Color(0.36, 0.26, 0.48), _haunt)
+	env.fog_density = lerpf(0.92, 1.0, _haunt)
+	env.fog_depth_begin = lerpf(18.0, 2.0, _haunt)
 	sun.light_energy = lerpf(0.95, 0.5, _haunt)
 
 
@@ -102,8 +113,8 @@ func _on_jinn_defeated(_j: Jinn) -> void:
 
 func _build_environment() -> void:
 	sun = DirectionalLight3D.new()
-	sun.rotation = Vector3(deg_to_rad(-52), deg_to_rad(35), 0)
-	sun.light_color = Color("F1DDB6")  # palette: warm sunlight
+	sun.rotation = Vector3(deg_to_rad(-33), deg_to_rad(35), 0)   # low golden sun: long shadows, modelled dunes
+	sun.light_color = Color("FFE3C4")  # warm, soft desert sun (reference photo)
 	sun.light_energy = 0.95
 	sun.shadow_enabled = true
 	sun.shadow_blur = 1.0
@@ -113,31 +124,39 @@ func _build_environment() -> void:
 
 	var sky_mat := ProceduralSkyMaterial.new()
 	# sun-bleached, dusty sky: pale horizon haze, restrained blue
-	sky_mat.sky_top_color = Color(0.36, 0.52, 0.74)
-	sky_mat.sky_horizon_color = Color(0.9, 0.8, 0.66)
-	sky_mat.ground_horizon_color = Color(0.88, 0.78, 0.62)
-	sky_mat.ground_bottom_color = Color(0.6, 0.5, 0.4)
+	sky_mat.sky_top_color = Color("EDD2B8")      # hazy cream sky (reference photo)
+	sky_mat.sky_horizon_color = Color("F0D1B5")
+	sky_mat.ground_horizon_color = Color("F0D1B5")
+	sky_mat.ground_bottom_color = Color("D99A70")
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	# palette lighting: lavender ambient (#82788D) so shadows are never black
+	# warm ambient: cream sky + light bounced off orange sand, so shadows
+	# stay rust/peach as in the reference photo, never grey or purple
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("82788D")
-	env.ambient_light_energy = 0.75
+	env.ambient_light_color = Color("D9A88A")
+	env.ambient_light_energy = 0.6
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_white = 1.6
 	# atmospheric depth: warm dusty haze, distant scenery loses contrast
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.9, 0.82, 0.7)
-	env.fog_density = 0.003
-	env.fog_aerial_perspective = 0.2
-	env.fog_sky_affect = 0.3
+	# strong warm aerial perspective: far dunes melt into the cream haze
+	env.fog_light_color = Color("F0D1B5")
+	# depth fog: near sand stays saturated, haze builds with distance and
+	# swallows the far dunes (reference photo)
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_depth_begin = 18.0
+	env.fog_depth_end = 240.0
+	env.fog_depth_curve = 1.6
+	env.fog_density = 0.92
+	env.fog_aerial_perspective = 0.35
+	env.fog_sky_affect = 1.0
 	# restrained saturation
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 0.9
-	env.adjustment_contrast = 1.1
+	env.adjustment_contrast = 1.04
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)

@@ -46,6 +46,11 @@ func _ready() -> void:
 	_build_shrubs()
 	_build_rocks()
 	_build_splash()
+	_build_reeds()
+	_build_scatter()
+	# damp earth + moss under the oasis vegetation (sand_ripple soil_zone)
+	RenderingServer.global_shader_parameter_set("soil_zone",
+		Vector4(global_position.x, global_position.z, area_radius * 0.5, area_radius * 0.9))
 	# palms, acacias and shrub roots reflect in the pond
 	for c in get_children():
 		if c is Node3D and not c is GeometryInstance3D and not c is CPUParticles3D:
@@ -178,6 +183,67 @@ func _build_grass_and_flowers() -> void:
 	var fmesh := Vegetation.card(0.5, 0.5, 1, 4)
 	var fmat := Vegetation.card_material("res://game/art/pixel/veg_flower.png", 2.0, 1.0, 0, 0.5, 0.7, 1.1)
 	Vegetation.instances(self, fmesh, fmat, flowers, 2, rng, 45.0, false)
+
+
+## Rush clumps standing in the shallows (Garbage Country's reedy ponds).
+func _build_reeds() -> void:
+	var items: Array = []
+	var tries := 0
+	while items.size() < 90 and tries < 4000:
+		tries += 1
+		var a := rng.randf() * TAU
+		var r := rng.randf_range(0.3, 1.0) * _r_at(a)
+		var p := Vector2(cos(a), sin(a)) * r
+		var sd := shore_distance(p)
+		if sd > -0.15 or sd < -1.3:
+			continue
+		# clumps: a few stems around a seed point
+		for k in rng.randi_range(2, 4):
+			var q := p + Vector2(rng.randf_range(-0.25, 0.25), rng.randf_range(-0.25, 0.25))
+			var b := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.12, 0.12))
+			items.append([Transform3D(b, Vector3(q.x, 0.0, q.y)), rng.randi() % 3, rng.randf_range(1.6, 2.4), 0.0])
+	var mat := Vegetation.card_material("res://game/art/pixel/veg_reed.png", 3.0, 1.0, 0, 1.0, 0.5, 0.8)
+	Vegetation.instances(self, Vegetation.card(0.25, 1.0, 1, 8), mat, items, 3, rng, 70.0, true)
+	WaterReflection.tag(get_child(get_child_count() - 1))
+
+
+## Ground detail on the open sand around the oasis: dead twig shrubs and
+## small grass tufts, sparse and clumped, never on the courtyard or water.
+func _build_scatter() -> void:
+	var noise := FastNoiseLite.new()
+	noise.seed = seed_value + 5
+	noise.frequency = 0.08
+	var twigs: Array = []
+	var tufts: Array = []
+	var reach := area_radius * 2.4
+	for i in 2600:
+		var p := Vector2(rng.randf_range(-reach, reach), rng.randf_range(-reach, reach))
+		var d := p.length()
+		if d < area_radius * 0.85 or d > reach:
+			continue
+		var w := global_position + Vector3(p.x, 0, p.y)
+		if absf(w.x) > Courtyard.BOUND - 2.0 or absf(w.z) > Courtyard.BOUND - 2.0:
+			continue
+		if Vector2(w.x, w.z).length() < Courtyard.HALF + 6.0:
+			continue
+		var clump := noise.get_noise_2d(p.x, p.y) * 0.5 + 0.5
+		if rng.randf() > clump * 0.9:
+			continue
+		var base := Basis(Vector3.UP, rng.randf() * TAU)
+		if rng.randf() < 0.35:
+			for k in 2:  # crossed pair of cards reads as a bush from any side
+				twigs.append([Transform3D(base.rotated(Vector3.UP, k * PI * 0.5), Vector3(p.x, 0, p.y)), rng.randi() % 3, 3.0, 0.0])
+		else:
+			for k in rng.randi_range(4, 7):
+				var q := p + Vector2(rng.randf_range(-0.16, 0.16), rng.randf_range(-0.16, 0.16))
+				var hh := rng.randf_range(0.35, 0.55)
+				var b := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.25, 0.25))
+				tufts.append([Transform3D(b.scaled(Vector3(hh, hh, hh)), Vector3(q.x, 0, q.y)), rng.randi() % 6, rng.randf_range(0.8, 1.3), 0.0])
+	var tmat := Vegetation.card_material("res://game/art/pixel/veg_twig.png", 3.0, 1.0, 0, 0.5, 0.25, 0.6)
+	Vegetation.instances(self, Vegetation.card(0.5, 0.5, 1, 4), tmat, twigs, 3, rng, 60.0, true)
+	var gmat := Vegetation.card_material("res://game/art/pixel/veg_grass.png", 6.0, 2.0, 0, 1.0, 0.9, 1.0)
+	Vegetation.instances(self, Vegetation.card(0.5, 1.0, 2, 8), gmat, tufts, 12, rng, 50.0, false)
+	set_meta("scatter", [twigs.size() / 2, tufts.size()])
 
 
 func _build_shrubs() -> void:

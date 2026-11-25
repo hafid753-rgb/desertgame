@@ -104,7 +104,7 @@ def fine_leaflet(pal, rng, w=6, h=6):
 def footprints():
     """Boot prints (right, left) 10x10 pressed into sand: shadowed hollow
     with a ridged sole, narrower heel, sand pushed up in front of the toe."""
-    hollow, deep, rim = (150, 118, 104, 255), (118, 94, 92, 255), (244, 226, 186, 255)
+    hollow, deep, rim = (176, 94, 58, 255), (146, 74, 48, 255), (240, 156, 104, 255)
     cells = []
     for flip in (False, True):
         im = Image.new("RGBA", (10, 10), CLEAR)
@@ -126,9 +126,97 @@ def footprints():
     return cells
 
 
+def palm_boot(pal, rng, w=8, h=10):
+    """Persistent leaf base of a date palm: a broad wedge with a frayed fibrous
+    top edge, light upper rim, shadowed lower half. Root (attachment) at the
+    bottom, the cut petiole end at the top."""
+    im = Image.new("RGBA", (w, h), CLEAR)
+    px = im.load()
+    for y in range(h):
+        t = 1 - y / (h - 1)                    # 0 bottom .. 1 top
+        half = 1.2 + 2.6 * t
+        for x in range(w):
+            dx = abs(x - (w / 2 - 0.5))
+            if dx <= half:
+                c = pal[2]
+                if dx > half - 1.0:
+                    c = pal[1]                  # edge
+                if y >= h - 3:
+                    c = pal[0] if dx > half - 1.5 else pal[1]   # tucked base
+                if y <= 1:
+                    c = pal[3] if (x + y) % 2 == 0 else pal[2]   # light rim
+                if y == 0 and rng.random() < 0.35:
+                    continue                    # frayed top
+                put(px, w, h, x, y, c)
+    # fibre streak
+    put(px, w, h, w // 2, h // 2, pal[1])
+    put(px, w, h, w // 2, h // 2 + 1, pal[1])
+    return im
+
+
+def date_cluster(pal, w=8, h=12):
+    """Hanging bunch of dates: a stalk, then drupes in staggered rows."""
+    im = Image.new("RGBA", (w, h), CLEAR)
+    px = im.load()
+    for y in range(0, 3):
+        put(px, w, h, w // 2, y, pal[0])
+    for y in range(3, h):
+        t = (y - 3) / (h - 4)
+        half = int(1 + 2.2 * math.sin(math.pi * min(1.0, t * 0.9 + 0.1)))
+        for x in range(w // 2 - half, w // 2 + half + 1):
+            if (x + y) % 2 == 0:
+                put(px, w, h, x, y, pal[3] if y < 6 else pal[2])
+            else:
+                put(px, w, h, x, y, pal[1])
+    return im
+
+
+def reed(pal, rng, w=8, h=32):
+    """Clump of rushes: 3-4 stiff upright stems, rust/brown, dark base."""
+    im = Image.new("RGBA", (w, h), CLEAR)
+    px = im.load()
+    for k in range(rng.randint(6, 8)):
+        x0 = rng.randint(1, w - 2)
+        top = rng.randint(2, 12)
+        lean = rng.choice([-1, 0, 0, 1])
+        for y in range(h - 1, top - 1, -1):
+            t = (h - 1 - y) / (h - 1)
+            x = x0 + int(round(lean * t * t * 2))
+            c = pal[0] if y > h - 4 else (pal[3] if t > 0.75 else (pal[2] if k % 2 else pal[1]))
+            put(px, w, h, x, y, c)
+        if rng.random() < 0.6:                  # seed spike
+            x = x0 + int(round(lean * 2))
+            for y in range(top, top + 4):
+                put(px, w, h, x, y, pal[4])
+    return im
+
+
+def twig_shrub(pal, rng, w=16, h=16):
+    """Dead desert shrub: dark forked twigs from a root point (reads as the
+    small dry bushes scattered over Garbage Country's dirt)."""
+    im = Image.new("RGBA", (w, h), CLEAR)
+    px = im.load()
+    def branch(x, y, ang, length, depth):
+        for i in range(length):
+            put(px, w, h, int(round(x)), int(round(y)), pal[1] if depth == 0 else pal[2])
+            x += math.sin(ang)
+            y -= math.cos(ang)
+        if depth < 2:
+            for da in (-0.6, 0.55):
+                if rng.random() < 0.85:
+                    branch(x, y, ang + da + rng.uniform(-0.2, 0.2), max(2, length - 2), depth + 1)
+        else:
+            put(px, w, h, int(round(x)), int(round(y)), pal[3])
+    for ang in (-0.5, 0.05, 0.45):
+        branch(w / 2 - 0.5, h - 1, ang + rng.uniform(-0.15, 0.15), rng.randint(4, 6), 0)
+    for x in range(w // 2 - 2, w // 2 + 2):
+        put(px, w, h, x, h - 1, pal[0])
+    return im
+
+
 def main():
     rng = random.Random(11)
-    dry = ramp(hexc("C2B16A"), 5, 0.62, 1.15)
+    dry = ramp(hexc("C99A45"), 5, 0.55, 1.18)
     green = ramp(hexc("7D8965"), 5, 0.62, 1.2)
     # 6 columns x 2 rows (dry, green) of 16x32 blades
     cells = []
@@ -158,6 +246,15 @@ def main():
             + [fine_leaflet(ramp(hexc("8C9467"), 5, 0.6, 1.2), rng)])
     sheet(fine, 6, 6, 8).save(os.path.join(OUT, "veg_leaf_fine.png"))
     sheet(footprints(), 10, 10, 2).save(os.path.join(OUT, "fx_footprint.png"))
+    # date palm leaf bases: ochre, beige, weathered brown, dark old
+    boots = [palm_boot(ramp(hexc(c), 4, 0.55, 1.25), rng) for c in ("A97C4E", "C2A27A", "8A6A4E", "6E5546")]
+    sheet(boots, 8, 10, 4).save(os.path.join(OUT, "veg_palm_boot.png"))
+    dates = [date_cluster(ramp(hexc(c), 4, 0.55, 1.3)) for c in ("B86A2E", "8C4A2A")]
+    sheet(dates, 8, 12, 2).save(os.path.join(OUT, "veg_dates.png"))
+    reeds = [reed(ramp(hexc(c), 5, 0.5, 1.2), rng) for c in ("8E5A3A", "9A6A3E", "7A6A40")]
+    sheet(reeds, 8, 32, 3).save(os.path.join(OUT, "veg_reed.png"))
+    twigs = [twig_shrub(ramp(hexc(c), 4, 0.5, 1.3), rng) for c in ("4A3630", "56403A", "3E3434")]
+    sheet(twigs, 16, 16, 3).save(os.path.join(OUT, "veg_twig.png"))
     # palm frond leaflets 8x32: 3 variants
     palm = ramp(hexc("8A9455"), 5, 0.58, 1.2)
     palm_dry = ramp(hexc("B39B5E"), 5, 0.6, 1.15)
@@ -207,7 +304,7 @@ def main():
             px[x, y] = c + (255,)
     im.save(os.path.join(OUT, "veg_bark_acacia.png"))
     # review sheet
-    files = ["veg_grass", "veg_leaf", "veg_leaf_fine", "fx_footprint", "veg_palm_leaflet", "veg_flower", "veg_bark_palm", "veg_bark_acacia"]
+    files = ["veg_grass", "veg_leaf", "veg_leaf_fine", "fx_footprint", "veg_palm_boot", "veg_dates", "veg_reed", "veg_twig", "veg_palm_leaflet", "veg_flower", "veg_bark_palm", "veg_bark_acacia"]
     ims = [Image.open(os.path.join(OUT, f + ".png")) for f in files]
     big = [i.resize((i.size[0] * 6, i.size[1] * 6), Image.NEAREST) for i in ims]
     W = sum(b.size[0] for b in big) + 8 * (len(big) + 1)

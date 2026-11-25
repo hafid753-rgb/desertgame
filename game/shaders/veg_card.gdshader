@@ -11,7 +11,7 @@ render_mode cull_disabled, depth_draw_opaque;
 uniform sampler2D tex : source_color, filter_nearest, repeat_disable;
 uniform float atlas_cols = 6.0;
 uniform float atlas_rows = 2.0;
-uniform int kind = 0;                  // 0 grass/flower, 1 leaf, 2 frond leaflet
+uniform int kind = 0;                  // 0 grass/flower, 1 leaf, 2 frond leaflet, 3 rigid (palm leaf bases)
 uniform float card_height = 1.0;       // local height of the quad (m)
 uniform float bend = 0.9;
 uniform float response = 1.0;          // grass 1.0, leaves 1.4, fronds 0.7
@@ -44,6 +44,9 @@ void vertex() {
 		vec2 perp = normalize(vec2(-wind_dir.y, wind_dir.x));
 		off.xz += perp * sin(t * 7.0 + phase * 3.0) * 0.05 * h * h * len * (0.3 + length(w));
 		off.y -= dot(off.xz, off.xz) * 0.5 / max(len, 0.01);   // keep the blade length
+	} else if (kind == 3) {
+		// rigid parts (date palm leaf bases): only the whole-plant sway below
+		off = vec3(0.0);
 	} else {
 		// leaf / leaflet: hinge at the stem, flap + drift with the field
 		float along = kind == 2 ? (0.25 + INSTANCE_CUSTOM.a) : 1.0;
@@ -83,7 +86,15 @@ void fragment() {
 	SPECULAR = 0.0;
 }
 
+// sunlight through thin leaves and blades when looking towards the sun
+uniform float translucency = 0.18;
+uniform vec4 transmit : source_color = vec4(1.0, 0.86, 0.5, 1.0);
+
 void light() {
 	float ndl = dot(NORMAL, LIGHT) * 0.7 + 0.3;
 	DIFFUSE_LIGHT += LIGHT_COLOR * pixel_light_ramp(ndl, ATTENUATION) / PI;
+	if (kind != 3) {
+		float back = pow(clamp(dot(VIEW, -LIGHT), 0.0, 1.0), 3.0);
+		DIFFUSE_LIGHT += LIGHT_COLOR * transmit.rgb * back * translucency * ATTENUATION / PI;
+	}
 }

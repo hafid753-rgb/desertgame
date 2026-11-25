@@ -72,3 +72,12 @@ cloned, not used**; design references only.
 | Asset | Source | License | Use |
 |---|---|---|---|
 | KayKit Character Pack: Adventurers 1.0 | github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0 | CC0 | Rig_Medium skeleton + 76 clips (player rig, game/art/rig/hafid_rig.glb); hooded rogue mesh as the shadow jinn base (shadow.glb). Licence copy: game/art/rig/KAYKIT_LICENSE.txt |
+
+## Round 2026-11-25 (owner environment spec)
+| Reference | Status | Notes |
+|---|---|---|
+| Garbage Country screenshots (owner-supplied) | Studied | Frame comparison in docs/oasis/GARBAGE_COUNTRY_COMPARISON.md; no assets used |
+| Owner Sahara photo | Studied | Palette target sampled; no pixels used |
+| HungryProton/scatter (Proton Scatter) | Not integrated | Scatter done with in-house noise-clumped placement (Oasis._build_scatter) |
+| TheMIU/Stylized-Fluffy-Tree-Shader | Not integrated | Spec lists it as shading reference only; individual leaves kept |
+| Garbage Country trailer (YouTube d4S9pdUVML8) | Not viewed | No video access from the build workspace |

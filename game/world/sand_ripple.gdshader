@@ -15,6 +15,10 @@ uniform float grain_strength : hint_range(0.0, 1.0) = 0.22;
 // ripples: shallow (flat, wind-aligned) vs steep (dune flanks)
 uniform float ripple_strength : hint_range(0.0, 1.0) = 0.7;
 uniform float sun_scale : hint_range(0.0, 1.5) = 0.55;
+// diffuse contrast (Zucconi): squash of the normal's y, Lambert gain.
+// Big far dunes use a weaker squash so lit and shaded flanks separate.
+uniform float y_squash = 0.3;
+uniform float lambert_gain = 4.0;
 uniform float shallow_freq = 3.2;
 uniform float steep_freq = 6.5;
 uniform float steepness_sharpness = 3.0;
@@ -37,9 +41,42 @@ uniform float ripple_frequency = 5.0;
 // sparkle is a single stable texel that turns on/off with view and light.
 uniform sampler2D sand_tex : source_color, filter_nearest_mipmap, repeat_enable;
 uniform bool pixel_mode = true;
+// Garbage Country-style ground: large tonal patches in 3 flat tones whose
+// borders dither on the texel grid, small pebbles painted into the texels,
+// and (near the oasis) damp earth with moss patches. soil_zone is a global
+// set by Oasis: centre x, z, inner radius (full soil), outer radius.
+uniform float mottle = 1.0;
+uniform vec4 tone_dark : source_color = vec4(0.72, 0.55, 0.42, 1.0);
+uniform vec4 tone_light : source_color = vec4(1.0, 0.86, 0.66, 1.0);
+uniform vec4 pebble_light : source_color = vec4(0.78, 0.74, 0.76, 1.0);
+uniform vec4 pebble_dark : source_color = vec4(0.48, 0.42, 0.48, 1.0);
+uniform float pebble_density = 0.11;
+uniform vec4 soil : source_color = vec4(0.56, 0.36, 0.25, 1.0);
+uniform vec4 soil_dark : source_color = vec4(0.44, 0.28, 0.2, 1.0);
+uniform vec4 moss : source_color = vec4(0.56, 0.5, 0.28, 1.0);
+global uniform vec4 soil_zone;
 
 varying vec3 world_p;
 varying vec3 world_n;
+
+float hash12(vec2 p) {
+	vec3 q = fract(vec3(p.xyx) * 0.1031);
+	q += dot(q, q.yzx + 33.33);
+	return fract((q.x + q.y) * q.z);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x),
+		mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// 0..1 field, posterised to flat bands with ordered-dither borders
+float dithered_band(float v, float edge, float soft, ivec2 c) {
+	return step(bayer4(c), smoothstep(edge - soft, edge + soft, v));
+}
 
 vec3 hash33(vec3 p) {
 	p = fract(p * vec3(0.1031, 0.1030, 0.0973));
@@ -86,7 +123,43 @@ void fragment() {
 	if (pixel_mode) {
 		base = texture(sand_tex, pixel_uv(world_p, vec3(0.0, 1.0, 0.0), 128.0)).rgb * sand_color.rgb / vec3(0.839, 0.745, 0.58);
 	}
-	ALBEDO = base * mix(0.94, 1.04, vary);
+	vec3 albedo = base * mix(0.94, 1.04, vary);
+	if (pixel_mode && mottle > 0.0) {
+		vec2 tex = floor(world_p.xz * PIXELS_PER_METRE);
+		ivec2 ic = ivec2(tex);
+		vec2 q = (tex + 0.5) / PIXELS_PER_METRE;
+		// two scales of patches: broad drifts (~6 m) and clumps (~1.5 m)
+		float n = vnoise(q * 0.17) * 0.6 + vnoise(q * 0.7 + 13.0) * 0.4;
+		float dark = dithered_band(1.0 - n, 0.62, 0.05, ic);
+		float light = dithered_band(n, 0.64, 0.05, ic + ivec2(2, 1));
+		vec3 col = mix(albedo, base * tone_dark.rgb, dark * mottle);
+		col = mix(col, base * tone_light.rgb, light * mottle);
+		// soil + moss near the oasis
+		if (soil_zone.w > 0.0) {
+			float d = distance(q, soil_zone.xy) + (vnoise(q * 0.9) - 0.5) * 2.2;
+			float wet = 1.0 - smoothstep(soil_zone.z, soil_zone.w, d);
+			if (wet > bayer4(ic + ivec2(1, 3))) {
+				float m = vnoise(q * 0.55 + 41.0) * 0.7 + vnoise(q * 2.3) * 0.3;
+				col = soil.rgb;
+				col = mix(col, soil_dark.rgb, dithered_band(1.0 - m, 0.6, 0.05, ic));
+				col = mix(col, moss.rgb, dithered_band(m, 0.62, 0.04, ic + ivec2(3, 0)) * smoothstep(0.2, 0.7, wet));
+			}
+		}
+		// pebbles: in each 6x6-texel cell, maybe a 2-4 texel stone with a lit
+		// top texel and a shadowed bottom one
+		vec2 pc = floor(tex / 6.0);
+		vec3 hp = hash33(vec3(pc, 7.0));
+		if (hp.x < pebble_density) {
+			vec2 lp = tex - pc * 6.0 - floor(1.0 + hp.yz * 3.0);
+			float big = step(0.5, fract(hp.x * 37.0));
+			bool inside = abs(lp.x) + abs(lp.y) <= big || (lp.x >= 0.0 && lp.x <= 1.0 && lp.y == 0.0);
+			if (inside) {
+				col = lp.y < 0.0 ? pebble_light.rgb : (lp.y > 0.0 ? pebble_dark.rgb : mix(pebble_light.rgb, pebble_dark.rgb, 0.4));
+			}
+		}
+		albedo = col;
+	}
+	ALBEDO = albedo;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 }
@@ -98,8 +171,8 @@ void light() {
 	// Diffuse contrast: squash the normal's y, steep 4x Lambert, then
 	// lerp from the shadow colour to the terrain colour.
 	vec3 nc = n_w;
-	nc.y *= 0.3;
-	float ndl = clamp(4.0 * dot(nc, l_w), 0.0, 1.0) * ATTENUATION;
+	nc.y *= y_squash;
+	float ndl = clamp(lambert_gain * dot(nc, l_w), 0.0, 1.0) * ATTENUATION;
 	vec3 shade = mix(shadow_color.rgb / max(sand_color.rgb, vec3(0.01)), vec3(1.0), ndl);
 	DIFFUSE_LIGHT += LIGHT_COLOR * shade * sun_scale / PI;
 	// Rim and ocean specular, combined with max() so overlaps don't over-shine.

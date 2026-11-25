@@ -27,9 +27,10 @@ const vec3 PAL_SUN = vec3(0.945, 0.867, 0.714);      // #F1DDB6
 vec3 pixel_light_ramp(float ndl, float atten) {
 	float lit = smoothstep(0.0, 0.08, ndl) * atten;
 	float bright = smoothstep(0.55, 0.62, ndl) * atten;
-	vec3 shadow = mix(PAL_DEEP, PAL_LAVENDER, 0.72) * 1.25;
-	vec3 mid = vec3(0.86, 0.80, 0.74);
-	return mix(mix(shadow, mid, lit), PAL_SUN * 1.05, bright * 0.6);
+	// warm Saharan ramp (owner reference photo): rust shadow, peach sun
+	vec3 shadow = vec3(0.70, 0.50, 0.42);
+	vec3 mid = vec3(0.90, 0.80, 0.72);
+	return mix(mix(shadow, mid, lit), vec3(1.02, 0.9, 0.78), bright * 0.6);
 }
 
 // 4x4 ordered-dither threshold (0..1) for an integer cell. Used for every

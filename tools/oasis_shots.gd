@@ -38,6 +38,10 @@ func _ready() -> void:
 		await _probe(o)
 		get_tree().quit()
 		return
+	if OS.get_cmdline_user_args().has("cmp"):
+		await _compare_shots(o)
+		get_tree().quit()
+		return
 	if OS.get_cmdline_user_args().has("refl"):
 		shots = [shots[1], shots[2], ["oasis_11_reflection", o + Vector3(6.2, 0.05, 2.0), 1.25, -0.2]]
 		for s in shots:
@@ -117,6 +121,36 @@ func _probe(o: Vector3) -> void:
 			ft += (Time.get_ticks_usec() - t0) / 1000.0
 		print("probe fx=", on, " prims ", Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
 			" draws ", Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), " ft_ms ", ft / 30.0)
+
+
+## Views framed like the Garbage Country reference screenshots: high
+## three-quarter camera, farther out than gameplay. Prefix from user args.
+func _compare_shots(o: Vector3) -> void:
+	var tag := "after"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("tag="):
+			tag = a.substr(4)
+	var views := [
+		["pond", o + Vector3(6.4, 0.05, 3.2), 1.1, -0.62, 11.0, 0.0],
+		["open", o + Vector3(15.0, 0.05, -9.0), 2.3, -0.6, 10.0, 1.4],
+		["grove", o + Vector3(-2.0, 0.05, 8.5), 0.35, -0.55, 12.0, 0.0],
+		["horizon", o + Vector3(-14.0, 0.05, 6.0), PI * 0.5, -0.1, 6.0, 0.0],
+		["horizon2", o + Vector3(8.0, 0.05, -10.0), PI * 1.25, -0.06, 6.0, 0.0],
+		["palm", o + Vector3(-3.4, 0.05, 2.8), PI * 1.75, 0.18, 3.2, 0.0],
+	]
+	for v in views:
+		_place(v[1], v[2], v[3])
+		main.camera_rig.distance = v[4]
+		await _wait(20)
+		if v[5] > 0.0:
+			GameInput.touch_move = Vector2(0, -1)
+			await _wait_s(v[5])
+			GameInput.touch_move = Vector2.ZERO
+			await _wait_s(0.15)
+		else:
+			await _wait(25)
+		await _shot("cmp_%s_%s" % [v[0], tag])
+	main.camera_rig.distance = 5.2
 
 
 func _wait_s(sec: float) -> void:

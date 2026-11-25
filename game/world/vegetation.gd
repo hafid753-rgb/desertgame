@@ -11,6 +11,8 @@ const PPM := 32.0
 const VEG_SHADER := preload("res://game/shaders/veg_card.gdshader")
 const UV_SHADER := preload("res://game/shaders/pixel_uv.gdshader")
 const LEAF_SHADER := preload("res://game/shaders/leaf_fall.gdshader")
+## Olive foliage under the warm orange light (keeps palms from going lime).
+const FOLIAGE_TINT := Color(0.74, 0.8, 0.64)
 
 static var _card_cache: Dictionary = {}
 
@@ -193,9 +195,12 @@ static func date_palm(parent: Node3D, base: Vector3, height: float, lean: Vector
 				items.append([Transform3D(basis, p), cell, rng.randf_range(0.8, 1.2), t])
 	var lmesh := card(6.0 / PPM, 1.0, 1, 4)
 	var lmat := card_material("res://game/art/pixel/veg_palm_leaflet.png", 3.0, 1.0, 2, 1.0, 0.8, 0.7)
+	lmat.set_shader_parameter("tint", FOLIAGE_TINT)
 	set_sway(lmat, gpos, height, 0.35)
 	var mi := instances(root, lmesh, lmat, items, 3, rng, 120.0, true)
 	mi.extra_cull_margin = 1.0
+	_palm_boots(root, spine, height, gpos, rng)
+	_palm_dates(root, crown, gpos, height, rng)
 	if collide:
 		var body := StaticBody3D.new()
 		body.collision_layer = Combat.LAYER_WORLD
@@ -278,6 +283,7 @@ static func acacia(parent: Node3D, base: Vector3, scale: float, rng: RandomNumbe
 					shed.append(pos)
 	var lmesh := card(6.0 / PPM, 6.0 / PPM, 1, 2)
 	var lmat := card_material("res://game/art/pixel/veg_leaf_fine.png", 8.0, 1.0, 1, 6.0 / PPM, 0.6, 1.4)
+	lmat.set_shader_parameter("tint", FOLIAGE_TINT)
 	set_sway(lmat, base, h * 2.0, 0.08)
 	instances(root, lmesh, lmat, items, 8, rng, 140.0, true)
 	root.set_meta("leaf_count", items.size())
@@ -295,6 +301,68 @@ static func acacia(parent: Node3D, base: Vector3, scale: float, rng: RandomNumbe
 	body.add_child(col)
 	root.add_child(body)
 	return root
+
+
+## Persistent leaf bases ("boots") covering a date palm trunk: separate
+## pixel-art planes, tangential to the trunk, in staggered helical rows,
+## overlapping like scales, tops tilted out so they break the silhouette.
+## Rigid relative to the trunk (veg_card kind 3: whole-plant sway only).
+static func _palm_boots(root: Node3D, spine: PackedVector3Array, height: float, sway_base: Vector3,
+		rng: RandomNumberGenerator) -> void:
+	var items: Array = []
+	var w := 8.0 / PPM
+	var hgt := 10.0 / PPM
+	var per_ring := 9
+	var row_step := hgt * 0.62
+	var rows := int(height * 0.93 / row_step)
+	for r in rows:
+		var y := 0.35 + float(r) * row_step
+		var t := y / height
+		if t > 0.97:
+			break
+		# position and tangent on the trunk spine at this height
+		var fi := t * float(spine.size() - 1)
+		var i0 := int(floor(fi))
+		var i1 := mini(i0 + 1, spine.size() - 1)
+		var c := spine[i0].lerp(spine[i1], fi - float(i0))
+		var axis := (spine[i1] - spine[i0]).normalized() if i1 != i0 else Vector3.UP
+		var radius := lerpf(0.22, 0.16, t) + 0.012
+		var phase := float(r) * 0.5 + rng.randf_range(-0.1, 0.1)    # helical stagger
+		for k in per_ring:
+			if t < 0.25 and rng.randf() < 0.45:
+				continue                     # old lower trunk: many bases shed
+			var a := phase + TAU * float(k) / per_ring + rng.randf_range(-0.08, 0.08)
+			var out := Vector3(cos(a), 0, sin(a))
+			out = (out - axis * out.dot(axis)).normalized()
+			var up := axis
+			var side := up.cross(out).normalized()
+			var tilt := rng.randf_range(0.18, 0.38)                  # top flares outward
+			var b := Basis(side, up, out).rotated(side, -tilt)
+			var pos := c + out * (radius + float(k % 2) * 0.006) - up * hgt * 0.15
+			var cell := rng.randi() % 4 if t > 0.25 else 2 + rng.randi() % 2
+			items.append([Transform3D(b, pos), cell, 9.0, 0.0])
+	var mesh := card(w, hgt, 1, 1)
+	var mat := card_material("res://game/art/pixel/veg_palm_boot.png", 4.0, 1.0, 3, hgt, 0.0, 0.0)
+	set_sway(mat, sway_base, height, 0.35)
+	instances(root, mesh, mat, items, 4, rng, 90.0, true)
+	root.set_meta("boot_count", items.size())
+
+
+## Hanging date bunches under the crown.
+static func _palm_dates(root: Node3D, crown: Vector3, sway_base: Vector3, height: float,
+		rng: RandomNumberGenerator) -> void:
+	var items: Array = []
+	for i in rng.randi_range(3, 5):
+		var a := rng.randf() * TAU
+		var out := Vector3(cos(a), 0, sin(a))
+		var pos := crown + out * rng.randf_range(0.2, 0.32) + Vector3(0, -0.1 - 12.0 / PPM, 0)
+		var b := Basis(Vector3.UP, a + PI * 0.5)
+		items.append([Transform3D(b, pos), rng.randi() % 2, 9.0, 0.0])
+		items.append([Transform3D(b.rotated(Vector3.UP, PI * 0.5), pos), rng.randi() % 2, 9.0, 0.0])
+	var mesh := card(8.0 / PPM, 12.0 / PPM, 1, 1)
+	var mat := card_material("res://game/art/pixel/veg_dates.png", 2.0, 1.0, 3, 12.0 / PPM, 0.0, 0.0)
+	set_sway(mat, sway_base, height, 0.35)
+	instances(root, mesh, mat, items, 2, rng, 60.0, true)
 
 
 ## Leaves that detach, tumble downwind, settle and dissolve (stateless GPU
