@@ -43,10 +43,14 @@ documented principles, press descriptions and the brief, not frame-matched.
   with terrain tools. Hafid: acacia/palm branches are spline tubes with
   pixel-aligned UVs, placed procedurally.
 - Water reflections: a second camera renders the scene from below.
-  Hafid GAP: the pond only mixes a flat sky colour at grazing angles; palms
-  and sky are not reflected. Next step: mirrored camera (excluding ground
-  and water layers) sampled in pixel_water at mirrored screen UV, with
-  device cost measured before enabling by default.
+  Hafid (round 3): `WaterReflection` — a mirrored camera renders only the
+  REFLECT layer (palms, acacias, player) into a full-resolution SubViewport
+  with transparent background; pixel_water samples it at (1-u, v), wobbles
+  it with the ripple bands, tints it with the water and dithers it onto the
+  world texel grid. The sky stays the stylised band. Skipped when the pond
+  is off-screen or >60 m away. `Oasis.reflections` turns it off.
+  Measured, arrival view, software renderer: 444k -> 525k primitives,
+  179 -> 233 draws, ~230 -> ~260 ms (about +13-18 %). Needs device check.
 
 ### Applied in round 2
 | Garbage Country trait | Hafid implementation |

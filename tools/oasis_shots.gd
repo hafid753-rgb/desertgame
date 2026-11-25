@@ -38,6 +38,17 @@ func _ready() -> void:
 		await _probe(o)
 		get_tree().quit()
 		return
+	if OS.get_cmdline_user_args().has("refl"):
+		shots = [shots[1], shots[2], ["oasis_11_reflection", o + Vector3(6.2, 0.05, 2.0), 1.25, -0.2]]
+		for s in shots:
+			_place(s[1], s[2], s[3])
+			await _wait(40)
+			await _shot(str(s[0]) + "_refl")
+		var oz: Oasis = main.get_children().filter(func(c): return c is Oasis)[0]
+		oz.reflection.vp.get_texture().get_image().save_png("user://shots/reflection_buffer.png")
+		await _probe(o)
+		get_tree().quit()
+		return
 	if OS.get_cmdline_user_args().has("prints"):
 		shots = []
 	for s in shots:

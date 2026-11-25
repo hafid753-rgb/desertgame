@@ -20,6 +20,11 @@ uniform vec4 foam : source_color = vec4(0.93, 0.92, 0.86, 1.0);
 uniform vec4 ripples[8];   // world x, z, birth (wind_time), strength (0 = unused)
 uniform float ripple_speed = 1.1;
 uniform float ripple_life = 2.4;
+// planar reflection (WaterReflection): mirrored camera image, sampled at
+// (1 - u, v), wobbled by the ripple bands, dithered on world texels
+uniform sampler2D reflection_tex : source_color, filter_nearest, repeat_disable;
+uniform float reflection_on = 0.0;
+uniform float reflection_strength = 0.55;
 
 varying vec3 wp;
 varying float depth01;
@@ -52,7 +57,20 @@ void fragment() {
 	c *= 1.0 + band * 0.07;
 	// stylised reflection toward the horizon
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);
-	c = mix(c, sky.rgb, step(0.6, fres + band * 0.08) * 0.35);
+	if (reflection_on > 0.5) {
+		vec2 ruv = vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y);
+		ruv.x += band * 0.004 + sin(q.y * 11.0 + t * 1.7) * 0.0015;
+		vec4 refl = texture(reflection_tex, ruv);
+		c = mix(c, sky.rgb, step(0.6, fres + band * 0.08) * 0.35);
+		// reflected objects (alpha) take on the water colour, stronger at
+		// grazing angles, through an ordered dither on the world texel grid
+		float k = refl.a * reflection_strength * (0.7 + 0.3 * fres) * (1.0 - band * 0.25);
+		if (k > bayer4(ivec2(cell) + ivec2(1, 2)) * 0.6) {
+			c = mix(c, refl.rgb * vec3(0.7, 0.85, 0.88), 0.75);
+		}
+	} else {
+		c = mix(c, sky.rgb, step(0.6, fres + band * 0.08) * 0.35);
+	}
 	// shoreline foam: an animated band of texels near the edge
 	float f = dd + 0.035 * sin(t * 1.6 + (q.x + q.y) * 6.0);
 	if (f < 0.022 || (f < 0.05 && hash12(cell + floor(t * 2.0)) > 0.6)) {

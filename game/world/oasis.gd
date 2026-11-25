@@ -10,6 +10,9 @@ const PPM := 32.0
 @export var pond_radius := 4.6
 @export var area_radius := 15.0
 @export var seed_value := 7
+## Planar reflection of palms/acacias/player in the pond (second camera;
+## measured ~+18 % frame time on the arrival view in software rendering).
+@export var reflections := true
 
 var rng := RandomNumberGenerator.new()
 var shore: PackedVector2Array = PackedVector2Array()
@@ -22,6 +25,7 @@ var _ripple_i := 0
 var _in_water := false
 var _ripple_cd := 0.0
 var _splash: CPUParticles3D
+var reflection: WaterReflection
 
 
 func _ready() -> void:
@@ -42,6 +46,15 @@ func _ready() -> void:
 	_build_shrubs()
 	_build_rocks()
 	_build_splash()
+	# palms, acacias and shrub roots reflect in the pond
+	for c in get_children():
+		if c is Node3D and not c is GeometryInstance3D and not c is CPUParticles3D:
+			WaterReflection.tag(c)
+	if reflections:
+		reflection = WaterReflection.new()
+		reflection.material = water_mat
+		reflection.water_y = 0.05
+		add_child(reflection)
 	for c in get_children():
 		if c.has_meta("leaf_count"):
 			leaf_count += int(c.get_meta("leaf_count"))
@@ -259,6 +272,9 @@ func _build_splash() -> void:
 ## Wading: splash + big ring on entry, rings from the legs while moving,
 ## slow rings while standing in the water.
 func _process(delta: float) -> void:
+	if reflection:
+		reflection.centre = global_position
+		reflection.water_y = global_position.y + 0.05
 	var p := get_tree().get_first_node_in_group("player") as Node3D
 	if p == null or water_mat == null:
 		return
