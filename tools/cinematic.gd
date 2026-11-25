@@ -41,6 +41,14 @@ const CAPTIONS := {
 	"board": "SHIELD BOARD  —  groove in the sand · warm dust plume",
 	"daraa": "DARAA  —  draped: walk · run · jump · dodge",
 }
+const SHOW_CAPS := [
+	"DARAA  —  one folded sheet · open sides · embroidered neck and pocket",
+	"WALKING  —  no hands: the cloth hangs from the shoulders",
+	"RUN · TURN · JUMP  —  hem and sides lag with inertia",
+	"COMBAT  —  hands appear · right side thrown onto the shoulder",
+	"CLIMBING  —  both sides gathered",
+	"GLIDING  —  the daraa's sides open as wings"]
+const SHOW_T := [0.0, 6.0, 10.0, 15.0, 21.5, 99.0]
 const DARAA_CAPS := ["DARAA  —  draped: walk · run · jump · dodge",
 	"DARAA  —  one side thrown onto the shoulder: sword arm free",
 	"DARAA  —  both sides gathered: climbing",
@@ -99,6 +107,12 @@ func _ready() -> void:
 		"sun":
 			_place(Vector3(30, 0.05, -28), 0.0)
 			dur = 7.0
+		"showcase":
+			_place(Vector3(-46.0, 0.05, 28.0), 0.0)
+			if main.jinn:
+				main.jinn.ai_enabled = false
+				main.jinn.global_position = Vector3(0, 0.1, -9)
+			dur = 27.0
 		"daraa":
 			_place(Vector3(-10.5, 0.1, 2.0), -PI * 0.5)
 			if main.jinn:
@@ -148,6 +162,8 @@ func _physics_process(delta: float) -> void:
 			mv = Vector2(sin(t * 1.3) * 0.25, -1.0) if t > 0.4 else Vector2.ZERO
 		"fight":
 			mv = _fight_bot(delta)
+		"showcase":
+			mv = _showcase_input(delta)
 		"daraa":
 			if t > 0.8 and t < 2.6:
 				mv = Vector2(0, -0.4)
@@ -210,6 +226,58 @@ func _fight_bot(delta: float) -> Vector2:
 			_tap("attack")
 			next_tap = t + (0.32 if taps % 5 != 4 else 0.7)
 	return Vector2.ZERO
+
+
+var _show_seg := -1
+var _glided := false
+
+
+func _show_segment() -> int:
+	var seg := 0
+	for i in SHOW_T.size():
+		if t >= SHOW_T[i]:
+			seg = i
+	if seg == 4 and (p.state == Player.State.GLIDE or _glided):
+		_glided = true
+		seg = 5
+	return seg
+
+
+func _showcase_input(delta: float) -> Vector2:
+	var seg := 0
+	for i in SHOW_T.size():
+		if t >= SHOW_T[i]:
+			seg = i
+	if seg != _show_seg:
+		_show_seg = seg
+		match seg:
+			3:    # courtyard: a shadow jinn in front, sword drawn
+				_place(Vector3(-3.0, 0.1, 2.0), -PI * 0.5)
+				if main.jinn:
+					main.jinn.global_position = Vector3(-1.2, 0.1, 2.0)
+					main.jinn.look_at(Vector3(-3.0, 0.1, 2.0), Vector3.UP)
+			4:    # the east wall; the jinn sent away so the sword is put up
+				_place(Vector3(8.6, 0.1, 2.0), -PI * 0.5)
+				if main.jinn:
+					main.jinn.global_position = Vector3(-30, 0.1, -30)
+	match seg:
+		0:
+			return Vector2.ZERO
+		1:
+			return Vector2(0, -0.38) if t > 6.3 else Vector2.ZERO
+		2:
+			if absf(t - 12.2) < delta * 0.5:
+				_tap("jump", 0.22)
+			return Vector2(sin((t - 10.0) * 2.2) * 0.55, -1.0) if t < 14.4 else Vector2.ZERO
+		3:
+			for at in [15.8, 16.3, 16.8, 17.3, 18.6, 19.1]:
+				if absf(t - at) < delta * 0.5:
+					_tap("attack")
+			if absf(t - 19.9) < delta * 0.5:
+				_tap("dodge")
+			return Vector2.ZERO
+		_:
+			return Vector2(0, -0.8)
 
 
 ## Camera moves, run after everything else each frame.
@@ -346,6 +414,45 @@ func _process(delta: float) -> void:
 			pos.x = clampf(pos.x, -9.0, 9.0)
 			pos.z = clampf(pos.z, -9.0, 9.0)
 			smooth = 3.5
+		"showcase":
+			var seg := _show_segment()
+			if seg != _seg:
+				_seg = seg
+				_first = true
+			_cap_text = SHOW_CAPS[seg]
+			var lt: float = t - float(SHOW_T[mini(seg, 4)])
+			match seg:
+				0:   # slow close orbit in the wind: embroidery, pocket, folds
+					var a := lerpf(-0.9, 1.1, clampf(lt / 6.0, 0.0, 1.0))
+					pos = pp + Vector3(sin(a), 0, -cos(a)) * 2.3 + Vector3(0, 1.0, 0)
+					look = pp + Vector3(0, 0.72, 0)
+					cam.fov = 38.0
+					smooth = 6.0
+				1:   # low front three-quarter, walking toward camera
+					pos = pp + fwd * 2.6 + side * 1.3 + Vector3(0, 0.75, 0)
+					look = pp + Vector3(0, 0.65, 0)
+					cam.fov = 40.0
+					smooth = 8.0
+				2:   # side tracking, low: lag on turns, lift on the jump
+					pos = pp + side * 4.0 + fwd * 0.5 + Vector3(0, 0.8, 0)
+					look = pp + fwd * 0.6 + Vector3(0, 0.7, 0)
+					cam.fov = 44.0
+					smooth = 7.0
+				3:   # combat, profile from the cat's open side: cat and jinn both in frame
+					pos = pp - side * 3.0 + fwd * 0.9 - Vector3(0, 0, 0) + Vector3(0, 1.0, 0)
+					look = pp + fwd * 0.7 + Vector3(0, 0.8, 0)
+					cam.fov = 42.0
+					smooth = 6.0
+				4:   # behind and to the side for the climb
+					pos = pp - fwd * 3.0 + side * 1.8 + Vector3(0, 1.3, 0)
+					look = pp + Vector3(0, 1.0, 0)
+					cam.fov = 48.0
+					smooth = 8.0
+				_:   # alongside the glide, a little below
+					pos = pp + side * 3.6 - fwd * 0.6 + Vector3(0, 0.2, 0)
+					look = pp + fwd * 1.0 + Vector3(0, 0.8, 0)
+					cam.fov = 50.0
+					smooth = 8.0
 		"daraa":
 			var seg := 0 if t < 2.6 else (1 if t < 4.9 else (2 if t < 8.4 else 3))
 			if seg != _seg:

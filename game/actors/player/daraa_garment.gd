@@ -192,7 +192,11 @@ func update(delta: float, model: Node3D, state: String, vel: Vector3, armed: boo
 	_set_param("wind_speed_k", clampf(speed / 10.0, 0.0, 1.5))
 	# collision proxies (model space)
 	var rad := [0.1, 0.1]
-	if hands.size() > 1:
+	if hands.size() < 2:
+		# hands hidden (not in use): no hand proxies
+		_set_param("col_hand_r", Vector4(0, -9, 0, 0))
+		_set_param("col_hand_l", Vector4(0, -9, 0, 0))
+	else:
 		_set_param("col_hand_r", _sphere(ctr * (hands[0] as Vector3), rad[0]))
 		_set_param("col_hand_l", _sphere(ctr * (hands[1] as Vector3), rad[1]))
 	if feet.size() > 1:

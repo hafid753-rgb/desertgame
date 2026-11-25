@@ -270,6 +270,7 @@ func animate(delta: float, info: Dictionary) -> void:
 	if rig:
 		_animate_rig(delta, info, state, move, t, sprinting)
 		_surf_and_veil(delta, state, info)
+		_update_hand_visibility(delta, state)
 		if _spread:
 			var locomote := anim_name in ["Walking_A", "Walking_B", "Running_A", "Running_B"]
 			_spread.tuck = lerpf(_spread.tuck, clampf(move * 2.0, 0.0, 1.0) if locomote else 0.0, 1.0 - exp(-10.0 * delta))
@@ -718,6 +719,8 @@ func _build_rig() -> void:
 	_bone_attach("handslot.l")
 	_foot_base_r = foot_r.transform
 	_foot_base_l = foot_l.transform
+	_hand_base_r = hand_r.transform
+	_hand_base_l = hand_l.transform
 	_spread = spread
 	_exag = Exaggerate.new()
 	skel.add_child(_exag)
@@ -893,13 +896,49 @@ func _surf_and_veil(delta: float, state: String, info: Dictionary) -> void:
 	if garment:
 		# the daraa's own sides open as the glide sail (Spread blend shape)
 		daraa.visible = false
-		garment.update(delta, self, state, v, armed, [hand_r.global_position, hand_l.global_position], [foot_r.global_position, foot_l.global_position], [foot_r.global_basis.y.normalized(), foot_l.global_basis.y.normalized()])
+		garment.update(delta, self, state, v, armed, [hand_r.global_position, hand_l.global_position] if hand_r.visible else [], [foot_r.global_position, foot_l.global_position], [foot_r.global_basis.y.normalized(), foot_l.global_basis.y.normalized()])
 	# veil
 	var want := 1.0 if state in ["SURF", "GLIDE"] else 0.0
 	_veil_k = move_toward(_veil_k, want, delta * 4.0)
 	if _veil:
 		_veil.visible = _veil_k > 0.02
 		_veil.scale = Vector3(1.0, maxf(_veil_k, 0.02), 1.0)
+
+
+## Floating hands only appear when they are used (owner: walking and
+## running don't need hands, combat does): sword drawn, any combat state,
+## or an emote (thumbs up / peace are hand gestures). They pop in with a
+## small overshoot and shrink away.
+const HAND_STATES := ["ATTACK", "HEAVY", "HEAVY_CHARGE", "GUARD", "DEFENSE", "CAST", "HITSTUN"]
+var _hand_base_r := Transform3D.IDENTITY
+var _hand_base_l := Transform3D.IDENTITY
+var _hand_k := 0.0
+var _hand_kv := 0.0
+
+
+func hands_wanted(state: String) -> bool:
+	return armed or state in HAND_STATES or _emote_t > 0.0
+
+
+func _update_hand_visibility(delta: float, state: String) -> void:
+	var target := 1.0 if hands_wanted(state) else 0.0
+	# underdamped spring in: a pop with overshoot; quick plain shrink out
+	if target > _hand_k:
+		var steps := clampi(ceili(delta * 120.0), 1, 12)
+		var h := minf(delta, 0.1) / float(steps)
+		for i in steps:
+			_hand_kv += ((target - _hand_k) * 260.0 - _hand_kv * 16.0) * h
+			_hand_k += _hand_kv * h
+	else:
+		_hand_kv = 0.0
+		_hand_k = move_toward(_hand_k, target, delta * 7.0)
+	var k := maxf(_hand_k, 0.0)
+	var vis := k > 0.02
+	hand_r.visible = vis
+	hand_l.visible = vis
+	if vis:
+		hand_r.transform = Transform3D(_hand_base_r.basis.scaled(Vector3.ONE * k), _hand_base_r.origin)
+		hand_l.transform = Transform3D(_hand_base_l.basis.scaled(Vector3.ONE * k), _hand_base_l.origin)
 
 
 func _build_surf_fx() -> void:

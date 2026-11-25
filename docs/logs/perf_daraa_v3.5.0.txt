@@ -1,0 +1,6 @@
+Daraa A/B frame cost, tools/daraa_perf.tscn, software OpenGL (llvmpipe) under xvfb, 1280x720, High preset.
+Not a phone measurement; no device frame rate is claimed.
+PERF daraa=true  mean_ms=262.2 p95_ms=314.9 primitives=596891
+PERF daraa=false mean_ms=256.5 p95_ms=307.1 primitives=620298
+PERF daraa=true  mean_ms=262.2 p95_ms=312.0 primitives=597995
+PERF daraa=false mean_ms=259.1 p95_ms=322.1 primitives=620746

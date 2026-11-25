@@ -136,6 +136,19 @@ tools/garment/plot_daraa.py         orthographic views of every shape key (quick
   cloth, so the embroidery shows on the front only. The outline hull uses
   the same deformation.
 
+## 5b. Hands only when used (v3.5.1)
+
+The floating hands appear only when they're needed:
+- combat states, or the sword drawn;
+- emotes (thumbs up and peace are hand gestures).
+
+They're hidden while idle, walking, running, jumping, climbing, gliding and
+surfing. They pop in on a spring with a small overshoot and shrink away in
+about 0.15 s. The animation still drives them while hidden; only scale and
+visibility change. While they're hidden, the daraa's hand collision proxies
+are switched off.
+`CreatureModel.hands_wanted()` / `_update_hand_visibility()`.
+
 ## 6. Validation
 
 | Check | Output |
