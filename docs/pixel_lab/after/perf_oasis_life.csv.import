@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://bm73lcjknxvl2"
+
+[deps]
+
+files=["res://docs/pixel_lab/after/perf_oasis_life.fps.translation", "res://docs/pixel_lab/after/perf_oasis_life.ft.translation", "res://docs/pixel_lab/after/perf_oasis_life.ft.translation", "res://docs/pixel_lab/after/perf_oasis_life.ft.translation", "res://docs/pixel_lab/after/perf_oasis_life.ft.translation", "res://docs/pixel_lab/after/perf_oasis_life.draw.translation", "res://docs/pixel_lab/after/perf_oasis_life.primitives.translation", "res://docs/pixel_lab/after/perf_oasis_life.static.translation", "res://docs/pixel_lab/after/perf_oasis_life.input.translation", "res://docs/pixel_lab/after/perf_oasis_life.device.translation", "res://docs/pixel_lab/after/perf_oasis_life.renderer.translation", "res://docs/pixel_lab/after/perf_oasis_life.player.translation"]
+
+source_file="res://docs/pixel_lab/after/perf_oasis_life.csv"
+dest_files=["res://docs/pixel_lab/after/perf_oasis_life.fps.translation", "res://docs/pixel_lab/after/perf_oasis_life.ft.translation", "res://docs/pixel_lab/after/perf_oasis_life.ft.translation", "res://docs/pixel_lab/after/perf_oasis_life.ft.translation", "res://docs/pixel_lab/after/perf_oasis_life.ft.translation", "res://docs/pixel_lab/after/perf_oasis_life.draw.translation", "res://docs/pixel_lab/after/perf_oasis_life.primitives.translation", "res://docs/pixel_lab/after/perf_oasis_life.static.translation", "res://docs/pixel_lab/after/perf_oasis_life.input.translation", "res://docs/pixel_lab/after/perf_oasis_life.device.translation", "res://docs/pixel_lab/after/perf_oasis_life.renderer.translation", "res://docs/pixel_lab/after/perf_oasis_life.player.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

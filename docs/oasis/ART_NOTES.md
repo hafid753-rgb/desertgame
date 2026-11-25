@@ -17,7 +17,40 @@ and "pixels are roughly the same size across the model".
   Country foliage), each moving on its own.
 Not available here: I could not view Garbage Country footage from this
 workspace (no video/image access), so comparisons are against Noio's
-documented principles and the brief, not frame-matched.
+documented principles, press descriptions and the brief, not frame-matched.
+
+### Press / store descriptions (round 2, 2026-11-25)
+- PC Gamer (PC Gaming Show 2025 coverage) sums the look up as "Wobbly
+  PlayStation polygons. Dithered dust." -> dust and transparency are
+  ordered dither, never soft alpha.
+- Store copy: sun-bleached concrete, "the wind whistles as dust blows over a
+  forgotten highway" -> wind is a visible actor: sand moving along the
+  ground, not only plants swaying.
+- 80.lv: Noio paints texels onto simple 3D models in Blender with his
+  PixPaint plug-in; a separate 3D pixel-art artist names perfect UV
+  unwrapping and texel density as what matters most.
+
+### Applied in round 2
+| Garbage Country trait | Hafid implementation |
+|---|---|
+| Dithered dust | `dust_dither.gdshader` (footstep/landing puffs, water spray), `wind_dust.gdshader` drift sheet + grains — all transparency is a 4x4 ordered dither on world texels (`bayer4()` in pixel_common) |
+| Wind as a visible actor | Blown-sand streaks travel downwind and thicken under each gust front of the shared `Wind` field; grains hop in gusts; leaves shed from acacias drift, settle, slide in gusts |
+| Constant texel density | Footprints are resampled onto the sand's own 32 px/m grid at any heading (`footprint.gdshader`), so prints never show rotated pixels; dust discs quantised to world texels |
+| Traces of passage | Boot prints every 0.5 m, alternating feet, eroded by wind over ~40 s (faster in gusts) |
+| Readable forms at a distance | Acacia canopy rebuilt from feathery bipinnate sprays (6x6 px pinnae every 3 texels along twigs), two tiers: sunlit top, darker underside |
+
+Also: wading — splash of pixel droplets on entry, expanding crest/trough
+ripple rings (8 slots, dithered as they age), lapping foam ring at the legs.
+
+### Measured cost of round 2 (same view, software renderer under xvfb, NOT device data)
+Arrival view (oasis_01), 30-frame average:
+- HEAD before round 2: 432k primitives, 174 draws, 234 ms
+- round 2: 444k primitives, 179 draws, ~230 ms (noise)
+- toggling only footprints + wind dust: +1.2k primitives, +3 draws, no measurable frame-time change
+- new acacia canopies (6.6k pinnae, colour + shadow pass): ~53k primitives, 6 draws
+This workspace's renderer is far slower than a phone GPU and slower than
+the previous session's (same HEAD view measured 234 ms today); compare
+only within a session. Device profiling still required.
 
 ## Peers used as reference
 - Journey: sand diffuse contrast, ripples, glitter (Zucconi series).
@@ -50,7 +83,9 @@ Screenshot tour incl. courtyard: 12 fps mean, 79 ms mean frame,
 chunk visibility range (55 m) and blade density are the first knobs.
 
 ## Known gaps
-- Acacia leaflets read as chunky clumps at mid distance; needs smaller
-  leaflet sprites or impostor cards at range.
-- No falling leaves, dust, footprints yet (Phases 2 and 4).
-- Pond is walk-through (no splash/ripple from the player yet).
+- Footprints are small at the default camera distance (true boot scale);
+  they read best when the camera looks back along the trail.
+- Prints also appear on the packed-earth courtyard floor (no surface type
+  lookup yet).
+- Grass does not flatten permanently where the player walked.
+- Palm fronds do not shed (date palms rarely drop pinnae; skipped on purpose).

@@ -3,15 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b8hgq3e1knq0e"
-path="res://.godot/imported/_veg_sheet.png-e2a7987e842b67dff20d3c75881f7630.ctex"
-metadata={
-"vram_texture": false
-}
+valid=false
 
 [deps]
 
 source_file="res://game/art/pixel/_veg_sheet.png"
-dest_files=["res://.godot/imported/_veg_sheet.png-e2a7987e842b67dff20d3c75881f7630.ctex"]
 
 [params]
 

@@ -15,10 +15,20 @@ var rng := RandomNumberGenerator.new()
 var shore: PackedVector2Array = PackedVector2Array()
 var grass_count := 0
 var leaf_count := 0
+var water_mat: ShaderMaterial
+var splash_count := 0
+var _ripples: Array[Vector4] = []
+var _ripple_i := 0
+var _in_water := false
+var _ripple_cd := 0.0
+var _splash: CPUParticles3D
 
 
 func _ready() -> void:
 	rng.seed = seed_value
+	add_to_group("water")
+	for i in 8:
+		_ripples.append(Vector4.ZERO)
 	_build_shore_outline()
 	_build_pond()
 	_build_shore_ring()
@@ -31,6 +41,10 @@ func _ready() -> void:
 	Vegetation.acacia(self, Vector3(9.5, 0, 8.0), 0.9, rng)
 	_build_shrubs()
 	_build_rocks()
+	_build_splash()
+	for c in get_children():
+		if c.has_meta("leaf_count"):
+			leaf_count += int(c.get_meta("leaf_count"))
 
 
 ## Radius of the pond at angle a (irregular, lobed).
@@ -73,6 +87,7 @@ func _build_pond() -> void:
 	var m := ShaderMaterial.new()
 	m.shader = load("res://game/shaders/pixel_water.gdshader")
 	mi.material_override = m
+	water_mat = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
@@ -190,3 +205,78 @@ func _build_rocks() -> void:
 		mi.scale = Vector3(s * rng.randf_range(0.9, 1.4), s * 0.6, s)
 		mi.rotation.y = rng.randf() * TAU
 		add_child(mi)
+
+
+## True if a world position is over open water.
+func is_water(world: Vector3) -> bool:
+	var l := to_local(world)
+	return shore_distance(Vector2(l.x, l.z)) < -0.05
+
+
+## Expanding ring on the water surface at a world position.
+func ripple(world: Vector3, strength: float) -> void:
+	_ripples[_ripple_i] = Vector4(world.x, world.z, Wind.time, strength)
+	_ripple_i = (_ripple_i + 1) % _ripples.size()
+	water_mat.set_shader_parameter("ripples", PackedVector4Array(_ripples))
+
+
+## Pixel spray of droplets (dust_dither shader in water colours).
+func _build_splash() -> void:
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://game/shaders/dust_dither.gdshader")
+	mat.set_shader_parameter("lit", Color(0.93, 0.95, 0.9))
+	mat.set_shader_parameter("shade", Color(0.55, 0.72, 0.72))
+	mat.set_shader_parameter("quad_size", 0.14)
+	var q := QuadMesh.new()
+	q.size = Vector2(0.14, 0.14)
+	q.material = mat
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 1.0))
+	fade.set_color(1, Color(1, 1, 1, 0.2))
+	_splash = CPUParticles3D.new()
+	_splash.top_level = true
+	_splash.mesh = q
+	_splash.one_shot = true
+	_splash.emitting = false
+	_splash.explosiveness = 0.9
+	_splash.lifetime = 0.7
+	_splash.amount = 22
+	_splash.direction = Vector3(0, 1, 0)
+	_splash.spread = 35.0
+	_splash.initial_velocity_min = 1.6
+	_splash.initial_velocity_max = 3.4
+	_splash.gravity = Vector3(0, -9.0, 0)
+	_splash.color_ramp = fade
+	_splash.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	_splash.emission_ring_axis = Vector3.UP
+	_splash.emission_ring_radius = 0.3
+	_splash.emission_ring_inner_radius = 0.15
+	_splash.emission_ring_height = 0.0
+	_splash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_splash)
+
+
+## Wading: splash + big ring on entry, rings from the legs while moving,
+## slow rings while standing in the water.
+func _process(delta: float) -> void:
+	var p := get_tree().get_first_node_in_group("player") as Node3D
+	if p == null or water_mat == null:
+		return
+	var inside := is_water(p.global_position) and p.global_position.y < global_position.y + 0.6
+	var v: Vector3 = p.get("velocity") if "velocity" in p else Vector3.ZERO
+	var spd := Vector2(v.x, v.z).length()
+	if inside and not _in_water:
+		ripple(p.global_position, 1.0)
+		_splash.global_position = p.global_position + Vector3(0, 0.06, 0)
+		_splash.amount = clampi(int(8 + spd * 4.0), 8, 30)
+		_splash.restart()
+		splash_count += 1
+		_ripple_cd = 0.25
+	elif inside:
+		_ripple_cd -= delta
+		if _ripple_cd <= 0.0:
+			ripple(p.global_position, 0.7 if spd > 0.5 else 0.35)
+			_ripple_cd = 0.3 if spd > 0.5 else 1.6
+	elif _in_water and not inside:
+		ripple(p.global_position, 0.6)
+	_in_water = inside

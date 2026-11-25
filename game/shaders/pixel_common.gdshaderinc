@@ -31,3 +31,12 @@ vec3 pixel_light_ramp(float ndl, float atten) {
 	vec3 mid = vec3(0.86, 0.80, 0.74);
 	return mix(mix(shadow, mid, lit), PAL_SUN * 1.05, bright * 0.6);
 }
+
+// 4x4 ordered-dither threshold (0..1) for an integer cell. Used for every
+// pixel-art transparency (dust, fades, prints) instead of alpha blending.
+float bayer4(ivec2 c) {
+	ivec2 m = ivec2(((c.x % 4) + 4) % 4, ((c.y % 4) + 4) % 4);
+	int i = m.y * 4 + m.x;
+	float b[16] = float[](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+	return (b[i] + 0.5) / 16.0;
+}

@@ -10,6 +10,7 @@ extends RefCounted
 const PPM := 32.0
 const VEG_SHADER := preload("res://game/shaders/veg_card.gdshader")
 const UV_SHADER := preload("res://game/shaders/pixel_uv.gdshader")
+const LEAF_SHADER := preload("res://game/shaders/leaf_fall.gdshader")
 
 static var _card_cache: Dictionary = {}
 
@@ -239,28 +240,50 @@ static func acacia(parent: Node3D, base: Vector3, scale: float, rng: RandomNumbe
 		root.add_child(bm)
 		tips.append(sp[sp.size() - 1])
 		tips.append(sp[4])
-	# canopy: flat clumps of leaflets above the branch tips
+	# canopy: an umbrella of feathery sprays. Each spray is a twig line with
+	# paired 6x6 pinnae every 3 texels (acacias are bipinnate), in two tiers:
+	# a sunlit flat top and a darker underside layer for depth.
 	var items: Array = []
+	var shed: Array[Vector3] = []
 	var canopy_y := h + 1.15 * scale
+	var step := 3.0 / PPM
 	for tip in tips:
-		var clump := rng.randi_range(220, 320)
-		var rad := rng.randf_range(0.9, 1.3) * scale
-		for i in clump:
+		var centre := Vector3(tip.x, canopy_y + (tip.y - canopy_y) * 0.25, tip.z)
+		var rad := rng.randf_range(1.0, 1.4) * scale
+		for sp_i in rng.randi_range(30, 40):
+			var under := rng.randf() < 0.35
 			var a := rng.randf() * TAU
-			var r := sqrt(rng.randf()) * rad
-			var off := Vector3(cos(a) * r, rng.randf_range(-0.12, 0.22) * scale * (1.0 - r / rad * 0.6), sin(a) * r)
-			var pos := Vector3(tip.x, canopy_y + (tip.y - canopy_y) * 0.25, tip.z) + off
-			# leaflets lie roughly flat, hanging slightly, random heading
-			var yaw := rng.randf() * TAU
-			var tilt := rng.randf_range(-1.2, -0.5)
-			var basis := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, tilt)
-			var s := rng.randf_range(0.85, 1.2)
-			var cell := rng.randi() % 4 if rng.randf() > 0.1 else 4 + rng.randi() % 2
-			items.append([Transform3D(basis.scaled(Vector3.ONE * s), pos), cell, rng.randf_range(0.8, 1.3), 1.0])
-	var lmesh := card(8.0 / PPM, 8.0 / PPM, 1, 2)
-	var lmat := card_material("res://game/art/pixel/veg_leaf.png", 6.0, 1.0, 1, 8.0 / PPM, 0.6, 1.4)
+			var r0 := sqrt(rng.randf()) * rad * 0.55
+			var start := centre + Vector3(cos(a) * r0, (rng.randf_range(-0.04, 0.12) - (0.22 if under else 0.0)) * scale, sin(a) * r0)
+			var ha := a + rng.randf_range(-0.7, 0.7)
+			var dir := Vector3(cos(ha), rng.randf_range(-0.1, 0.04), sin(ha)).normalized()
+			var length := rng.randf_range(0.3, 0.65) * scale
+			var n := maxi(2, int(length / step))
+			for k in n:
+				var t := float(k) / float(n)
+				var pos := start + dir * length * t + Vector3(0, -t * t * 0.06 * scale, 0)
+				for side in [-1.0, 1.0]:
+					var yaw: float = atan2(dir.x, dir.z) + float(side) * rng.randf_range(1.0, 1.4)
+					var basis := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, rng.randf_range(-1.35, -0.85))
+					var cell: int
+					var roll := rng.randf()
+					if roll < 0.05:
+						cell = 5 + rng.randi() % 2          # dry
+					elif under:
+						cell = 3 + rng.randi() % 2          # shaded underside
+					else:
+						cell = [0, 1, 2, 7][rng.randi() % 4]
+					items.append([Transform3D(basis, pos), cell, rng.randf_range(0.8, 1.3), 1.0])
+				if rng.randf() < 0.012:
+					shed.append(pos)
+	var lmesh := card(6.0 / PPM, 6.0 / PPM, 1, 2)
+	var lmat := card_material("res://game/art/pixel/veg_leaf_fine.png", 8.0, 1.0, 1, 6.0 / PPM, 0.6, 1.4)
 	set_sway(lmat, base, h * 2.0, 0.08)
-	instances(root, lmesh, lmat, items, 6, rng, 140.0, true)
+	instances(root, lmesh, lmat, items, 8, rng, 140.0, true)
+	root.set_meta("leaf_count", items.size())
+	# shed leaves: dry and green sprays drifting down on the wind
+	falling_leaves(root, shed.slice(0, 48), "res://game/art/pixel/veg_leaf_fine.png", 8.0, [5, 6, 5, 6, 0, 7],
+		6.0 / PPM, 6.0 / PPM, -base.y, rng, 0.45, 15.0)
 	var body := StaticBody3D.new()
 	body.collision_layer = Combat.LAYER_WORLD
 	var col := CollisionShape3D.new()
@@ -272,6 +295,40 @@ static func acacia(parent: Node3D, base: Vector3, scale: float, rng: RandomNumbe
 	body.add_child(col)
 	root.add_child(body)
 	return root
+
+
+## Leaves that detach, tumble downwind, settle and dissolve (stateless GPU
+## loop, see leaf_fall.gdshader). `spawns` are local points in `parent`.
+static func falling_leaves(parent: Node3D, spawns: Array, tex_path: String, cols: float, cells: Array,
+		w: float, hgt: float, ground_y: float, rng: RandomNumberGenerator, fall_speed: float = 0.5,
+		cycle: float = 16.0) -> MultiMeshInstance3D:
+	if spawns.is_empty():
+		return null
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.mesh = card(w, hgt, 1, 1)
+	mm.instance_count = spawns.size()
+	for i in spawns.size():
+		mm.set_instance_transform(i, Transform3D(Basis(), spawns[i]))
+		mm.set_instance_custom_data(i, Color(float(cells[rng.randi() % cells.size()]) / cols, rng.randf(),
+			rng.randf(), rng.randf()))
+	var m := ShaderMaterial.new()
+	m.shader = LEAF_SHADER
+	m.set_shader_parameter("tex", load(tex_path))
+	m.set_shader_parameter("atlas_cols", cols)
+	m.set_shader_parameter("ground_y", ground_y)
+	m.set_shader_parameter("fall_speed", fall_speed)
+	m.set_shader_parameter("cycle", cycle)
+	m.set_shader_parameter("pivot", hgt * 0.5)
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.custom_aabb = AABB(Vector3(-20, -10, -20), Vector3(40, 20, 40))
+	mi.visibility_range_end = 60.0
+	parent.add_child(mi)
+	return mi
 
 
 ## Low thorny shrub: a dome of twig blades and leaflets.

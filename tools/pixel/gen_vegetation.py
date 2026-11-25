@@ -84,6 +84,48 @@ def sheet(cells, cw, ch, cols):
     return im
 
 
+def fine_leaflet(pal, rng, w=6, h=6):
+    """Acacia pinnule spray: a midrib with tiny paired leaflets (bipinnate)."""
+    im = Image.new("RGBA", (w, h), CLEAR)
+    px = im.load()
+    cx = w // 2
+    for y in range(h):
+        put(px, w, h, cx, y, pal[1])
+        if y < h - 1 and y % 2 == 0:
+            put(px, w, h, cx - 1, y, pal[2])
+            put(px, w, h, cx + 1, y, pal[3] if rng.random() < 0.5 else pal[2])
+            if y < h - 2 and rng.random() < 0.7:
+                put(px, w, h, cx - 2, y + 1, pal[2])
+                put(px, w, h, cx + 2, y + 1, pal[2])
+    put(px, w, h, cx, 0, pal[3])
+    return im
+
+
+def footprints():
+    """Boot prints (right, left) 10x10 pressed into sand: shadowed hollow
+    with a ridged sole, narrower heel, sand pushed up in front of the toe."""
+    hollow, deep, rim = (150, 118, 104, 255), (118, 94, 92, 255), (244, 226, 186, 255)
+    cells = []
+    for flip in (False, True):
+        im = Image.new("RGBA", (10, 10), CLEAR)
+        px = im.load()
+        for y in range(1, 10):
+            for x in range(10):
+                t = (y - 1) / 8.0
+                half = 2.9 - 1.1 * t
+                dx = (x - 4.5 - 0.5 * t) / half
+                dy = (y - 5.0) / 4.4
+                if dx * dx + dy * dy < 1.0:
+                    # toe-side edge falls in shadow, sole ridges
+                    px[x, y] = deep if (y <= 2 or (y % 3 == 0 and abs(dx) < 0.7)) else hollow
+        for x in (3, 4, 5, 6):
+            px[x, 0] = rim
+        if flip:
+            im = im.transpose(Image.FLIP_LEFT_RIGHT)
+        cells.append(im)
+    return cells
+
+
 def main():
     rng = random.Random(11)
     dry = ramp(hexc("C2B16A"), 5, 0.62, 1.15)
@@ -109,6 +151,13 @@ def main():
     leaves[2] = leaflet(6 + 2, 8, ramp(hexc("6F7E58"), 5, 0.6, 1.2), rng)
     leaves[3] = leaflet(8, 8, ramp(hexc("8C9467"), 5, 0.6, 1.2), rng)
     sheet(leaves, 8, 8, 6).save(os.path.join(OUT, "veg_leaf.png"))
+    # fine acacia sprays 6x6: 3 light, 2 dark (canopy underside), 2 dry, 1 olive
+    fine = ([fine_leaflet(ramp(hexc("7D8965"), 5, 0.6, 1.25), rng) for _ in range(3)]
+            + [fine_leaflet(ramp(hexc("56614A"), 5, 0.6, 1.15), rng) for _ in range(2)]
+            + [fine_leaflet(ramp(hexc("B5A061"), 5, 0.6, 1.15), rng) for _ in range(2)]
+            + [fine_leaflet(ramp(hexc("8C9467"), 5, 0.6, 1.2), rng)])
+    sheet(fine, 6, 6, 8).save(os.path.join(OUT, "veg_leaf_fine.png"))
+    sheet(footprints(), 10, 10, 2).save(os.path.join(OUT, "fx_footprint.png"))
     # palm frond leaflets 8x32: 3 variants
     palm = ramp(hexc("8A9455"), 5, 0.58, 1.2)
     palm_dry = ramp(hexc("B39B5E"), 5, 0.6, 1.15)
@@ -158,7 +207,7 @@ def main():
             px[x, y] = c + (255,)
     im.save(os.path.join(OUT, "veg_bark_acacia.png"))
     # review sheet
-    files = ["veg_grass", "veg_leaf", "veg_palm_leaflet", "veg_flower", "veg_bark_palm", "veg_bark_acacia"]
+    files = ["veg_grass", "veg_leaf", "veg_leaf_fine", "fx_footprint", "veg_palm_leaflet", "veg_flower", "veg_bark_palm", "veg_bark_acacia"]
     ims = [Image.open(os.path.join(OUT, f + ".png")) for f in files]
     big = [i.resize((i.size[0] * 6, i.size[1] * 6), Image.NEAREST) for i in ims]
     W = sum(b.size[0] for b in big) + 8 * (len(big) + 1)

@@ -810,6 +810,7 @@ func _animate_rig(delta: float, info: Dictionary, state: String, move: float, t:
 				else:
 					# walk 0..0.62 of top speed, scaled so feet don't slide
 					_play("Walking_A" if move < 0.38 else "Running_A", 0.18, lerpf(0.7, 1.15, move / 0.62))
+					_footstep_dust(false)
 	if not state in ["ATTACK", "HEAVY", "HEAVY_CHARGE"]:
 		_combat_pose("", 0.0, 1.0, 1.0)
 		attack_trail(false)
@@ -850,28 +851,16 @@ func _secondary_motion(delta: float, info: Dictionary, move: float) -> void:
 # --- Dust --------------------------------------------------------------------
 
 func _build_dust() -> void:
-	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 1))
-	g.set_color(1, Color(1, 1, 1, 0))
-	var tex := GradientTexture2D.new()
-	tex.gradient = g
-	tex.fill = GradientTexture2D.FILL_RADIAL
-	tex.fill_from = Vector2(0.5, 0.5)
-	tex.fill_to = Vector2(0.5, 0.0)
-	tex.width = 32
-	tex.height = 32
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.vertex_color_use_as_albedo = true
-	mat.albedo_texture = tex
+	# pixel-art puff: world-texel disc, dithered transparency (dust_dither)
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://game/shaders/dust_dither.gdshader")
+	mat.set_shader_parameter("quad_size", 0.32)
 	var quad := QuadMesh.new()
 	quad.size = Vector2(0.32, 0.32)
 	quad.material = mat
 	var fade := Gradient.new()
-	fade.set_color(0, Color(0.96, 0.86, 0.68, 0.75))
-	fade.set_color(1, Color(0.96, 0.86, 0.68, 0.0))
+	fade.set_color(0, Color(1, 1, 1, 0.8))
+	fade.set_color(1, Color(1, 1, 1, 0.0))
 	var curve := Curve.new()
 	curve.add_point(Vector2(0, 0.5))
 	curve.add_point(Vector2(1, 1.6))
@@ -912,7 +901,7 @@ func puff(at: Vector3, amount: int = 10) -> void:
 	p.restart()
 
 
-func _footstep_dust() -> void:
+func _footstep_dust(dust: bool = true) -> void:
 	if anim == null:
 		return
 	var len := anim.current_animation_length
@@ -920,9 +909,40 @@ func _footstep_dust() -> void:
 		return
 	var ph := fmod(anim.current_animation_position / len, 0.5)
 	if ph < _step_prev:
-		var side := foot_r if fmod(anim.current_animation_position / len, 1.0) < 0.5 else foot_l
-		puff(side.global_position if side else global_position, 4)
+		var right := fmod(anim.current_animation_position / len, 1.0) < 0.5
+		var side := foot_r if right else foot_l
+		var at := side.global_position if side else global_position
+		if dust:
+			puff(at, 4)
 	_step_prev = ph
+	_sand_trail(1.0 if dust else 0.8)
+
+
+## Boot prints in the sand (player only; GroundFX decides where they stick):
+## one print per STRIDE metres travelled, alternating feet either side of
+## the path, so the trail reads at any speed regardless of clip timing.
+const STRIDE := 0.5
+var _print_from := Vector3.INF
+var _print_right := false
+
+
+func _sand_trail(depth: float) -> void:
+	var body := get_parent() as Node3D
+	if body == null or not body.is_in_group("player"):
+		return
+	var pos := body.global_position
+	if _print_from == Vector3.INF or pos.distance_to(_print_from) > STRIDE * 4.0:
+		_print_from = pos
+		return
+	var d := Vector3(pos.x - _print_from.x, 0, pos.z - _print_from.z)
+	if d.length() < STRIDE:
+		return
+	var fwd := d.normalized()
+	_print_from += fwd * STRIDE
+	_print_right = not _print_right
+	var side := Vector3(-fwd.z, 0, fwd.x) * (0.09 if _print_right else -0.09)
+	var at := Vector3(_print_from.x, pos.y, _print_from.z) + side
+	get_tree().call_group("ground_fx", "step", at, atan2(-fwd.x, -fwd.z), _print_right, depth)
 
 
 

@@ -33,6 +33,11 @@ func _ready() -> void:
 	var oasis := Oasis.new()
 	oasis.position = OASIS_AT
 	add_child(oasis)
+	add_child(GroundFX.new())
+	var dust := WindDust.new()
+	add_child(dust)
+	dust.mask_water(OASIS_AT, oasis.pond_radius * 1.15)
+	dust.set_ground_half(Courtyard.BOUND + 5.0)
 
 	player = Player.new()
 	player.species_id = species_id

@@ -22,20 +22,96 @@ func _ready() -> void:
 	var o: Vector3 = main.OASIS_AT
 	print("oasis grass blades ", main.get_children().filter(func(c): return c is Oasis)[0].grass_count)
 	if movie:
-		_place(o + Vector3(6.5, 0.05, 7.5), 0.75, -0.2)
+		_place(o + Vector3(12.0, 0.05, 1.2), PI * 0.5, -0.32)
 		return
+	var oasis: Oasis = main.get_children().filter(func(c): return c is Oasis)[0]
+	print("acacia+shrub leaves ", oasis.leaf_count)
 	var shots := [
 		["oasis_01_arrive", o + Vector3(7.5, 0.05, 9.0), 0.72, -0.22],
 		["oasis_02_pond", o + Vector3(3.4, 0.05, 4.4), 0.62, -0.42],
 		["oasis_03_palms", o + Vector3(-1.0, 0.05, 6.8), 0.1, -0.12],
 		["oasis_04_acacia", o + Vector3(-6.0, 0.05, -1.5), 2.4, -0.18],
 		["oasis_05_grass_low", o + Vector3(5.4, 0.05, 1.0), 1.45, -0.05],
+		["oasis_06_acacia_close", o + Vector3(-8.2, 0.05, -3.6), 2.45, 0.12],
 	]
+	if OS.get_cmdline_user_args().has("probe"):
+		await _probe(o)
+		get_tree().quit()
+		return
+	if OS.get_cmdline_user_args().has("prints"):
+		shots = []
 	for s in shots:
 		_place(s[1], s[2], s[3])
 		await _wait(40)
 		await _shot(str(s[0]))
+	# footprints: walk across open sand, then look back along the trail
+	_place(o + Vector3(14.0, 0.05, 14.0), 0.0, -0.35)
+	await _wait(10)
+	GameInput.touch_move = Vector2(0, -0.45)
+	await _wait_s(3.0)
+	GameInput.touch_move = Vector2.ZERO
+	await _wait_s(0.4)
+	main.camera_rig.yaw = p.rotation.y + PI * 0.8
+	main.camera_rig.pitch = -0.75
+	await _wait(25)
+	var gfx: GroundFX = main.get_children().filter(func(c): return c is GroundFX)[0]
+	print("prints ", gfx.count, " player ", p.global_position, " model ", p.model.global_position)
+	for i in mini(gfx.count, 4):
+		print("  print ", gfx._mm.get_instance_transform(i).origin, " ", gfx._mm.get_instance_custom_data(i), " t=", Wind.time)
+	if OS.get_cmdline_user_args().has("prints"):
+		await _shot("oasis_07_footprints")
+		get_tree().quit()
+		return
+	await _shot("oasis_07_footprints")
+	# splash: run into the pond
+	var edge := o + Vector3(oasis.pond_radius + 2.2, 0.05, 0.0)
+	_place(edge, PI * 0.5, -0.3)
+	await _wait(10)
+	GameInput.touch_move = Vector2(0, -1)
+	var t0 := Time.get_ticks_msec()
+	while oasis.splash_count == 0 and Time.get_ticks_msec() - t0 < 20000:
+		await get_tree().process_frame
+	await _wait_s(0.12)
+	GameInput.touch_move = Vector2.ZERO
+	main.camera_rig.yaw = PI * 0.5 + 0.5
+	await _shot("oasis_08_splash")
+	await _wait_s(0.6)
+	await _shot("oasis_09_ripples")
+	# blown sand: open desert, wait for a gust front to reach the player
+	_place(o + Vector3(14.0, 0.05, -12.0), 2.2, -0.28)
+	await _wait(10)
+	t0 = Time.get_ticks_msec()
+	while Wind.gust_at(p.global_position) < 0.85 and Time.get_ticks_msec() - t0 < 30000:
+		await get_tree().process_frame
+	await _shot("oasis_10_dust_gust")
 	get_tree().quit()
+
+
+## Same view, new effects on vs off: primitives, draw calls, frame time.
+func _probe(o: Vector3) -> void:
+	_place(o + Vector3(7.5, 0.05, 9.0), 0.72, -0.22)
+	var fx: Array = main.get_children().filter(func(c): return c is GroundFX or c is WindDust)
+	if OS.get_cmdline_user_args().has("canopy"):
+		fx = main.find_children("*", "MultiMeshInstance3D", true, false).filter(
+			func(m): return m.material_override is ShaderMaterial and str(m.material_override.get_shader_parameter("tex").resource_path).contains("leaf_fine"))
+		print("canopy instances ", fx.map(func(m): return m.multimesh.instance_count))
+	for on in [true, false, true]:
+		for n in fx:
+			n.visible = on
+		await _wait(30)
+		var ft := 0.0
+		for i in 30:
+			var t0 := Time.get_ticks_usec()
+			await get_tree().process_frame
+			ft += (Time.get_ticks_usec() - t0) / 1000.0
+		print("probe fx=", on, " prims ", Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+			" draws ", Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), " ft_ms ", ft / 30.0)
+
+
+func _wait_s(sec: float) -> void:
+	var end := Wind.time + sec
+	while Wind.time < end:
+		await get_tree().process_frame
 
 
 func _place(pos: Vector3, yaw: float, pitch: float) -> void:
@@ -50,9 +126,19 @@ func _process(delta: float) -> void:
 	if not movie:
 		return
 	t += delta
-	# walk through the grass toward the pond, then stand while a gust passes
-	GameInput.touch_move = Vector2(-0.35, -0.75) if t > 1.0 and t < 5.0 else Vector2.ZERO
-	if t > 11.0:
+	# cross the sand into the grass, splash into the pond, wade out, then
+	# stand while a gust carries sand and leaves past; look back at the trail
+	var mv := Vector2.ZERO
+	if t > 0.8 and t < 3.9:
+		mv = Vector2(0, -0.55)              # across the sand into the water
+	elif t > 6.0 and t < 8.6:
+		mv = Vector2(0.15, 0.55)            # wade back out onto the sand
+	GameInput.touch_move = mv
+	if t > 9.2 and t < 12.5:
+		# swing round to look back along the trail while a gust blows
+		main.camera_rig.yaw = lerp_angle(main.camera_rig.yaw, PI * 0.5 + 0.9, delta * 1.0)
+		main.camera_rig.pitch = lerpf(main.camera_rig.pitch, -0.55, delta * 1.0)
+	if t > 15.0:
 		get_tree().quit()
 
 

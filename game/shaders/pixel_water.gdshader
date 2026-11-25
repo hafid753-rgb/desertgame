@@ -5,6 +5,8 @@
 //  - stylised sky reflection at grazing angles
 //  - animated shoreline foam band
 //  - single-texel sun glints (stable per texel, depend on view + light)
+//  - interaction: expanding ripple rings (up to 8, set by Oasis) and a
+//    lapping foam ring around the player's legs while wading
 shader_type spatial;
 render_mode cull_back;
 #include "res://game/shaders/pixel_common.gdshaderinc"
@@ -15,6 +17,9 @@ uniform vec4 mid : source_color = vec4(0.3, 0.48, 0.5, 1.0);
 uniform vec4 deep : source_color = vec4(0.17, 0.3, 0.36, 1.0);
 uniform vec4 sky : source_color = vec4(0.62, 0.74, 0.78, 1.0);
 uniform vec4 foam : source_color = vec4(0.93, 0.92, 0.86, 1.0);
+uniform vec4 ripples[8];   // world x, z, birth (wind_time), strength (0 = unused)
+uniform float ripple_speed = 1.1;
+uniform float ripple_life = 2.4;
 
 varying vec3 wp;
 varying float depth01;
@@ -51,6 +56,34 @@ void fragment() {
 	// shoreline foam: an animated band of texels near the edge
 	float f = dd + 0.035 * sin(t * 1.6 + (q.x + q.y) * 6.0);
 	if (f < 0.022 || (f < 0.05 && hash12(cell + floor(t * 2.0)) > 0.6)) {
+		c = foam.rgb;
+	}
+	// interaction ripples: crest (light) leading a trough (dark), 1-2 texels,
+	// thinning out through the ordered dither as they age
+	float th = bayer4(ivec2(cell));
+	for (int i = 0; i < 8; i++) {
+		vec4 rp = ripples[i];
+		if (rp.w <= 0.0) {
+			continue;
+		}
+		float age = t - rp.z;
+		if (age < 0.0 || age > ripple_life) {
+			continue;
+		}
+		float rad = 0.12 + age * ripple_speed;
+		float dist = distance(q, rp.xy) + 0.02 * sin(atan(q.y - rp.y, q.x - rp.x) * 5.0 + rp.z);
+		float k = rp.w * (1.0 - age / ripple_life);
+		float tex = 1.0 / PIXELS_PER_METRE;
+		if (abs(dist - rad) < tex * 1.1 && k > th) {
+			c = mix(c, foam.rgb, 0.55);
+		} else if (dist < rad - tex && dist > rad - tex * 3.0 && k * 0.8 > th) {
+			c *= 0.86;
+		}
+	}
+	// lapping ring at the legs while wading
+	float pd = distance(q, player_pos.xz);
+	float lap = 0.3 + 0.03 * sin(t * 5.0 + atan(q.y - player_pos.z, q.x - player_pos.x) * 3.0);
+	if (abs(pd - lap) < 1.0 / PIXELS_PER_METRE && player_pos.y < 0.6) {
 		c = foam.rgb;
 	}
 	ALBEDO = c;
