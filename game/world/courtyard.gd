@@ -268,16 +268,16 @@ func _sand_mat(tint: Color) -> ShaderMaterial:
 	m.shader = _sand_shader
 	# Saharan orange (owner reference photo): terracotta sand, rust shadows,
 	# peach sheen; low-contrast tonal patches rather than strong mottling
-	var sand := Color("D27A48")
+	var sand := Color("D9864F")
 	m.set_shader_parameter("sand_color", sand * (tint / SAND) if tint != SAND else sand)
-	m.set_shader_parameter("shadow_color", Color("A4552F"))
+	m.set_shader_parameter("shadow_color", Color("BC6E42"))
 	m.set_shader_parameter("rim_color", Color("FFD2AE"))
 	m.set_shader_parameter("ocean_color", Color("FFD9B8"))
-	m.set_shader_parameter("tone_dark", Color(0.9, 0.84, 0.82))
-	m.set_shader_parameter("tone_light", Color(1.07, 1.05, 1.03))
+	m.set_shader_parameter("tone_dark", Color(0.95, 0.93, 0.92))
+	m.set_shader_parameter("tone_light", Color(1.04, 1.03, 1.02))
 	m.set_shader_parameter("pebble_light", Color("D8B49C"))
-	m.set_shader_parameter("pebble_dark", Color("8A5A48"))
-	m.set_shader_parameter("pebble_density", 0.035)
+	m.set_shader_parameter("pebble_dark", Color("A87A60"))
+	m.set_shader_parameter("pebble_density", 0.015)
 	m.set_shader_parameter("sand_tex", load("res://game/art/pixel/sand_128.png"))
 	_materials[key] = m
 	return m

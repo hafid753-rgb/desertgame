@@ -3,7 +3,7 @@
 // Soft "storybook" lighting (Animal Crossing / Wind Waker feel): wrapped
 // diffuse with a gentle cel step, light lavender shadows, a warm soft rim,
 // velvet sheen for cloth, and specular only where the material wants it.
-uniform vec4 shadow_tint : source_color = vec4(0.72, 0.56, 0.52, 1.0);
+uniform vec4 shadow_tint : source_color = vec4(0.8, 0.67, 0.63, 1.0);
 uniform float band_softness : hint_range(0.0, 0.5) = 0.1;
 uniform float wrap : hint_range(0.0, 1.0) = 0.45;
 uniform float toon_amount : hint_range(0.0, 1.0) = 0.95;

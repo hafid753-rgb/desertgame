@@ -11,9 +11,9 @@ render_mode unshaded, cull_disabled, shadows_disabled;
 #include "res://game/shaders/wind.gdshaderinc"
 
 uniform int mode = 0;
-uniform vec4 lit : source_color = vec4(0.92, 0.6, 0.4, 1.0);
-uniform vec4 shade : source_color = vec4(0.84, 0.52, 0.34, 1.0);
-uniform vec4 grain : source_color = vec4(0.74, 0.46, 0.3, 1.0);
+uniform vec4 lit : source_color = vec4(0.95, 0.76, 0.56, 1.0);
+uniform vec4 shade : source_color = vec4(0.89, 0.68, 0.49, 1.0);
+uniform vec4 grain : source_color = vec4(0.8, 0.6, 0.42, 1.0);
 uniform float amount = 1.0;
 uniform float radius = 22.0;          // sheet fade radius around the player
 uniform float speed = 3.2;            // m/s of blown sand per unit wind

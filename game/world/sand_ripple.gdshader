@@ -51,9 +51,9 @@ uniform vec4 tone_light : source_color = vec4(1.0, 0.86, 0.66, 1.0);
 uniform vec4 pebble_light : source_color = vec4(0.78, 0.74, 0.76, 1.0);
 uniform vec4 pebble_dark : source_color = vec4(0.48, 0.42, 0.48, 1.0);
 uniform float pebble_density = 0.11;
-uniform vec4 soil : source_color = vec4(0.56, 0.36, 0.25, 1.0);
-uniform vec4 soil_dark : source_color = vec4(0.44, 0.28, 0.2, 1.0);
-uniform vec4 moss : source_color = vec4(0.56, 0.5, 0.28, 1.0);
+uniform vec4 soil : source_color = vec4(0.68, 0.52, 0.38, 1.0);
+uniform vec4 soil_dark : source_color = vec4(0.6, 0.46, 0.34, 1.0);
+uniform vec4 moss : source_color = vec4(0.66, 0.6, 0.4, 1.0);
 global uniform vec4 soil_zone;
 
 varying vec3 world_p;

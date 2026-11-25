@@ -124,8 +124,8 @@ func _build_environment() -> void:
 
 	var sky_mat := ProceduralSkyMaterial.new()
 	# sun-bleached, dusty sky: pale horizon haze, restrained blue
-	sky_mat.sky_top_color = Color("EDD2B8")      # hazy cream sky (reference photo)
-	sky_mat.sky_horizon_color = Color("F0D1B5")
+	sky_mat.sky_top_color = Color("D3CACD")      # hazy cream sky (reference photo)
+	sky_mat.sky_horizon_color = Color("EBD3B6")
 	sky_mat.ground_horizon_color = Color("F0D1B5")
 	sky_mat.ground_bottom_color = Color("D99A70")
 	var sky := Sky.new()
@@ -137,7 +137,7 @@ func _build_environment() -> void:
 	# stay rust/peach as in the reference photo, never grey or purple
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("D9A88A")
-	env.ambient_light_energy = 0.6
+	env.ambient_light_energy = 0.72
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_white = 1.6
 	# atmospheric depth: warm dusty haze, distant scenery loses contrast
@@ -155,8 +155,8 @@ func _build_environment() -> void:
 	env.fog_sky_affect = 1.0
 	# restrained saturation
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 0.9
-	env.adjustment_contrast = 1.04
+	env.adjustment_saturation = 0.86
+	env.adjustment_contrast = 0.94
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)

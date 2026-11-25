@@ -97,7 +97,7 @@ void light() {
 	// blade orientation (and canopy self-shadow) read as clean bands
 	float ndl = dot(NORMAL, LIGHT) * 0.8 + 0.2;
 	float band = smoothstep(cel_split - 0.03, cel_split + 0.03, ndl) * ATTENUATION;
-	vec3 cel = mix(vec3(0.74, 0.56, 0.48), vec3(1.0, 0.92, 0.82), band);
+	vec3 cel = mix(vec3(0.84, 0.72, 0.64), vec3(1.0, 0.93, 0.84), band);
 	DIFFUSE_LIGHT += LIGHT_COLOR * cel / PI;
 	if (kind != 3) {
 		float back = pow(clamp(dot(VIEW, -LIGHT), 0.0, 1.0), 3.0);
