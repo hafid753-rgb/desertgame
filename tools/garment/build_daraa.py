@@ -177,10 +177,10 @@ def garment_object(verts, faces, uvs, cols, seams, name="Daraa"):
     return o
 
 
-def add_cloth(o, pin_group, frames, sew=True):
+def add_cloth(o, pin_group, frames, sew=True, pin_stiff=1.0):
     m = o.modifiers.new("Cloth", "CLOTH")
     st = m.settings
-    st.quality = 10
+    st.quality = 14
     st.mass = 0.25                     # bazin: light but stiff
     st.air_damping = 1.5
     st.tension_stiffness = 20
@@ -190,14 +190,14 @@ def add_cloth(o, pin_group, frames, sew=True):
     st.tension_damping = 5
     st.bending_damping = 0.5
     st.vertex_group_mass = pin_group
-    st.pin_stiffness = 1.0
+    st.pin_stiffness = pin_stiff
     st.use_sewing_springs = sew
     st.sewing_force_max = 0.0
     cs = m.collision_settings
-    cs.collision_quality = 4
+    cs.collision_quality = 8
     cs.distance_min = 0.01
     cs.use_self_collision = True
-    cs.self_distance_min = 0.009
+    cs.self_distance_min = 0.012
     cs.self_friction = 1.5
     m.point_cache.frame_start = 1
     m.point_cache.frame_end = frames
@@ -251,6 +251,15 @@ def taubin(pos, faces, iters=1, lam=0.5, mu=-0.53):
     return [tuple(v) for v in p]
 
 
+def count_isect(pos, faces):
+    """Self-intersecting face pairs (faces sharing a vertex ignored)."""
+    from mathutils.bvhtree import BVHTree
+    co = [g2b(p) for p in pos]
+    t = BVHTree.FromPolygons(co, faces, all_triangles=False, epsilon=0.0)
+    vs = [set(f) for f in faces]
+    return sum(1 for a, b in t.overlap(t) if a < b and not (vs[a] & vs[b]))
+
+
 def set_group(o, name, weights):
     vg = o.vertex_groups.new(name=name)
     for i, w in enumerate(weights):
@@ -302,7 +311,7 @@ def spread_targets(edge, side):
     return t
 
 
-def sim_config(base_pos, faces, uvs, cols, seams, flat, yoke, targets, frames=150, ramp=40):
+def sim_config(base_pos, faces, uvs, cols, seams, flat, yoke, targets, frames=200, ramp=50):
     clear_scene()
     body_proxies()
     o = garment_object(base_pos, faces, uvs, cols, seams, "DaraaCfg")
@@ -321,7 +330,7 @@ def sim_config(base_pos, faces, uvs, cols, seams, flat, yoke, targets, frames=15
         for f, v in frames_vals:
             key.value = v
             key.keyframe_insert("value", frame=f)
-    add_cloth(o, "pin", frames)
+    add_cloth(o, "pin", frames, pin_stiff=0.4)
     pos = run_sim(o, frames)
     return snap_seams(pos, seams)
 
@@ -354,9 +363,12 @@ def main():
     cfg["Spread"] = sim_config(base, faces, uvs, cols, seams, flat, yoke, sp, frames=60, ramp=24)
     # 3) smooth out sim crumples, then the final object: draped base +
     #    shape keys, no loose seam edges
-    base = snap_seams(taubin(base, faces), seams)
-    for name in cfg:
-        cfg[name] = snap_seams(taubin(cfg[name], faces), seams)
+    print("  isect raw  base", count_isect(base, faces), {n: count_isect(v, faces) for n, v in cfg.items()})
+    if "--no-smooth" not in sys.argv:
+        base = snap_seams(taubin(base, faces), seams)
+        for name in cfg:
+            cfg[name] = snap_seams(taubin(cfg[name], faces), seams)
+    print("  isect final base", count_isect(base, faces), {n: count_isect(v, faces) for n, v in cfg.items()})
     clear_scene()
     body_proxies()
     o = garment_object(base, faces, uvs, cols, [], "Daraa")

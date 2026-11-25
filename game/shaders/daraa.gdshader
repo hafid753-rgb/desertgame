@@ -18,14 +18,15 @@ void vertex() {
 	// fold shading: bend the normal by how the wind term varies across
 	// the surface (the spring terms are smooth and barely change it)
 	float e = 0.03;
-	vec3 w0 = daraa_wind_term(VERTEX, COLOR.b, 0.0, MODEL_MATRIX);
-	vec3 wx = daraa_wind_term(VERTEX + vec3(e, 0.0, 0.0), COLOR.b, 0.0, MODEL_MATRIX);
-	vec3 wy = daraa_wind_term(VERTEX + vec3(0.0, e, 0.0), COLOR.b, 0.0, MODEL_MATRIX);
-	vec3 wz = daraa_wind_term(VERTEX + vec3(0.0, 0.0, e), COLOR.b, 0.0, MODEL_MATRIX);
+	float fr = daraa_weights(VERTEX).b;
+	vec3 w0 = daraa_wind_term(VERTEX, fr, 0.0, MODEL_MATRIX);
+	vec3 wx = daraa_wind_term(VERTEX + vec3(e, 0.0, 0.0), fr, 0.0, MODEL_MATRIX);
+	vec3 wy = daraa_wind_term(VERTEX + vec3(0.0, e, 0.0), daraa_weights(VERTEX + vec3(0.0, e, 0.0)).b, 0.0, MODEL_MATRIX);
+	vec3 wz = daraa_wind_term(VERTEX + vec3(0.0, 0.0, e), fr, 0.0, MODEL_MATRIX);
 	vec3 jt = vec3(dot(wx - w0, NORMAL), dot(wy - w0, NORMAL), dot(wz - w0, NORMAL)) / e;
 	NORMAL = normalize(NORMAL - jt + dot(NORMAL, jt) * NORMAL);
 	VERTEX = p;
-	v_free = COLOR.b;
+	v_free = fr;
 }
 
 void fragment() {

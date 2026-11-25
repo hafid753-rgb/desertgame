@@ -628,3 +628,16 @@ Merge GitHub initial commit
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
+## cc18598  2026-11-25 11:06:43 +0000
+Version 3.5.3 (code 39): character pass — daraa proportions and self-clipping, hawli, feet
+
+Daraa narrowed (W 1.32) with lower gathers; sim thickness, single Taubin
+pass, z-independent wind/flutter phases, smaller spring caps and a thinner
+outline stop the cloth clipping through itself. Chin rests on the yoke;
+the neck hawli rides the neck pivot and its ribbon collides with the head
+and the daraa. Yellow belgha babouches; green daraa for the rabbit.
+Activity reels (showcase, water, surf+glide, fight, oasis walk), logs, APK.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+

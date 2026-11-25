@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 
 out = sys.argv[1] if len(sys.argv) > 1 else "/tmp/drape.png"
-bpy.ops.wm.open_mainfile(filepath="tools/garment/daraa_source.blend")
+bpy.ops.wm.open_mainfile(filepath=sys.argv[2] if len(sys.argv) > 2 else "tools/garment/daraa_source.blend")
 me = bpy.data.objects["Daraa"].data
 faces = [list(p.vertices) for p in me.polygons]
 keys = me.shape_keys.key_blocks
