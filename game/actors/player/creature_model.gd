@@ -18,6 +18,8 @@ const HEAD_Y := 1.28
 ## Head size relative to the authored chibi head (owner: smaller head).
 const HEAD_SHRINK := 0.8
 const HEAD_DROP := 0.09
+## Mittens slightly smaller (owner: smaller arms).
+const HAND_SHRINK := 0.82
 ## Hawli ribbon colour per species (indigo tagelmust cloth).
 const HAWLI_COLORS := {"cat": Color(0.2, 0.26, 0.55), "fennec": Color(0.16, 0.22, 0.52), "rabbit": Color(0.13, 0.2, 0.5)}
 const BODY_Y := 0.7312
@@ -264,6 +266,9 @@ func animate(delta: float, info: Dictionary) -> void:
 
 	if rig:
 		_animate_rig(delta, info, state, move, t, sprinting)
+		if _spread:
+			var locomote := anim_name in ["Walking_A", "Walking_B", "Running_A", "Running_B"]
+			_spread.tuck = lerpf(_spread.tuck, clampf(move * 2.0, 0.0, 1.0) if locomote else 0.0, 1.0 - exp(-10.0 * delta))
 		_update_squash(delta, state, move)
 		rig.basis = Basis(Vector3.UP, PI).scaled(Vector3(1.0 - squash * 0.45, 1.0 + squash, 1.0 - squash * 0.45) * RIG_SCALE)
 		_animate_face(delta, state)
@@ -665,8 +670,8 @@ func _build_rig() -> void:
 	# Mittens: fingers follow the arm, palm down in the rest pose.
 	var hr := _rest_model("hand.r").origin
 	var hl := _rest_model("hand.l").origin
-	_mount(hand_r, "hand.r", Transform3D(Basis(Vector3.UP, -PI / 2), hr + Vector3(0.06, 0, 0)))
-	_mount(hand_l, "hand.l", Transform3D(Basis(Vector3.UP, PI / 2), hl - Vector3(0.06, 0, 0)))
+	_mount(hand_r, "hand.r", Transform3D(Basis(Vector3.UP, -PI / 2).scaled(Vector3.ONE * HAND_SHRINK), hr + Vector3(0.03, 0, 0)))
+	_mount(hand_l, "hand.l", Transform3D(Basis(Vector3.UP, PI / 2).scaled(Vector3.ONE * HAND_SHRINK), hl - Vector3(0.03, 0, 0)))
 	# Boots under the foot bones.
 	var fr := _rest_model("foot.r").origin
 	var fl := _rest_model("foot.l").origin
@@ -720,6 +725,32 @@ func _journey_robe(node: Node3D) -> void:
 ## Long hawli ribbon trailing from the back of the neck (see HawliScarf).
 var scarf: HawliScarf
 
+## The neck hawli's own cloth colour: the most common vertex colour of the
+## Hawli (or Turban) part, so ribbon and wrap are the same fabric.
+func _hawli_color() -> Color:
+	for n in [hawli, turban]:
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var counts := {}
+		for si in mi.mesh.get_surface_count():
+			var cols = mi.mesh.surface_get_arrays(si)[Mesh.ARRAY_COLOR]
+			if cols == null:
+				continue
+			for col in cols:
+				var key := Color(snappedf(col.r, 0.02), snappedf(col.g, 0.02), snappedf(col.b, 0.02))
+				counts[key] = int(counts.get(key, 0)) + 1
+		var best := Color()
+		var best_n := 0
+		for k in counts:
+			if counts[k] > best_n:
+				best_n = counts[k]
+				best = k
+		if best_n > 0:
+			return best
+	return HAWLI_COLORS.get(_species_key, Color(0.2, 0.26, 0.55))
+
+
 func _build_scarf() -> void:
 	if _robe_pivot == null:
 		return
@@ -728,7 +759,7 @@ func _build_scarf() -> void:
 	_robe_pivot.add_child(anchor)
 	anchor.position = Vector3(0, 0.06, 0.2)
 	scarf = HawliScarf.new()
-	scarf.color = HAWLI_COLORS.get(_species_key, Color(0.2, 0.26, 0.55))
+	scarf.color = _hawli_color()
 	scarf.anchor = anchor
 	scarf.body_root = self
 	add_child(scarf)

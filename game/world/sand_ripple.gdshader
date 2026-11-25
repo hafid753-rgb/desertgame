@@ -38,6 +38,11 @@ uniform vec4 ocean_color : source_color = vec4(1.0, 0.86, 0.74, 1.0);
 uniform float ocean_power = 6.0;
 uniform float ocean_strength = 0.3;
 uniform vec4 rim_color : source_color = vec4(1.0, 0.88, 0.76, 1.0);
+// Journey-style silky sheen (owner: "shine like Journey")
+uniform float sheen_power = 2.5;
+uniform float sheen_strength = 0.28;
+uniform float sky_sheen_strength = 0.2;
+uniform vec4 sheen_color : source_color = vec4(1.0, 0.9, 0.82, 1.0);
 uniform float rim_strength = 0.3;
 // glitter (Zucconi part 5 / spec section 04)
 uniform float grains_per_metre = 26.0;
@@ -168,16 +173,23 @@ void light() {
 	// diffuse contrast: squash N.y, steep Lambert, lerp shadow -> lit
 	vec3 nc = n;
 	nc.y *= y_squash;
-	float ndl = clamp(lambert_gain * dot(normalize(nc), l), 0.0, 1.0) * ATTENUATION;
+	// stylized shadow: a crisp band instead of a soft grey ramp
+	float att = smoothstep(0.35, 0.6, ATTENUATION);
+	float ndl = clamp(lambert_gain * dot(normalize(nc), l), 0.0, 1.0) * att;
 	vec3 shade = mix(shadow_color.rgb / max(sand_color.rgb, vec3(0.01)), vec3(1.0), ndl);
 	DIFFUSE_LIGHT += LIGHT_COLOR * shade * sun_scale / PI;
-	float nl = clamp(dot(n, l), 0.0, 1.0) * ATTENUATION;
+	float nl = clamp(dot(n, l), 0.0, 1.0) * att;
 	float nv = clamp(dot(n, v), 0.0, 1.0);
 	// broad sheen (takes over the glitter energy where grains are sub-pixel)
 	float dry = 1.0 - v_wet * 0.7;
 	float ocean = pow(clamp(dot(n, h), 0.0, 1.0), ocean_power) * (ocean_strength + (1.0 - v_grain) * 0.06) * dry;
 	float rim = pow(1.0 - nv, 3.0) * rim_strength;
-	vec3 spec = max(ocean * ocean_color.rgb, rim * rim_color.rgb) * nl;
+	// Journey sheen: a silky band where slopes face between sun and eye,
+	// plus a luminous skylight sheen on grazing slopes in every direction
+	float silk = pow(clamp(dot(n, h), 0.0, 1.0), sheen_power) * sheen_strength * dry;
+	float sky_sheen = pow(1.0 - nv, 4.0) * sky_sheen_strength * dry * (0.4 + 0.6 * att);
+	vec3 spec = max(ocean * ocean_color.rgb, rim * rim_color.rgb) * nl + silk * ocean_color.rgb * nl;
+	spec += sky_sheen * sheen_color.rgb;
 	// glitter: narrow lobe on the grain normal, only in direct light
 	float glint = pow(clamp(dot(normalize(v_micro), h), 0.0, 1.0), glitter_power) * glitter_strength * v_grain;
 	spec += glitter_color.rgb * glint * nl;

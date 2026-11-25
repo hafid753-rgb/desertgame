@@ -60,6 +60,8 @@ void vertex() {
 		p3.xz += vec2(-d.y, d.x) * dot(wv, vec3(-d.y, 0.0, d.x)) * 0.6;
 		vec2 e = abs(xz - player_pos.xz) / (box.xz * 0.5);
 		mote_a = (0.1 + g * 0.9) * amount * (1.0 - smoothstep(0.7, 1.0, max(e.x, e.y)));
+		// grains right at the lens would read as big squares: fade them
+		mote_a *= smoothstep(1.5, 3.5, distance(p3, (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz));
 		wp = p3;
 		// camera-facing grain, size snapped to whole texels
 		float s = (1.0 + floor(INSTANCE_CUSTOM.b * 1.99)) / PIXELS_PER_METRE;

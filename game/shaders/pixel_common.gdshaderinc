@@ -25,7 +25,7 @@ const vec3 PAL_LAVENDER = vec3(0.510, 0.471, 0.553); // #82788D
 const vec3 PAL_SUN = vec3(0.945, 0.867, 0.714);      // #F1DDB6
 
 vec3 pixel_light_ramp(float ndl, float atten) {
-	float lit = smoothstep(0.0, 0.08, ndl) * atten;
+	float lit = smoothstep(0.0, 0.08, ndl) * smoothstep(0.35, 0.6, atten);
 	float bright = smoothstep(0.55, 0.62, ndl) * atten;
 	// warm Saharan ramp (owner reference photo): rust shadow, peach sun
 	vec3 shadow = vec3(0.80, 0.66, 0.58);

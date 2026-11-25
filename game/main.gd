@@ -42,6 +42,9 @@ func _ready() -> void:
 	horizon.material_override = far_sand
 	add_child(horizon)
 	add_child(GroundFX.new())
+	var flare := LensFlare.new()
+	flare.sun = sun
+	add_child(flare)
 	var dust := WindDust.new()
 	add_child(dust)
 	dust.mask_water(OASIS_AT, oasis.pond_radius * 1.15)
@@ -115,7 +118,11 @@ func _build_environment() -> void:
 	sun.light_color = Color("FFE3C4")  # warm, soft desert sun (reference photo)
 	sun.light_energy = 0.95
 	sun.shadow_enabled = true
-	sun.shadow_blur = 1.0
+	# stylized shadows: crisp-edged, tinted (each shader maps attenuation to
+	# its own warm/mauve shadow tone instead of darkening to grey)
+	sun.shadow_blur = 0.45
+	sun.shadow_opacity = 1.0
+	sun.light_angular_distance = 1.6          # sun disc size in the sky
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 40.0
 	add_child(sun)
@@ -126,6 +133,10 @@ func _build_environment() -> void:
 	sky_mat.sky_horizon_color = Color("F2DCC0")
 	sky_mat.ground_horizon_color = Color("F0D1B5")
 	sky_mat.ground_bottom_color = Color("D9A088")
+	# a bright sun disc with a wide warm halo (blooms through glow)
+	sky_mat.sun_angle_max = 22.0
+	sky_mat.sun_curve = 0.06
+	sky_mat.sky_energy_multiplier = 1.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env = Environment.new()
@@ -148,14 +159,18 @@ func _build_environment() -> void:
 	env.fog_depth_begin = 18.0
 	env.fog_depth_end = 240.0
 	env.fog_depth_curve = 1.6
+	# atmospheric light: haze glows toward the sun, a low warm ground haze
+	env.fog_sun_scatter = 0.2
+	env.fog_height = 1.0
+	env.fog_height_density = 0.025
 	env.fog_density = 0.92
 	env.fog_aerial_perspective = 0.35
-	env.fog_sky_affect = 1.0
+	env.fog_sky_affect = 0.55     # keep the sun disc visible through the haze
 	# restrained saturation
 	# subtle bloom only on genuinely bright highlights (sand glints)
 	env.glow_enabled = true
-	env.glow_hdr_threshold = 1.15
-	env.glow_intensity = 0.35
+	env.glow_hdr_threshold = 1.05
+	env.glow_intensity = 0.45
 	env.glow_strength = 0.8
 	env.glow_bloom = 0.0
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT

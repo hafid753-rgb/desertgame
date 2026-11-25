@@ -6,9 +6,12 @@ extends SkeletonModifier3D
 
 @export var outward := 0.2
 @export var forward := 0.06
+## 0..1 while walking/running: arms come in close to the body and swing less
+@export var tuck := 0.0
 
 var _bones: Array[int] = []
 var _sign: Array[float] = []
+var _swing: Array[int] = []
 
 
 func _ready() -> void:
@@ -21,6 +24,10 @@ func _ready() -> void:
 			_bones.append(i)
 			# Outward along the bone's parent-space x, sign from rest side.
 			_sign.append(signf(sk.get_bone_global_rest(i).origin.x))
+	for b in ["upperarm.l", "upperarm.r", "lowerarm.l", "lowerarm.r"]:
+		var i := sk.find_bone(b)
+		if i >= 0:
+			_swing.append(i)
 
 
 func _process_modification_with_delta(_delta: float) -> void:
@@ -32,7 +39,13 @@ func _process_modification_with_delta(_delta: float) -> void:
 		var parent := sk.get_bone_parent(i)
 		# Offset expressed in skeleton space, converted into the parent's
 		# space (the chest may be rotated by the animation).
-		var off := Vector3(outward * _sign[k], 0.0, forward)
+		var off := Vector3(lerpf(outward, 0.02, tuck) * _sign[k], 0.0, forward * (1.0 - tuck))
 		if parent >= 0:
 			off = sk.get_bone_global_pose(parent).basis.inverse() * off
 		sk.set_bone_pose_position(i, sk.get_bone_pose_position(i) + off)
+	# tuck: pull the arm swing back toward the rest pose (smaller, closer)
+	if tuck > 0.0:
+		for i in _swing:
+			var rest := sk.get_bone_rest(i).basis.get_rotation_quaternion()
+			var cur := sk.get_bone_pose_rotation(i)
+			sk.set_bone_pose_rotation(i, rest.slerp(cur, 1.0 - 0.55 * tuck))

@@ -96,7 +96,7 @@ void light() {
 	// slight cel shading: two flat tones split by a crisp step, so leaf and
 	// blade orientation (and canopy self-shadow) read as clean bands
 	float ndl = dot(NORMAL, LIGHT) * 0.8 + 0.2;
-	float band = smoothstep(cel_split - 0.03, cel_split + 0.03, ndl) * ATTENUATION;
+	float band = smoothstep(cel_split - 0.03, cel_split + 0.03, ndl) * smoothstep(0.35, 0.6, ATTENUATION);
 	vec3 cel = mix(vec3(0.84, 0.72, 0.64), vec3(1.0, 0.93, 0.84), band);
 	DIFFUSE_LIGHT += LIGHT_COLOR * cel / PI;
 	if (kind != 3) {

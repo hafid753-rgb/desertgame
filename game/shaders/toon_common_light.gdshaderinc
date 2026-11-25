@@ -26,7 +26,7 @@ void light() {
 	float ndl = dot(NORMAL, LIGHT);
 	float w = clamp((ndl + wrap) / (1.0 + wrap), 0.0, 1.0);
 	float step_lit = smoothstep(0.42 - band_softness * 0.5, 0.42 + band_softness * 0.5, w);
-	float lit = mix(w, step_lit, toon_amount) * ATTENUATION;
+	float lit = mix(w, step_lit, toon_amount) * smoothstep(0.35, 0.6, ATTENUATION);
 	vec3 ramp = mix(shadow_tint.rgb, light_warmth.rgb, lit);
 	DIFFUSE_LIGHT += LIGHT_COLOR * ramp / PI;
 	float fres = 1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0);

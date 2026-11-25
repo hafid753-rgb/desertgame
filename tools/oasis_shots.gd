@@ -157,6 +157,8 @@ func _compare_shots(o: Vector3) -> void:
 		["palm", o + Vector3(-3.4, 0.05, 2.8), PI * 1.75, 0.18, 3.2, 0.0],
 		["suna", o + Vector3(18.0, 0.05, 12.0), deg_to_rad(35.0), -0.18, 5.0, 0.0],
 		["sunb", o + Vector3(18.0, 0.05, 12.0), deg_to_rad(35.0) + PI, -0.18, 5.0, 0.0],
+		["flare", Vector3(30.0, 0.05, -28.0), deg_to_rad(35.0) + PI, 0.28, 5.0, 0.0],
+		["flare2", Vector3(30.0, 0.05, -28.0), deg_to_rad(55.0) + PI, 0.18, 5.0, 0.0],
 	]
 	for v in views:
 		_place(v[1], v[2], v[3])
@@ -170,6 +172,18 @@ func _compare_shots(o: Vector3) -> void:
 		else:
 			await _wait(25)
 		await _shot("cmp_%s_%s" % [v[0], tag])
+	# look straight at the sun from the open desert: sun disc, glare, flare
+	var sd: Vector3 = main.sun.global_transform.basis.z
+	_place(Vector3(30.0, 0.05, -28.0), atan2(-sd.x, -sd.z), 0.3)
+	main.camera_rig.distance = 5.0
+	await _wait(40)
+	var lf = main.get_children().filter(func(c): return c is LensFlare)
+	if lf.size() > 0:
+		print("flare intensity ", lf[0].intensity, " sun px ", lf[0]._sun_px)
+	await _shot("cmp_sunlook_%s" % tag)
+	main.camera_rig.yaw += 0.35
+	await _wait(30)
+	await _shot("cmp_sunlook2_%s" % tag)
 	# character close-up, sun on one side, to judge the cel bands
 	_place(o + Vector3(9.0, 0.05, 4.0), 0.4, -0.08)
 	main.camera_rig.yaw = 0.4 + PI * 0.75
