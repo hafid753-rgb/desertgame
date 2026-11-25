@@ -478,6 +478,8 @@ func _apply_materials() -> void:
 		rib.shader = load("res://game/shaders/toon_double.gdshader")
 		rib.next_pass = null
 		scarf.set_cloth(rib, _hawli_color(), _hawli_trim())
+	if child_mode and _skin_mat and head is MeshInstance3D:
+		(head as MeshInstance3D).material_override = _skin_mat
 	for n in [hawli, turban]:
 		if n is MeshInstance3D:
 			(n as MeshInstance3D).material_override = cotton
@@ -528,6 +530,8 @@ func _attach_to_head(parts: Dictionary, name: String) -> Node3D:
 
 func _animate_face(delta: float, state: String) -> void:
 	# Blink every 2-5 s (double-blink sometimes); eyes squeeze shut when hurt.
+	if child_mode:
+		_blink_in = 99.0          # a mask does not blink (it squints only when hit)
 	_blink_in -= delta
 	if _blink_in <= 0.0:
 		_blink_t = 0.14
@@ -603,6 +607,10 @@ const FOOTWORK := {"1H_Melee_Attack_Slice_Diagonal": [0.28, 0.16, 0.22, 0.07, 0.
 	"2H_Melee_Attack_Spin": [0.12, 0.12, 0.1, 0.12, 0.08],
 	"2H_Melee_Attack_Chop": [0.4, 0.22, 0.3, 0.16, 0.1]}
 static var use_rig := true
+## Owner direction (2026-11-25): characters are children wearing animal masks.
+static var child_mode := true
+var mask: MeshInstance3D
+var _skin_mat: ShaderMaterial
 
 var rig: Node3D
 var skel: Skeleton3D
@@ -678,7 +686,11 @@ func _build_rig() -> void:
 	body.get_parent().remove_child(body)
 	_robe_pivot.add_child(body)
 	body.transform = Transform3D(Basis(), Vector3(0, BODY_Y, 0) - neck)
-	_journey_robe(body)
+	if child_mode:
+		ChildBuild.poncho(body as MeshInstance3D)
+		_build_child()
+	else:
+		_journey_robe(body)
 	_robe_base = _robe_pivot.transform
 	_build_scarf()
 	_head_base = head.transform
@@ -694,13 +706,15 @@ func _build_rig() -> void:
 	# Mittens: fingers follow the arm, palm down in the rest pose.
 	var hr := _rest_model("hand.r").origin
 	var hl := _rest_model("hand.l").origin
-	_mount(hand_r, "hand.r", Transform3D(Basis(Vector3.UP, -PI / 2).scaled(Vector3.ONE * HAND_SHRINK), hr + Vector3(0.03, 0, 0)))
-	_mount(hand_l, "hand.l", Transform3D(Basis(Vector3.UP, PI / 2).scaled(Vector3.ONE * HAND_SHRINK), hl - Vector3(0.03, 0, 0)))
+	var hs := HAND_SHRINK * (0.55 if child_mode else 1.0)
+	_mount(hand_r, "hand.r", Transform3D(Basis(Vector3.UP, -PI / 2).scaled(Vector3.ONE * hs), hr + Vector3(0.03 if not child_mode else -0.02, 0, 0)))
+	_mount(hand_l, "hand.l", Transform3D(Basis(Vector3.UP, PI / 2).scaled(Vector3.ONE * hs), hl - Vector3(0.03 if not child_mode else -0.02, 0, 0)))
 	# Boots under the foot bones.
 	var fr := _rest_model("foot.r").origin
 	var fl := _rest_model("foot.l").origin
-	_mount(foot_r, "foot.r", Transform3D(Basis(), Vector3(fr.x, 0, fr.z)))
-	_mount(foot_l, "foot.l", Transform3D(Basis(), Vector3(fl.x, 0, fl.z)))
+	var fs := 0.58 if child_mode else 1.0
+	_mount(foot_r, "foot.r", Transform3D(Basis().scaled(Vector3.ONE * fs), Vector3(fr.x, 0, fr.z)))
+	_mount(foot_l, "foot.l", Transform3D(Basis().scaled(Vector3.ONE * fs), Vector3(fl.x, 0, fl.z)))
 	_bone_attach("handslot.r")
 	_bone_attach("handslot.l")
 	_foot_base_r = foot_r.transform
@@ -712,7 +726,8 @@ func _build_rig() -> void:
 	_build_trail()
 	_build_dust()
 	_build_surf_fx()
-	_build_veil()
+	if not child_mode:
+		_build_veil()
 	_play("Unarmed_Idle", 0.0)
 
 
@@ -775,6 +790,116 @@ func _update_robe_cloth(delta: float, v: Vector3) -> void:
 ## The neck hawli's own cloth colour: the most common vertex colour of the
 ## Hawli (or Turban) part, so ribbon and wrap are the same fabric.
 func _hawli_color() -> Color:
+	if child_mode:
+		return _ribbon_color
+	return _hawli_color_wrap()
+
+
+var _ribbon_color := Color(0.17, 0.22, 0.52)
+var _poncho_color := Color(0.25, 0.38, 0.7)
+
+
+## Build the child around the species parts: skull + hood on the head bone,
+## the species head flattened into a mask (eyes and ears move onto it),
+## thin limbs on the arm/leg bones, small skin-tone hands.
+func _build_child() -> void:
+	var hm := head as MeshInstance3D
+	if hm == null:
+		return
+	_poncho_color = ChildBuild.main_color(body as MeshInstance3D, _poncho_color)
+	_skin_mat = _mat.duplicate() as ShaderMaterial
+	_skin_mat.set_shader_parameter("tint", ChildBuild.SKIN)
+	_skin_mat.set_shader_parameter("pixel_detail_strength", 0.0)
+	# mask: the sculpted head as a lacquered shell
+	mask = MeshInstance3D.new()
+	mask.name = "Mask"
+	mask.mesh = ChildBuild.flatten_to_mask(hm.mesh as ArrayMesh)
+	ChildBuild.paint(mask, ChildBuild.CERAMIC, 0.5)
+	mask.material_override = CharacterArt.toon_material(_outline_color_cached, 0.006, "leather")
+	head.add_child(mask)
+	mask.transform = Transform3D(Basis().scaled(Vector3(1.0, 1.0, 0.7) * ChildBuild.MASK_SCALE), ChildBuild.SKULL_C + Vector3(0, -0.01, ChildBuild.MASK_Z))
+	for n in [eyes, eyes_closed, ear_r, ear_l]:
+		if n and n.get_parent() == head:
+			var xf: Transform3D = n.transform
+			head.remove_child(n)
+			mask.add_child(n)
+			n.transform = xf
+	# hollow eyes
+	for n in [eyes, eyes_closed]:
+		ChildBuild.paint(n as MeshInstance3D, Color(0.05, 0.035, 0.04), 0.92)
+	for n in [ear_r, ear_l]:
+		ChildBuild.paint(n as MeshInstance3D, ChildBuild.CERAMIC, 0.5)
+	# skull (the child's head, mostly hidden by mask and hood)
+	var skull := SphereMesh.new()
+	skull.radius = ChildBuild.SKULL_R
+	skull.height = ChildBuild.SKULL_R * 2.05
+	hm.mesh = skull
+	hm.position += Vector3.ZERO
+	hm.material_override = _skin_mat
+	# hood in the poncho's cloth
+	var hood := MeshInstance3D.new()
+	hood.name = "Hood"
+	hood.mesh = ChildBuild.hood_mesh(_poncho_color)
+	var hood_mat := CharacterArt.toon_material(_outline_color_cached, 0.0, "fabric")
+	hood_mat.shader = load("res://game/shaders/toon_double.gdshader")
+	hood_mat.next_pass = null
+	hood_mat.set_shader_parameter("damask_strength", 0.0)
+	hood.material_override = hood_mat
+	head.add_child(hood)
+	for n in [hawli, turban, tail]:
+		if n:
+			n.visible = false
+	# thin limbs: sleeves and forearms, sirwal and shins
+	var sleeve := _poncho_color.darkened(0.15)
+	var sirwal: Color = Species.get_data(_species_key).get("sirwal", Color(0.2, 0.18, 0.25))
+	for s in ["l", "r"]:
+		_limb("upperarm." + s, "lowerarm." + s, 0.042, sleeve, false)
+		_limb("lowerarm." + s, "wrist." + s, 0.03, ChildBuild.SKIN, true)
+		_limb("upperleg." + s, "lowerleg." + s, 0.04, sirwal, false)
+		_limb("lowerleg." + s, "foot." + s, 0.03, ChildBuild.SKIN, true)
+	# small skin-tone hands, smaller boots
+	for n in [hand_r, hand_l]:
+		for p in (n.find_children("*", "MeshInstance3D", true, false) if n else []):
+			ChildBuild.paint(p, Color.WHITE, 1.0)
+			p.material_override = _skin_mat
+	_ribbon_color = Species.get_data(_species_key).get("ribbon", _ribbon_color)
+
+
+## A capsule limb spanning two bones (rest pose), riding on the first bone.
+func _limb(from_bone: String, to_bone: String, radius: float, color: Color, skin: bool) -> void:
+	if skel == null or skel.find_bone(from_bone) < 0 or skel.find_bone(to_bone) < 0:
+		return
+	var a := _rest_model(from_bone).origin
+	var b := _rest_model(to_bone).origin
+	var len := a.distance_to(b)
+	if len < 0.01:
+		return
+	var cap := CapsuleMesh.new()
+	cap.radius = radius
+	cap.height = len + radius * 2.0
+	cap.radial_segments = 12
+	cap.rings = 4
+	var mi := MeshInstance3D.new()
+	mi.name = "Limb_" + from_bone
+	mi.mesh = cap
+	var m: ShaderMaterial
+	if skin:
+		m = _skin_mat
+	else:
+		m = _fabric_mat.duplicate() as ShaderMaterial
+		m.set_shader_parameter("tint", color)
+		m.set_shader_parameter("damask_strength", 0.0)
+	mi.material_override = m
+	var y := (b - a).normalized()
+	var x := y.cross(Vector3(0, 0, 1))
+	if x.length() < 0.1:
+		x = y.cross(Vector3(1, 0, 0))
+	x = x.normalized()
+	var z := x.cross(y).normalized()
+	_mount(mi, from_bone, Transform3D(Basis(x, y, z), (a + b) * 0.5))
+
+
+func _hawli_color_wrap() -> Color:
 	for n in [hawli, turban]:
 		var mi := n as MeshInstance3D
 		if mi == null or mi.mesh == null:
@@ -1016,9 +1141,16 @@ func _build_scarf() -> void:
 		return
 	var anchor := Node3D.new()
 	anchor.name = "ScarfAnchor"
-	_robe_pivot.add_child(anchor)
-	anchor.position = Vector3(0, 0.06, 0.2)
 	scarf = HawliScarf.new()
+	if child_mode:
+		# the mask's ribbon: tied at the back of the head, through the hood
+		head.add_child(anchor)
+		anchor.position = ChildBuild.SKULL_C + Vector3(0, 0.05, ChildBuild.HOOD_R - 0.02)
+		scarf.width = 0.075
+		scarf.segments = 9
+	else:
+		_robe_pivot.add_child(anchor)
+		anchor.position = Vector3(0, 0.06, 0.2)
 	scarf.color = _hawli_color()
 	scarf.anchor = anchor
 	scarf.body_root = self

@@ -60,6 +60,7 @@ const GLIDE_COST := 7.0
 const SURF_MIN_DEG := 13.0
 const SURF_EXIT_DEG := 5.0
 const SURF_MAX := 21.0
+var air_jumps_left := 0
 const SURF_FRICTION := 0.22
 const SURF_STEER := 2.2
 
@@ -197,6 +198,7 @@ func set_species(id: String) -> void:
 	stamina = max_stamina
 	move_speed = BASE_SPEED * float(species["speed"])
 	climb_mult = float(species["climb"])
+	air_jumps_left = int(species.get("air_jumps", 0))
 	if model:
 		model.queue_free()
 	model = CreatureModel.new()
@@ -208,7 +210,7 @@ func set_species(id: String) -> void:
 func next_species() -> void:
 	var ids: Array = Species.DATA.keys()
 	set_species(ids[(ids.find(species_id) + 1) % ids.size()])
-	announced.emit(str(species["name"]), species["fur"])
+	announced.emit("%s — %s" % [species.get("mask", species["name"]), species.get("ability", "")], species["fur"])
 	emote("peace")
 
 
@@ -450,7 +452,7 @@ func _physics_process(delta: float) -> void:
 		velocity.x = horizontal.x + knock_velocity.x
 		velocity.z = horizontal.z + knock_velocity.z
 		if jump_requested:
-			velocity.y = JUMP_VELOCITY + (maxf(surf_vy, 0.0) if air_from_surf else 0.0)
+			velocity.y = JUMP_VELOCITY * sqrt(float(species.get("jump", 1.0))) + (maxf(surf_vy, 0.0) if air_from_surf else 0.0)
 			jump_requested = false
 		elif state == State.SURF and is_on_floor():
 			velocity.y = surf_vy          # follow the slope; at a lip we fly on
@@ -459,7 +461,7 @@ func _physics_process(delta: float) -> void:
 		else:
 			velocity.y -= GRAVITY * delta
 			if state == State.GLIDE:
-				velocity.y = maxf(velocity.y, -GLIDE_FALL)
+				velocity.y = maxf(velocity.y, -GLIDE_FALL * float(species.get("glide_fall", 1.0)))
 	var was_airborne := is_airborne()
 	var fall_speed := -velocity.y
 	move_and_slide()
@@ -608,6 +610,18 @@ func _on_jump_pressed() -> void:
 			_let_go(true)
 		State.GLIDE:
 			_enter(State.AIR)
+		State.AIR:
+			# Cat Mask: one extra jump in the air
+			if air_jumps_left > 0:
+				air_jumps_left -= 1
+				velocity.y = JUMP_VELOCITY * 0.92
+				var d := _move_vector()
+				if d.length() > 0.1:
+					air_horizontal = d * maxf(air_horizontal.length(), move_speed)
+				stats["air_jumps"] = int(stats.get("air_jumps", 0)) + 1
+				if model and model.has_method("puff"):
+					model.puff(global_position + Vector3(0, 0.1, 0), 10)
+				Juice.play("jump", global_position)
 
 
 func _toggle_element() -> void:
@@ -1043,6 +1057,7 @@ func _tick_air(delta: float) -> Vector3:
 
 func _land(fall_speed: float) -> void:
 	air_from_surf = false
+	air_jumps_left = int(species.get("air_jumps", 0))
 	if state == State.AIR or state == State.GLIDE:
 		ground_vel = air_horizontal
 		_enter(State.MOVE)
@@ -1115,14 +1130,15 @@ func _tick_surf(delta: float) -> Vector3:
 	var slope := acos(clampf(n.y, -1.0, 1.0))
 	var dh := _downhill()
 	# gravity along the slope, light friction, steer toward the stick
-	surf_vel += dh * GRAVITY * sin(slope) * 0.75 * delta
+	surf_vel += dh * GRAVITY * sin(slope) * 0.75 * float(species.get("surf", 1.0)) * delta
 	# sand drag: light on the slope, strong once the ground flattens out
 	surf_vel *= exp(-(SURF_FRICTION if slope > deg_to_rad(SURF_EXIT_DEG) else 1.6) * delta)
 	if dir.length() > 0.1 and surf_vel.length() > 0.5:
 		var heading := surf_vel.normalized().slerp(dir.normalized(), 1.0 - exp(-SURF_STEER * delta)).normalized()
 		surf_vel = heading * surf_vel.length()
-	if surf_vel.length() > SURF_MAX:
-		surf_vel = surf_vel.normalized() * SURF_MAX
+	var surf_cap := SURF_MAX * float(species.get("surf", 1.0))
+	if surf_vel.length() > surf_cap:
+		surf_vel = surf_vel.normalized() * surf_cap
 	# vertical speed that keeps us on the surface (and launches us at a lip)
 	surf_vy = -(n.x * surf_vel.x + n.z * surf_vel.z) / maxf(n.y, 0.2)
 	floor_snap_length = 0.0 if surf_vy > 0.5 else 0.6
@@ -1162,7 +1178,7 @@ func _tick_glide(delta: float) -> Vector3:
 	var speed := lerpf(cur, cruise, 1.0 - exp(-(0.35 if cur > cruise else 2.0) * delta))
 	air_horizontal = heading * speed
 	_face_target_or(air_horizontal, delta, 6.0)
-	_spend(GLIDE_COST * delta)
+	_spend(GLIDE_COST * float(species.get("glide_cost", 1.0)) * delta)
 	stats["glide_s"] += delta
 	if stamina <= 0.0:
 		announced.emit("Out of stamina", Color(1, 0.6, 0.5))

@@ -256,7 +256,7 @@ func _draw_hud() -> void:
 		_bar(Vector2(30, 58), 300.0 * player.max_stamina / 100.0, player.stamina / player.max_stamina, Color(0.45, 0.85, 0.4), "ST")
 		var ename: String = Combat.ELEMENT_NAMES[player.element]
 		_canvas.draw_rect(SPECIES_RECT, Color(0, 0, 0, 0.35))
-		_canvas.draw_string(_font, Vector2(30, 102), "%s  |  %s   >" % [str(player.species["name"]), ename], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Combat.ELEMENT_COLORS[player.element])
+		_canvas.draw_string(_font, Vector2(30, 102), "%s  |  %s   >" % [str(player.species.get("mask", player.species["name"])), ename], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Combat.ELEMENT_COLORS[player.element])
 		if player.counter_window > 0.0:
 			_canvas.draw_string(_font, Vector2(30, 172), "COUNTER x1.5", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 0.95, 0.5))
 		# Stamina wheel beside the character while climbing/gliding (BOTW-style).
@@ -382,7 +382,7 @@ func _draw_menu() -> void:
 		"sound": "Sound: %s" % ("On" if Settings.sound_on else "Off"),
 		"quality": "Graphics: %s" % Settings.QUALITY_NAMES[Settings.quality],
 		"debug": "Performance overlay: %s" % ("On" if Settings.show_debug else "Off"),
-		"species": "Species: %s (tap to change)" % (str(player.species["name"]) if player else "-"),
+		"species": "Mask: %s (tap to change)" % (str(player.species.get("mask", player.species["name"])) if player else "-"),
 		"reset_world": "Reset world (village, bricks)",
 	}
 	for i in MENU_ROWS.size():

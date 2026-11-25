@@ -85,6 +85,12 @@ func _ready() -> void:
 		"surf", "surfclose", "glideclose", "board", "epic":
 			_place(Vector3(-38.0, 12.4, 46.0), -PI * 0.5)
 			dur = 9.6 if shot == "epic" else 8.5
+		"front":
+			_place(OASIS + Vector3(16, 0.05, 10), 0.4)
+			dur = 4.5
+		"masks":
+			_place(Vector3(26.0, 0.05, 18.0), -PI * 0.5)
+			dur = 13.0
 		"robe":
 			_place(OASIS + Vector3(16, 0.05, 10), 0.4)
 			dur = 10.0
@@ -131,6 +137,32 @@ func _physics_process(delta: float) -> void:
 			mv = Vector2(0, -1.0) if t > 0.4 and t < 7.6 else Vector2.ZERO
 			if t > 2.4 and fmod(t, 1.6) < delta and t < 7.0:
 				_tap("jump", 0.22)
+		"masks":
+			# cat: double jump · rabbit: high jump · fennec: long glide
+			var cyc := [[0.9, 3.4], [4.2, 6.8], [7.3, 13.0]]
+			for i in 3:
+				var a0: float = cyc[i][0]
+				var a1: float = cyc[i][1]
+				if t > a0 and t < a1:
+					mv = Vector2(0, -0.55)
+			if _once(0.05):
+				p.set_species("cat")
+				_cap_text = "CAT MASK  —  double jump"
+			if _once(1.5) or _once(1.82):
+				_tap("jump", 0.15)
+			if _once(3.7):
+				p.set_species("rabbit")
+				_cap_text = "RABBIT MASK  —  high jump"
+			if _once(4.9):
+				_tap("jump", 0.2)
+			if _once(7.1):
+				p.set_species("fennec")
+				_place(Vector3(-37.0, 12.4, 46.0), -PI * 0.5)
+				_cap_text = "FENNEC MASK  —  long, cheap glide · fast sand surfing"
+			if _once(7.75):
+				_tap("jump", 0.2)
+			if _once(8.05):
+				_tap("special", 0.1)
 		"robe":
 			mv = Vector2(0, -0.5) if t > 1.0 and t < 4.0 else (Vector2(0.6, -1.0) if t > 5.5 and t < 7.5 else Vector2.ZERO)
 		"surf", "surfclose", "glideclose", "board", "epic":
@@ -151,6 +183,16 @@ func _still() -> void:
 	DirAccess.make_dir_recursive_absolute("user://shots")
 	get_viewport().get_texture().get_image().save_png("user://shots/cine_%s_%04.1f.png" % [shot, t])
 	print("still ", shot, " t=", snappedf(t, 0.1), " state=", p.state_name())
+var _fired := {}
+
+## True exactly once, on the first frame at or after time `at`.
+func _once(at: float) -> bool:
+	if t >= at and not _fired.has(at):
+		_fired[at] = true
+		return true
+	return false
+
+
 func _fight_bot(delta: float) -> Vector2:
 	var j: Jinn = main.jinn
 	if j == null or not is_instance_valid(j) or j.is_dead():
@@ -272,6 +314,25 @@ func _process(delta: float) -> void:
 					look = pp + fwd * 1.5 + Vector3(0, 0.6, 0)
 					cam.fov = 55.0
 					smooth = 10.0
+		"masks":
+			# fixed side camera: a clean read of each jump's height
+			if t < 7.1:
+				pos = Vector3(pp.x, 0.0, pp.z) + Vector3(0, 1.4, 6.5)
+				look = Vector3(pp.x, 1.6, pp.z)
+			else:
+				if _seg != 9:
+					_seg = 9
+					_first = true
+				pos = pp + Vector3(-1.0, 0.8, -6.0)
+				look = pp + Vector3(1.0, 0.4, 0)
+			cam.fov = 48.0
+			smooth = 3.0
+		"front":
+			var a := lerpf(-0.9, 0.9, e)
+			pos = pp + Basis(Vector3.UP, a) * (fwd * 2.3) + Vector3(0, 1.0, 0)
+			look = pp + Vector3(0, 0.82, 0)
+			cam.fov = 40.0
+			smooth = 30.0
 		"robe":
 			# orbit while the cat walks, stops (hem swings) and sprints off
 			var a := t * 0.45
