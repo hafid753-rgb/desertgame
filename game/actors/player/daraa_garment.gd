@@ -23,8 +23,9 @@ const LOD_PATH := "res://game/art/garment/daraa_lod1.glb"
 const LOD_RANGE := 16.0
 const TEX_DIR := "res://game/art/garment/"
 ## Colourway per species (the colours the robes already had).
-const COLOURWAY := {"cat": "blue", "fennec": "white", "rabbit": "navy"}
-const INSIDE := {"blue": Color(0.2, 0.41, 0.77), "white": Color(0.92, 0.91, 0.88), "navy": Color(0.13, 0.19, 0.42)}
+## Rabbit wears green (a traditional daraa colour) so its navy hawli reads.
+const COLOURWAY := {"cat": "blue", "fennec": "white", "rabbit": "green"}
+const INSIDE := {"blue": Color(0.2, 0.41, 0.77), "white": Color(0.92, 0.91, 0.88), "navy": Color(0.13, 0.19, 0.42), "green": Color(0.16, 0.48, 0.35)}
 const SHAPES := ["GatherL", "GatherR", "GatherBoth", "Spread"]
 ## Blend time between configurations (seconds to ~95%).
 const WEAR_TIME := 0.45
@@ -183,9 +184,9 @@ func update(delta: float, model: Node3D, state: String, vel: Vector3, armed: boo
 		a = (side_t_r - _side_r) * 55.0 - _side_r_v * 6.0
 		_side_r_v += a * h
 		_side_r += _side_r_v * h
-	_hem = _hem.limit_length(0.25)
-	_side_l = _side_l.limit_length(0.4)
-	_side_r = _side_r.limit_length(0.4)
+	_hem = _hem.limit_length(0.14)
+	_side_l = _side_l.limit_length(0.16)
+	_side_r = _side_r.limit_length(0.16)
 	_set_param("hem_off", _hem)
 	_set_param("side_l_off", _side_l)
 	_set_param("side_r_off", _side_r)

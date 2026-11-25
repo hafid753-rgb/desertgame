@@ -20,7 +20,7 @@ uniform float gather_l = 0.0;          // 0..1, how gathered each side is
 uniform float gather_r = 0.0;
 uniform float spread = 0.0;            // glide: sides held out as wings
 uniform float daraa_wind = 0.07;
-uniform float daraa_flutter = 0.018;
+uniform float daraa_flutter = 0.014;
 uniform float wind_speed_k = 0.0;      // set from speed: stronger flutter
 // collision proxies (model space): xyz centre, w radius
 uniform vec4 col_hand_l = vec4(0.0, -9.0, 0.0, 0.0);
@@ -34,17 +34,20 @@ uniform vec4 col_legs = vec4(0.0, 0.3, 0.0, 0.15);
 vec3 daraa_wind_term(vec3 v, float free, float side, mat4 model) {
 	vec3 p = (model * vec4(v, 1.0)).xyz;
 	float gust = wind_gust * wind_gust_at(p);
-	vec3 w = wind_at(p, v.x * 2.5 + v.z * 2.0 + v.y * 1.5, 1.1) * daraa_wind * (1.0 + gust);
+	vec3 w = wind_at(p, v.x * 2.5 + v.y * 1.5, 1.1) * daraa_wind * (1.0 + gust);
 	float shelter = 1.0 - 0.6 * spread;
 	// world -> model direction: transpose of the rotation (cheaper than
 	// inverse() per vertex on mobile; the model has no shear)
 	mat3 r = mat3(normalize(model[0].xyz), normalize(model[1].xyz), normalize(model[2].xyz));
 	vec3 local = (transpose(r) * w) * free * shelter;
-	// flutter: travelling waves down the open edges and around the hem
+	// flutter: travelling waves down the open edges and around the hem.
+	// The phase depends on height and x only, never on z, so front, back
+	// and folded-over layers at the same place move together and cannot
+	// pass through each other.
 	float ph = wind_time * (5.5 + wind_speed_k * 4.0) - v.y * 7.0 - v.x * 3.0;
-	float flut = (sin(ph) + 0.45 * sin(ph * 1.9 + v.z * 9.0)) * daraa_flutter * (1.0 + gust + wind_speed_k);
+	float flut = (sin(ph) + 0.45 * sin(ph * 1.9 + v.x * 9.0)) * daraa_flutter * (1.0 + gust + wind_speed_k);
 	local.z += flut * free * free;
-	local.x += flut * 0.7 * side * sign(v.x);
+	local.x += flut * 0.5 * side * sign(v.x);
 	return local;
 }
 

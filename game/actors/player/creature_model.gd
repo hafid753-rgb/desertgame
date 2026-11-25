@@ -17,8 +17,12 @@ const ART_DIR := "res://game/art/characters/"
 const HEAD_Y := 1.28
 ## Head size relative to the authored chibi head (owner: smaller head).
 const HEAD_SHRINK := 0.64
-## lowered with the shrink so the chin still sits in the daraa's neckline
-const HEAD_DROP := 0.12
+## chin rests on the daraa's yoke (shoulder fold at y 1.10), not inside it
+const HEAD_DROP := 0.02
+## Neck hawli: worn on the shoulders over the yoke, sized to the head as
+## authored (wrap/head 1.0) and a touch fuller, mounted on the neck pivot.
+const WRAP_SCALE := 0.74
+const WRAP_Y := 1.115
 ## Mittens slightly smaller (owner: smaller arms).
 const HAND_SHRINK := 0.82
 ## Hawli ribbon colour per species (indigo tagelmust cloth).
@@ -699,6 +703,13 @@ func _build_rig() -> void:
 	else:
 		_journey_robe(body)
 	_robe_base = _robe_pivot.transform
+	if hawli:
+		# the neck wrap rides the neck (robe pivot), not the head: it keeps its
+		# place on the yoke while the head bobs, and the head can't push it
+		# into the daraa
+		hawli.get_parent().remove_child(hawli)
+		_robe_pivot.add_child(hawli)
+		hawli.transform = Transform3D(Basis().scaled(Vector3.ONE * WRAP_SCALE), Vector3(0, WRAP_Y, 0) - neck)
 	_build_scarf()
 	_head_base = head.transform
 	if ear_r:
@@ -913,15 +924,16 @@ func _surf_and_veil(delta: float, state: String, info: Dictionary) -> void:
 ## Simple leather babouche: a low rounded slipper with a flat sole and a
 ## slightly pointed toe (model front is -Z). Vertex colours carry the
 ## leather, a darker sole band and the AO the toon shader reads from alpha.
-const SHOE_LEATHER := Color(0.55, 0.33, 0.19)
+## yellow leather belgha (Mauritanian babouche)
+const SHOE_LEATHER := Color(0.86, 0.62, 0.22)
 static var _shoe_cache: ArrayMesh
 
 static func _simple_shoe() -> ArrayMesh:
 	if _shoe_cache:
 		return _shoe_cache
 	var sm := SphereMesh.new()
-	sm.radius = 0.06
-	sm.height = 0.14
+	sm.radius = 0.075
+	sm.height = 0.17
 	sm.is_hemisphere = true
 	sm.radial_segments = 20
 	sm.rings = 8
@@ -935,12 +947,14 @@ static func _simple_shoe() -> ArrayMesh:
 		# stretch along z, toe forward and a little pointed, heel rounder
 		var z := v.z * 1.75
 		if z < 0.0:
-			z *= 1.0 + 0.25 * clampf(-z / 0.1, 0.0, 1.0)
-			v.x *= 1.0 - 0.25 * clampf(-z / 0.13, 0.0, 1.0)
-		v.y *= 0.95
+			var tk := clampf(-z / 0.13, 0.0, 1.0)
+			z *= 1.0 + 0.3 * tk
+			v.x *= 1.0 - 0.35 * tk
+			v.y += 0.03 * tk * tk * tk          # toe turns up a little
+		v.y *= 0.9
 		verts[i] = Vector3(v.x, v.y, z - 0.02)
 		var sole := v.y < 0.008
-		var c := SHOE_LEATHER.darkened(0.45) if sole else SHOE_LEATHER.lerp(Color(0.68, 0.45, 0.27), clampf(v.y / 0.07, 0.0, 1.0) * 0.5)
+		var c := Color(0.36, 0.2, 0.1) if sole else SHOE_LEATHER.lerp(Color(0.96, 0.78, 0.38), clampf(v.y / 0.08, 0.0, 1.0) * 0.5)
 		cols[i] = Color(c.r, c.g, c.b, 0.75 if sole else 1.0)
 		norms[i] = Vector3(norms[i].x, norms[i].y * 1.2, norms[i].z / 1.75).normalized()
 	a[Mesh.ARRAY_VERTEX] = verts
@@ -1121,8 +1135,11 @@ func _build_scarf() -> void:
 	var anchor := Node3D.new()
 	anchor.name = "ScarfAnchor"
 	_robe_pivot.add_child(anchor)
-	anchor.position = Vector3(0, 0.06, 0.2)
+	# the back of the neck wrap, just outside the yoke
+	anchor.position = Vector3(0, WRAP_Y + 0.04 - 1.06, 0.16)
 	scarf = HawliScarf.new()
+	scarf.head_node = head
+	scarf.head_radius = 0.36 * HEAD_SHRINK * 1.08
 	scarf.color = _hawli_color()
 	scarf.anchor = anchor
 	scarf.body_root = self

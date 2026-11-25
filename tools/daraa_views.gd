@@ -126,9 +126,9 @@ func _species(root: Node3D) -> void:
 		await get_tree().process_frame
 	var img := get_viewport().get_texture().get_image()
 	_save(img, "daraa_species")
-	cam.fov = 18
-	cam.position = Vector3(-1.5, 1.05, 4.2)
-	cam.look_at(Vector3(-1.5, 0.82, 0))
+	cam.fov = 26
+	cam.position = Vector3(-1.5, 0.95, 4.2)
+	cam.look_at(Vector3(-1.5, 0.66, 0))
 	for i in 4:
 		await get_tree().process_frame
 	_save(get_viewport().get_texture().get_image(), "daraa_closeup")
@@ -150,3 +150,7 @@ func _probe(root: Node3D) -> void:
 		var sk := model.skel
 		var ua := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("upperarm.l"))).origin
 		print(st, " R ", inv * model.hand_r.global_position, " L ", inv * model.hand_l.global_position, " upperarm.l ", inv * ua)
+
+
+func _hawli_back(root: Node3D) -> void:
+	pass

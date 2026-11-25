@@ -146,7 +146,7 @@ def body_proxies():
         # hidden arm support: shoulder to just short of the floating hand's
         # rest (idle hands float at ~(0.52, 0.8, -0.42)); the lateral
         # openings hang from these like sleeves from a real wearer's arms
-        capsule_between("proxy_arm", (0.22 * sx, 0.99, -0.02), (0.44 * sx, 0.8, -0.3), 0.05)
+        capsule_between("proxy_arm", (0.21 * sx, 0.99, -0.02), (0.38 * sx, 0.8, -0.26), 0.05)
     capsule_between("proxy_legs", (0, 0.42, 0), (0, 0.12, 0), 0.17)
     bpy.ops.mesh.primitive_plane_add(size=6, location=(0, 0, 0.0))
     g = bpy.context.active_object
@@ -195,9 +195,9 @@ def add_cloth(o, pin_group, frames, sew=True):
     st.sewing_force_max = 0.0
     cs = m.collision_settings
     cs.collision_quality = 4
-    cs.distance_min = 0.006
+    cs.distance_min = 0.01
     cs.use_self_collision = True
-    cs.self_distance_min = 0.004
+    cs.self_distance_min = 0.009
     cs.self_friction = 1.5
     m.point_cache.frame_start = 1
     m.point_cache.frame_end = frames
@@ -227,7 +227,7 @@ def snap_seams(pos, seams):
     return pos
 
 
-def taubin(pos, faces, iters=3, lam=0.5, mu=-0.53):
+def taubin(pos, faces, iters=1, lam=0.5, mu=-0.53):
     """Taubin smoothing: removes the small crumples the coarse sim leaves
     (they alias into pixel noise in the toon shading) while keeping the big
     folds and the volume (no shrinkage)."""
@@ -284,11 +284,11 @@ def gather_targets(edge, side):
     dragging it through the body."""
     t = {}
     for vi, u, fb in edge:
-        if u < 0.55:
+        if u < 0.62:
             continue
-        k = (u - 0.55) / 0.45
-        target = (side * (0.27 + 0.15 * k), P.SHOULDER_Y + 0.05 - 0.28 * k * k, fb * (0.05 + 0.08 * k))
-        way = (side * 0.78, 0.95, fb * (0.14 + 0.06 * k))
+        k = (u - 0.62) / 0.38
+        target = (side * (0.34 + 0.12 * k), P.SHOULDER_Y + 0.04 - 0.3 * k * k, fb * (0.06 + 0.08 * k))
+        way = (side * 0.7, 0.95, fb * (0.14 + 0.06 * k))
         t[vi] = (way, target)
     return t
 
@@ -297,7 +297,7 @@ def spread_targets(edge, side):
     """Glide: the open edges held out like wings at shoulder height."""
     t = {}
     for vi, u, fb in edge:
-        p = (side * 0.84, 1.0 - 0.3 * u, fb * 0.035)
+        p = (side * 0.74, 1.0 - 0.3 * u, fb * 0.035)
         t[vi] = (p, p)
     return t
 

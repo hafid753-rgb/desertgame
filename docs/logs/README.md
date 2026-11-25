@@ -5,7 +5,7 @@ Everything produced in this build session lives here, in `media/` and in
 
 - `CHANGELOG_full_git_history.md`: every commit with its full message, oldest
   first. It is the authoritative change log.
-- `tests_v3.5.1.txt`, `tests_v3.5.2.txt`: gameplay test results (combat 97/97, village 29/29).
+- `tests_v3.5.1.txt`, `tests_v3.5.2.txt`, `tests_v3.5.3.txt`: gameplay test results (combat 97/97, village 29/29).
 - `perf_daraa_v3.5.0.txt`: daraa vs old robe frame cost, measured with the
   software renderer only (not on a phone).
 - `render_showcase_v3.5.1.txt`: engine log of the showcase render.
@@ -21,6 +21,7 @@ Everything produced in this build session lives here, in `media/` and in
 
 | Version | What changed | Media |
 |---|---|---|
+| 3.5.3 (code 39) | Daraa proportions (narrower, lower gathers), anti-self-clipping, hawli on the neck with head/daraa collision, chin on the yoke, yellow belgha feet, green rabbit daraa; full activity reels | videos/hafid_showcase.mp4, hafid_water.mp4, hafid_surf_glide.mp4, hafid_fight.mp4, hafid_oasis_walk.mp4 |
 | 3.5.2 (code 38) | Head 20% smaller (lowered into the neckline); simple leather babouches replace the bulky boots and sirwal cuffs; daraa folds Taubin-smoothed (no crumple noise); showcase re-shot | videos/daraa_showcase_v3.5.2.mp4, stills/daraa_closeup_v3.5.2.png |
 | 3.5.1 (code 37) | Floating hands appear only in combat or emotes; daraa showcase cinematic | videos/daraa_showcase.mp4 |
 | 3.5.0 (code 36) | Authentic daraa built from a flat pattern and Blender drape: 3 wearing configurations plus glide spread, runtime springs and collision, LOD | videos/daraa_in_game.mp4, stills/daraa_*.png |

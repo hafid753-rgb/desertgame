@@ -1,4 +1,4 @@
-## 7ffd3e8  2026-11-23 08:44:18 +0000
+## be298b6  2026-11-23 08:44:18 +0000
 The Room: touch combat prototype (Cat vs shadow jinn)
 
 - Player controller: combo, heavy, dodge/block/parry, stamina, sprint
@@ -11,7 +11,7 @@ The Room: touch combat prototype (Cat vs shadow jinn)
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## b90a668  2026-11-23 08:55:02 +0000
+## 4705d84  2026-11-23 08:55:02 +0000
 v0.2: climbing, daraa glide, outdoor area, sound, hit-stop, pause menu
 
 - Jump, wall climb with species climb speed and stamina, mantle, leap/drop
@@ -26,7 +26,7 @@ v0.2: climbing, daraa glide, outdoor area, sound, hit-stop, pause menu
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## d13ab28  2026-11-23 09:04:50 +0000
+## ed147b0  2026-11-23 09:04:50 +0000
 v0.3: real character models with toon shading
 
 - Blender-built (bpy 5.3) Cat, Fennec, Lizard in daraa robes with embroidered
@@ -40,7 +40,7 @@ v0.3: real character models with toon shading
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 613c53b  2026-11-23 09:10:34 +0000
+## 05858fb  2026-11-23 09:10:34 +0000
 v0.3.1: character polish
 
 - Crisp embroidery and jinn mask markings as geometry projected onto
@@ -53,7 +53,7 @@ v0.3.1: character polish
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 26060d9  2026-11-23 09:26:26 +0000
+## 66baf9d  2026-11-23 09:26:26 +0000
 v0.4: adventurer proportions and a real daraa
 
 - ~1.75 m characters, head ~1/6 of height, almond eyes with irises and
@@ -68,13 +68,13 @@ v0.4: adventurer proportions and a real daraa
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 6585570  2026-11-23 10:37:35 +0000
+## b907b96  2026-11-23 10:37:35 +0000
 Import external v0.4 fork (4 elements, physics props, spirit veil, sand shader, lock diamond)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 3025ead  2026-11-23 10:38:54 +0000
+## e91650b  2026-11-23 10:38:54 +0000
 Merge fork gameplay onto v0.4 characters
 
 Keeps v0.4 proportions/daraa/limbs; adds the fork's Water/Ice + Earth
@@ -85,7 +85,7 @@ props moved clear of the ruined wall. 61/61 tests.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 3658532  2026-11-24 02:52:52 +0000
+## f4a7fe6  2026-11-24 02:52:52 +0000
 v0.5: haunted village, Jinn King, conquest and restoration loop
 
 - Aïn Sirra: greybox Saharan village east of the courtyard, houses,
@@ -105,7 +105,7 @@ v0.5: haunted village, Jinn King, conquest and restoration loop
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 78746a5  2026-11-24 02:59:47 +0000
+## b90abd2  2026-11-24 02:59:47 +0000
 v0.6: boxy Rayman-style characters with five hand poses
 
 - All character parts rebuilt from rounded boxes (bevelled cubes):
@@ -123,7 +123,7 @@ v0.6: boxy Rayman-style characters with five hand poses
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 9ed45d3  2026-11-24 03:03:53 +0000
+## ddee787  2026-11-24 03:03:53 +0000
 v0.6.1: smoke jinn, enchantment rule
 
 - Jinn are smoke: rising wisps, glowing white dot eyes, golden rings
@@ -138,7 +138,7 @@ v0.6.1: smoke jinn, enchantment rule
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 0038751  2026-11-24 03:32:21 +0000
+## d7550d3  2026-11-24 03:32:21 +0000
 v0.8: chibi sculpt pass, shell fur, Mauritanian species, daraa + hawli, takoba
 
 - Proportions: big head (~1/3 height), stocky body, chunky boots under sarouel
@@ -154,7 +154,7 @@ v0.8: chibi sculpt pass, shell fur, Mauritanian species, daraa + hawli, takoba
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## c8f77b6  2026-11-24 03:43:08 +0000
+## 901831f  2026-11-24 03:43:08 +0000
 v0.9: vinyl-toy style, rabbit replaces lizard, '> <' closed eyes
 
 - Smooth mochi heads (superellipsoid), tall glossy oval eyes, tiny nose,
@@ -167,7 +167,7 @@ v0.9: vinyl-toy style, rabbit replaces lizard, '> <' closed eyes
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 89428f5  2026-11-24 03:51:07 +0000
+## 4ef77dd  2026-11-24 03:51:07 +0000
 v0.9.1: flocked fur finish on the vinyl characters
 
 - Shell fur on cat, fennec and rabbit (heads, ears, tails, paws), built from a
@@ -178,7 +178,7 @@ v0.9.1: flocked fur finish on the vinyl characters
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 045cff6  2026-11-24 04:04:03 +0000
+## fce155f  2026-11-24 04:04:03 +0000
 v1.0: Nintendo-style storybook look, clean A-line daraa
 
 - Lighting: wrapped diffuse with a soft cel step, light lavender shadows,
@@ -194,7 +194,7 @@ v1.0: Nintendo-style storybook look, clean A-line daraa
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 1630f8d  2026-11-24 04:10:41 +0000
+## 4069bd4  2026-11-24 04:10:41 +0000
 v1.1: aghar shield, sculpted takoba and scabbard, chibi hand targets
 
 - Tuareg-style aghar: curved pale hide, leather rim, painted cross, lozenges,
@@ -208,7 +208,7 @@ v1.1: aghar shield, sculpted takoba and scabbard, chibi hand targets
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 5b1d39a  2026-11-24 04:15:39 +0000
+## b4edf55  2026-11-24 04:15:39 +0000
 v1.2: mouths, bazin damask, soft shadows, richer daraa embroidery
 
 - 'ω' mouths (hare gets a philtrum line), on open and closed eye sets
@@ -220,7 +220,7 @@ v1.2: mouths, bazin damask, soft shadows, richer daraa embroidery
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 07b0249  2026-11-24 04:25:44 +0000
+## 150ef65  2026-11-24 04:25:44 +0000
 v1.3: squash & stretch and a bouncy walk
 
 - Spring-driven squash & stretch: stretch on take-off and swings, squash on
@@ -233,7 +233,7 @@ v1.3: squash & stretch and a bouncy walk
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 330cb36  2026-11-24 04:30:54 +0000
+## dda305b  2026-11-24 04:30:54 +0000
 v1.4: Nintendo mittens
 
 - Hands rebuilt as soft rounded mitts: flat mitten with grooves (open), ball
@@ -242,13 +242,13 @@ v1.4: Nintendo mittens
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## ead72db  2026-11-24 04:34:02 +0000
+## 3069c06  2026-11-24 04:34:02 +0000
 v1.4.1: clean white bazin, matte cotton hawli/turbans
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## c498134  2026-11-24 04:39:14 +0000
+## 23dc604  2026-11-24 04:39:14 +0000
 v1.5: Journey-style sand (after Alan Zucconi's series)
 
 - Diffuse contrast (N.y*0.3, 4x Lambert, shadow->terrain lerp)
@@ -259,7 +259,7 @@ v1.5: Journey-style sand (after Alan Zucconi's series)
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 0ebfb6d  2026-11-24 20:57:23 +0000
+## 3e7d4c5  2026-11-24 20:57:23 +0000
 v2.0: skeletal animation + movement weight
 
 - Characters ride a keyframe-animated skeleton (KayKit Rig_Medium, CC0,
@@ -277,25 +277,25 @@ v2.0: skeletal animation + movement weight
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 3221203  2026-11-24 21:01:04 +0000
+## fb454e9  2026-11-24 21:01:04 +0000
 v2.1: ear springs, head hop, twitch/flatten through the spring
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 04661d6  2026-11-24 21:06:47 +0000
+## 3a8349f  2026-11-24 21:06:47 +0000
 tools: fight_reel (bot plays the real game vs a jinn, movie-maker recording)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## b277e66  2026-11-24 21:08:50 +0000
+## 111f53e  2026-11-24 21:08:50 +0000
 fight_reel: close camera option
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## f43887f  2026-11-24 21:30:58 +0000
+## 313e890  2026-11-24 21:30:58 +0000
 v2.2: exaggerated combat - big sweeps, reaching stab, lunging footwork
 
 - Combo: diagonal sweep, reaching stab (range 3.2), spinning sweep finisher
@@ -312,7 +312,7 @@ v2.2: exaggerated combat - big sweeps, reaching stab, lunging footwork
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## aee94a5  2026-11-24 21:54:53 +0000
+## 00f12d9  2026-11-24 21:54:53 +0000
 v2.3: ICO-style shadow jinn - punches, fireballs, 2 s vanish
 
 - Body: skeletal shadow (KayKit hooded rig, CC0) reshaped by
@@ -331,7 +331,7 @@ v2.3: ICO-style shadow jinn - punches, fireballs, 2 s vanish
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 0eae1b1  2026-11-24 22:05:53 +0000
+## 8813e0d  2026-11-24 22:05:53 +0000
 Phase 0-1: research ledger + pixel-art rendering lab (courtyard)
 
 - docs/RESEARCH_LEDGER.md: every repo in the brief with commit, licence,
@@ -348,7 +348,7 @@ Phase 0-1: research ledger + pixel-art rendering lab (courtyard)
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 0c55b9a  2026-11-24 22:26:27 +0000
+## ca0488f  2026-11-24 22:26:27 +0000
 Oasis lab: full-res pixel art, shared wind, individual grass/leaves, pond
 
 - Pixel look moved fully into assets at full resolution (low-res layer off)
@@ -366,7 +366,7 @@ Oasis lab: full-res pixel art, shared wind, individual grass/leaves, pond
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 0c6e26e  2026-11-25 01:25:46 +0000
+## 5cea799  2026-11-25 01:25:46 +0000
 Oasis life: wind-blown dithered dust, footprints, wading ripples, falling leaves, finer acacias
 
 - wind_dust.gdshader + WindDust: drift sheet of dithered streaks moving
@@ -387,13 +387,13 @@ Oasis life: wind-blown dithered dust, footprints, wading ripples, falling leaves
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 2a5ef6a  2026-11-25 01:27:51 +0000
+## 0167b9d  2026-11-25 01:27:51 +0000
 Art notes: Noio's own 3D pixel-art rules vs Hafid, reflection gap
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 80315c6  2026-11-25 01:44:28 +0000
+## 371ef0d  2026-11-25 01:44:28 +0000
 Pond planar reflection (Noio's below-camera technique), pixel-dithered
 
 - WaterReflection: mirrored camera renders the REFLECT layer (palms,
@@ -406,7 +406,7 @@ Pond planar reflection (Noio's below-camera technique), pixel-dithered
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 851d7d3  2026-11-25 03:58:21 +0000
+## 2159f48  2026-11-25 03:58:21 +0000
 Saharan palette + Garbage Country comparison pass
 
 - Owner photo palette: terracotta sand, rust shadows, cream haze; warm
@@ -422,7 +422,7 @@ Saharan palette + Garbage Country comparison pass
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## e3c9f80  2026-11-25 04:13:19 +0000
+## 5c8961f  2026-11-25 04:13:19 +0000
 Low wide smooth dunes; slight cel shading on characters and vegetation
 
 - DuneHorizon: no tall dunes; long smooth asymmetric swells (95 m / 62 m
@@ -435,7 +435,7 @@ Low wide smooth dunes; slight cel shading on characters and vegetation
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## c6de2d4  2026-11-25 04:23:27 +0000
+## ce46b52  2026-11-25 04:23:27 +0000
 Lower contrast to the owner's soft reference: peach-tan sand, gentle shadows
 
 - Sand D9864F with soft shadow BC6E42; weaker tonal patches, fewer pebbles
@@ -446,7 +446,7 @@ Lower contrast to the owner's soft reference: peach-tan sand, gentle shadows
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 41742ae  2026-11-25 04:44:27 +0000
+## a3787bb  2026-11-25 04:44:27 +0000
 Journey-inspired sand, smaller head, Journey-style daraa, hawli ribbon
 
 - sand_ripple.gdshader rewritten per the owner's sand spec: smooth macro
@@ -462,7 +462,7 @@ Journey-inspired sand, smaller head, Journey-style daraa, hawli ribbon
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## cb84ece  2026-11-25 05:05:09 +0000
+## b457132  2026-11-25 05:05:09 +0000
 Stylized shadows, atmospheric light, sun + pixel lens flare, Journey sheen, tucked arms
 
 - Shadows: crisp tinted band (attenuation mapped through a narrow step in
@@ -480,7 +480,7 @@ Stylized shadows, atmospheric light, sun + pixel lens flare, Journey sheen, tuck
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## c3ad72e  2026-11-25 06:18:13 +0000
+## 795f41a  2026-11-25 06:18:13 +0000
 Sand surfing + glide + face veil, sand interaction mask, realistic flare, tech-demo cinematics
 
 - SURF state: auto when running downhill on >13 deg sand; shield under the
@@ -502,7 +502,7 @@ Sand surfing + glide + face veil, sand interaction mask, realistic flare, tech-d
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## ef43d02  2026-11-25 06:35:09 +0000
+## 5cb2935  2026-11-25 06:35:09 +0000
 Glide pass: shield board under the feet, shrink-wrapped face veil, daraa sail in rig mode, warm dust plume
 
 - Shield laid flat (disc normal up, long axis along travel), x2.3, under the boots
@@ -515,7 +515,7 @@ Glide pass: shield board under the feet, shrink-wrapped face veil, daraa sail in
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## e1dcc82  2026-11-25 06:53:47 +0000
+## 5509441  2026-11-25 06:53:47 +0000
 Daraa as cloth everywhere, epic surfing dune and fast glide
 
 - robe_cloth.gdshaderinc: daraa body deforms like hanging cloth (wind
@@ -531,7 +531,7 @@ Daraa as cloth everywhere, epic surfing dune and fast glide
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## a5ba87a  2026-11-25 08:28:59 +0000
+## e58af7c  2026-11-25 08:28:59 +0000
 Children in poncho daraas wearing animal masks with abilities
 
 - ChildBuild: child skull + hood (poncho cloth), species head flattened
@@ -546,7 +546,7 @@ Children in poncho daraas wearing animal masks with abilities
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## fed9310  2026-11-25 08:30:24 +0000
+## 5d3564a  2026-11-25 08:30:24 +0000
 Revert "Children in poncho daraas wearing animal masks with abilities"
 
 Owner asked to revert; back to the v3.4.0 animal characters.
@@ -554,13 +554,13 @@ Owner asked to revert; back to the v3.4.0 animal characters.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 73a9a17  2026-11-25 08:32:26 +0000
+## ae9127f  2026-11-25 08:32:26 +0000
 Version 3.4.1 (code 35) after the mask revert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 0ca8b07  2026-11-25 09:35:30 +0000
+## 8f89344  2026-11-25 09:35:30 +0000
 Version 3.5.0 (code 36): authentic daraa from a flat pattern and Blender drape
 
 One folded rectangle with open lateral openings, lower side seams, open hem,
@@ -573,7 +573,7 @@ docs/garment/DARAA.md.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
-## 6194aee  2026-11-25 10:04:46 +0000
+## 5fc8fac  2026-11-25 10:04:46 +0000
 Version 3.5.1 (code 37): hands only when used; daraa showcase; media, logs and APK
 
 Floating hands pop in for combat and emotes and are hidden while walking,
@@ -585,12 +585,45 @@ media index under docs/logs/.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
+## ce7ab35  2026-11-25 10:07:13 +0000
+Initial commit
+
+
 ## 908fb78  2026-11-25 10:07:13 +0000
 Initial commit
 
 
-## f307645  2026-11-25 10:08:04 +0000
+## a48534a  2026-11-25 10:08:04 +0000
 Merge GitHub repo initial commit (keep the game's README)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+
+## a2b6b64  2026-11-25 10:21:47 +0000
+Version 3.5.2 (code 38): head 20% smaller, simple babouches, smoother daraa
+
+HEAD_SHRINK 0.8 -> 0.64 with the head lowered into the neckline; simple
+leather babouche feet replace the bulky boots and sirwal cuffs; Taubin
+smoothing of the daraa drape and shape keys; showcase re-shot; logs,
+media and APK updated.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+
+## 2d8108b  2026-11-25 10:24:51 +0000
+Store binaries as plain git blobs (Git LFS uploads are blocked from the build session)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+
+## 857d12a  2026-11-25 10:25:12 +0000
+Add the 3.5.2 debug APK
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+
+## fdda0e6  2026-11-25 10:25:26 +0000
+Merge GitHub initial commit
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61

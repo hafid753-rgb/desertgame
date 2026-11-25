@@ -156,6 +156,35 @@ are switched off.
 - The feet are now small babouches, so the leg proxies are short capsules
   over the toes.
 
+## 5d. v3.5.3: proportions, hawli, self-clipping
+- **Proportions.**
+  - Width reduced from 1.50 to 1.32 for the chibi body (about 1.9 m adult
+    equivalent).
+  - The hidden arm proxies are pulled in to match.
+  - The gathers now lift only the lower 38% of each opening, to elbow
+    height, with the corners kept out at the arms, so the hem no longer
+    jumps to the waist.
+- **Head and hawli.**
+  - The chin now rests on the yoke instead of sinking into the garment.
+  - The neck wrap rides the neck pivot rather than the head, so the head
+    can't push it into the daraa.
+  - The ribbon collides with the head (a sphere) and with the daraa (an
+    elliptic cylinder that narrows at the neck), so it no longer cuts
+    through either.
+  - The rabbit's daraa is now green, one of the documented colours, so its
+    navy hawli reads.
+- **Self-clipping.**
+  - Cloth thickness in the sim: collision distance 0.01, self-collision
+    distance 0.009.
+  - A single Taubin pass, so smoothing can't push stacked layers together.
+  - Runtime wind and flutter phases no longer depend on depth (z), so
+    front, back and folded layers at the same spot move together.
+  - Spring offsets are capped lower (sides 0.16, hem 0.14).
+  - The outline hull is thinner (0.0045), so it doesn't poke through
+    closely stacked layers.
+- **Feet.** Yellow leather belgha babouches, 25% larger, with a slightly
+  upturned toe and a dark sole.
+
 ## 6. Validation
 
 | Check | Output |

@@ -12,6 +12,15 @@ extends Node3D
 @export var color := Color(0.2, 0.26, 0.55)
 var anchor: Node3D          # follows the neck
 var body_root: Node3D       # character root (ground height, robe axis)
+## head collision (chibi head is a big sphere-ish box: keep the ribbon off it)
+var head_node: Node3D
+var head_radius := 0.25
+## the daraa as an elliptic cylinder in the character's frame (half-width,
+## half-depth, its centre offset forward, and the shoulder height)
+var daraa_rx := 0.47
+var daraa_rz := 0.3
+var daraa_cz := -0.03
+var shoulder_y := 1.1
 
 var _p := PackedVector3Array()
 var _o := PackedVector3Array()
@@ -103,17 +112,30 @@ func _step(h: float, root: Vector3, back: Vector3) -> void:
 			else:
 				_p[i] = a + corr * 0.5
 				_p[i + 1] = b - corr * 0.5
-		# stay outside the robe cone and above the sand
+		# stay off the head, outside the daraa and above the sand
+		var basis := body_root.global_transform.basis.orthonormalized() if body_root else Basis()
+		var hc := head_node.global_position if head_node else Vector3(0, -99, 0)
 		for i in range(1, segments + 1):
 			var p := _p[i]
-			var rel := Vector2(p.x - axis.x, p.z - axis.z)
-			var hgt := p.y - axis.y
-			if hgt < root.y - axis.y + 0.1:
-				var r := lerpf(0.42, 0.2, clampf(hgt / maxf(root.y - axis.y, 0.1), 0.0, 1.0))
-				if rel.length() < r:
-					rel = (rel.normalized() if rel.length() > 1e-4 else Vector2(back.x, back.z)) * r
-					p.x = axis.x + rel.x
-					p.z = axis.z + rel.y
+			var dh := p - hc
+			if dh.length() < head_radius:
+				p = hc + (dh.normalized() if dh.length() > 1e-4 else back) * head_radius
+			var rel := basis.inverse() * (p - axis)
+			if rel.y < shoulder_y + 0.03:
+				# narrower at the neck, full width from the shoulders down
+				var top := smoothstep(shoulder_y - 0.12, shoulder_y + 0.03, rel.y)
+				var rx := lerpf(daraa_rx, 0.22, top) + 0.02
+				var rz := lerpf(daraa_rz, 0.19, top) + 0.02
+				var ex := rel.x / rx
+				var ez := (rel.z - daraa_cz) / rz
+				var e := sqrt(ex * ex + ez * ez)
+				if e < 1.0:
+					if e < 1e-3:
+						ez = 1.0
+						e = 1.0
+					rel.x = ex / e * rx
+					rel.z = daraa_cz + ez / e * rz
+					p = axis + basis * rel
 			p.y = maxf(p.y, ground)
 			_p[i] = p
 

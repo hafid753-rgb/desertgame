@@ -18,7 +18,7 @@ Coordinates: character units (Godot model space, metres-like), x across
 import json
 import math
 
-W = 1.50              # finished width (x in [-W/2, W/2])
+W = 1.32              # finished width (x in [-W/2, W/2]); narrower for the chibi body
 L = 1.22              # fold-to-hem length (over the shoulder, then down to the ankles)
 SEAM_FRAC = 0.32      # lower part of each side edge that is sewn
 DX = 0.02             # mesh resolution
@@ -27,7 +27,7 @@ NECK_FRONT = 0.26     # neck opening depth into the front (V reaches the chest)
 NECK_BACK = 0.06      # ... and into the back
 POCKET = {"cx": -0.155, "s0": -0.34, "s1": -0.54, "w": 0.17}   # front, wearer's left
 TEXELS_PER_UNIT = 64  # garment pixel density (2x the 32 px/m world grid)
-TEX_W, TEX_H = 96, 160
+TEX_W, TEX_H = 85, 160   # 1.32 * 64 = 84.5
 REAL_SCALE = 1.45     # 1 character unit ~ 1.45 m of real adult garment
 SHOULDER_Y = 1.10     # fold line height in model space (top of the shoulders)
 YOKE_Z = 0.19         # half-depth of the shoulder top (fold region)
