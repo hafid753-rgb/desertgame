@@ -21,7 +21,7 @@ Everything produced in this build session lives here, in `media/` and in
 
 | Version | What changed | Media |
 |---|---|---|
-| drive test | Separate top-down driving prototype in the same desert (game/drive/): voxel 80s sedan, drift handling, pond spray, soft-sand stuck; daraa anti-clipping work in progress (position-based rig weights, softer config pins: test build 0–3 intersections vs 65–140) | videos/desert_driving_teaser.mp4 |
+| 3.5.4 (wip) | Daraa anti-clipping: position-based rig weights (layers move together); softer config pins + higher collision quality (test build 0–3 self-intersections vs 65–140). The desert driving prototype moved to its own repository | — |
 | 3.5.3 (code 39) | Daraa proportions (narrower, lower gathers), anti-self-clipping, hawli on the neck with head/daraa collision, chin on the yoke, yellow belgha feet, green rabbit daraa; full activity reels | videos/hafid_showcase.mp4, hafid_water.mp4, hafid_surf_glide.mp4, hafid_fight.mp4, hafid_oasis_walk.mp4 |
 | 3.5.2 (code 38) | Head 20% smaller (lowered into the neckline); simple leather babouches replace the bulky boots and sirwal cuffs; daraa folds Taubin-smoothed (no crumple noise); showcase re-shot | videos/daraa_showcase_v3.5.2.mp4, stills/daraa_closeup_v3.5.2.png |
 | 3.5.1 (code 37) | Floating hands appear only in combat or emotes; daraa showcase cinematic | videos/daraa_showcase.mp4 |
