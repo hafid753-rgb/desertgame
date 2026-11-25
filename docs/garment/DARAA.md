@@ -185,6 +185,26 @@ are switched off.
 - **Feet.** Yellow leather belgha babouches, 25% larger, with a slightly
   upturned toe and a dark sole.
 
+## 5e. v3.5.4: the cloth no longer passes through itself
+- **Runtime.** The rig weights (side chains, freedom) are now computed from
+  position, not from the pattern. Two layers at the same place always get
+  the same offset, so the runtime warp can't push one layer through
+  another.
+- **Build.**
+  - The wearing configurations use soft pins (pin stiffness 0.4) with 200
+    frames of settling.
+  - Collision quality 8, self-collision distance 0.012, cloth quality 14.
+- **Result.** `tools/garment/check_intersections.py` counts
+  self-intersecting faces (LOD0):
+
+  | Configuration | Before | After |
+  |---|---|---|
+  | Draped | 7 | 1 |
+  | GatherL | 140 | 6 |
+  | GatherR (combat) | 139 | 0 |
+  | GatherBoth (climb) | 387 | 22 |
+  | Spread (glide) | 41 | 2 |
+
 ## 6. Validation
 
 | Check | Output |

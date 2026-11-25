@@ -107,6 +107,11 @@ func _ready() -> void:
 		"sun":
 			_place(Vector3(30, 0.05, -28), 0.0)
 			dur = 7.0
+		"gameplay":
+			# the real gameplay camera (CameraRig), as on the phone
+			_place(Vector3(6, 0.1, 9), 0.0)
+			_cap_text = "GAMEPLAY CAMERA  —  closer, lower, character ~40% of the screen"
+			dur = 22.0
 		"showcase":
 			_place(Vector3(-46.0, 0.05, 28.0), 0.0)
 			if main.jinn:
@@ -162,6 +167,17 @@ func _physics_process(delta: float) -> void:
 			mv = Vector2(sin(t * 1.3) * 0.25, -1.0) if t > 0.4 else Vector2.ZERO
 		"fight":
 			mv = _fight_bot(delta)
+		"gameplay":
+			if t < 1.0:
+				mv = Vector2.ZERO
+			elif t < 3.5:
+				mv = Vector2(-0.25, -0.45)
+			elif t < 5.8:
+				mv = Vector2(sin(t * 2.0) * 0.8, -0.9)
+				if absf(t - 4.6) < delta * 0.5:
+					_tap("jump", 0.22)
+			else:
+				mv = _fight_bot(delta)
 		"showcase":
 			mv = _showcase_input(delta)
 		"daraa":
@@ -282,6 +298,12 @@ func _showcase_input(delta: float) -> Vector2:
 
 ## Camera moves, run after everything else each frame.
 func _process(delta: float) -> void:
+	if shot == "gameplay":
+		main.camera_rig.camera.make_current()
+		var ca := clampf((t - 0.6) / 0.6, 0.0, 1.0) * clampf((dur - 0.8 - t) / 0.6, 0.0, 1.0)
+		_cap.text = _cap_text
+		_cap.modulate.a = ca
+		return
 	var pp := p.global_position
 	var fwd := -p.global_transform.basis.z
 	fwd.y = 0.0

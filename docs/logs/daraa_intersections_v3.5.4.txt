@@ -1,0 +1,4 @@
+/tmp/build0.log:  isect raw  base 2 {'GatherL': 9, 'GatherR': 3, 'GatherBoth': 37, 'Spread': 0}
+/tmp/build0.log:  isect final base 1 {'GatherL': 6, 'GatherR': 0, 'GatherBoth': 22, 'Spread': 2}
+/tmp/build1.log:  isect raw  base 1 {'GatherL': 0, 'GatherR': 2, 'GatherBoth': 4, 'Spread': 2}
+/tmp/build1.log:  isect final base 0 {'GatherL': 0, 'GatherR': 0, 'GatherBoth': 1, 'Spread': 0}

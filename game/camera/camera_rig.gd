@@ -13,11 +13,13 @@ var follow: Node3D
 var lock_target: Node3D
 var camera: Camera3D
 var yaw: float = 0.0
-var pitch: float = -0.28
-var distance: float = 5.2
-var height: float = 1.75
+## Closer and lower than before (owner: "everything feels small"): the
+## character fills ~40% of a phone screen instead of under a quarter.
+var pitch: float = -0.24
+var distance: float = 3.6
+var height: float = 1.15
 var focus: Vector3 = Vector3.ZERO
-var _current_distance: float = 5.2
+var _current_distance: float = 3.6
 var _shake: float = 0.0
 
 
@@ -28,7 +30,7 @@ func shake(amount: float) -> void:
 func _ready() -> void:
 	top_level = true
 	camera = Camera3D.new()
-	camera.fov = 62.0
+	camera.fov = 55.0
 	camera.near = 0.1
 	camera.far = 250.0
 	add_child(camera)

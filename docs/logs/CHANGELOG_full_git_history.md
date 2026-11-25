@@ -641,3 +641,26 @@ Activity reels (showcase, water, surf+glide, fight, oasis walk), logs, APK.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
+## 228ca87  2026-11-25 11:38:01 +0000
+Desert driving test (top-down) + daraa anti-clipping work in progress
+
+game/drive/: separate prototype in the Hafid desert. Original voxel 80s
+sedan built in code, arcade slip handling with handbrake drifts, raycast
+ride, pond spray and ripples, soft-sand pit (wheels spin, car digs in,
+stuck); shared tyre grooves, grass parting and oasis splash. Teaser via
+'-- teaser'. Video in media/videos/desert_driving_teaser.mp4.
+
+Daraa: rig weights now position-based (layers move together), garment
+build uses softer config pins + higher collision quality (test build:
+0-3 self-intersections vs 65-140); check_intersections.py added. The
+shipped daraa.glb is not rebuilt yet.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+
+## 56717f1  2026-11-25 11:41:31 +0000
+Move the desert driving prototype to its own repository
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+

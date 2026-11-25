@@ -5,7 +5,7 @@ Everything produced in this build session lives here, in `media/` and in
 
 - `CHANGELOG_full_git_history.md`: every commit with its full message, oldest
   first. It is the authoritative change log.
-- `tests_v3.5.1.txt`, `tests_v3.5.2.txt`, `tests_v3.5.3.txt`: gameplay test results (combat 97/97, village 29/29).
+- `tests_v3.5.1.txt`, `tests_v3.5.2.txt`, `tests_v3.5.3.txt`, `tests_v3.5.4.txt`: gameplay test results (combat 97/97, village 29/29).
 - `perf_daraa_v3.5.0.txt`: daraa vs old robe frame cost, measured with the
   software renderer only (not on a phone).
 - `render_showcase_v3.5.1.txt`: engine log of the showcase render.
@@ -21,7 +21,7 @@ Everything produced in this build session lives here, in `media/` and in
 
 | Version | What changed | Media |
 |---|---|---|
-| 3.5.4 (wip) | Daraa anti-clipping: position-based rig weights (layers move together); softer config pins + higher collision quality (test build 0–3 self-intersections vs 65–140). The desert driving prototype moved to its own repository | — |
+| 3.5.4 (code 40) | Daraa rebuilt: position-based rig weights and softer config pins. Self-intersecting faces, before vs after: GatherR (combat) 139 vs 0; GatherL 140 vs 6; GatherBoth 387 vs 22; Spread 41 vs 2; draped 7 vs 1 (daraa_intersections_v3.5.4.txt). Gameplay camera closer (3.6 m, 55°). The driving prototype moved to its own repository | videos/hafid_gameplay_v3.5.4.mp4, hafid_showcase_v3.5.4.mp4, hafid_fight_v3.5.4.mp4 |
 | 3.5.3 (code 39) | Daraa proportions (narrower, lower gathers), anti-self-clipping, hawli on the neck with head/daraa collision, chin on the yoke, yellow belgha feet, green rabbit daraa; full activity reels | videos/hafid_showcase.mp4, hafid_water.mp4, hafid_surf_glide.mp4, hafid_fight.mp4, hafid_oasis_walk.mp4 |
 | 3.5.2 (code 38) | Head 20% smaller (lowered into the neckline); simple leather babouches replace the bulky boots and sirwal cuffs; daraa folds Taubin-smoothed (no crumple noise); showcase re-shot | videos/daraa_showcase_v3.5.2.mp4, stills/daraa_closeup_v3.5.2.png |
 | 3.5.1 (code 37) | Floating hands appear only in combat or emotes; daraa showcase cinematic | videos/daraa_showcase.mp4 |
