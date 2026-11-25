@@ -59,7 +59,7 @@ const GLIDE_COST := 7.0
 ## the daraa into a glide.
 const SURF_MIN_DEG := 13.0
 const SURF_EXIT_DEG := 5.0
-const SURF_MAX := 16.0
+const SURF_MAX := 21.0
 const SURF_FRICTION := 0.22
 const SURF_STEER := 2.2
 
@@ -1098,9 +1098,12 @@ func _tick_surf(delta: float) -> Vector3:
 	if not is_on_floor():
 		_surf_air_t += delta
 		if _surf_air_t > 0.08:
-			# flew off a crest or lip: keep the speed, the daraa will open
+			# flew off a crest or lip: keep the speed, the daraa will open;
+			# a real kicker (rising fast) pops the rider higher
 			air_horizontal = surf_vel
 			air_from_surf = true
+			if velocity.y > 2.0:
+				velocity.y += surf_vel.length() * 0.32
 			_enter(State.AIR)
 		return surf_vel
 	_surf_air_t = 0.0
@@ -1152,7 +1155,11 @@ func _tick_glide(delta: float) -> Vector3:
 	var heading := air_horizontal.normalized() if air_horizontal.length() > 0.1 else _forward()
 	if dir.length() > 0.1:
 		heading = heading.slerp(dir.normalized(), 1.0 - exp(-2.5 * delta)).normalized()
-	var speed := lerpf(air_horizontal.length(), GLIDE_SPEED * (1.0 + 0.3 * dir.length()), 1.0 - exp(-2.0 * delta))
+	# a glide launched at speed (off a dune lip) keeps most of it, bleeding
+	# off slowly; a slow glide eases up to cruising speed
+	var cruise := GLIDE_SPEED * (1.0 + 0.3 * dir.length())
+	var cur := air_horizontal.length()
+	var speed := lerpf(cur, cruise, 1.0 - exp(-(0.35 if cur > cruise else 2.0) * delta))
 	air_horizontal = heading * speed
 	_face_target_or(air_horizontal, delta, 6.0)
 	_spend(GLIDE_COST * delta)

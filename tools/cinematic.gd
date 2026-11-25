@@ -17,6 +17,7 @@ var _cap_text := ""
 var _cam_pos := Vector3.ZERO
 var _look := Vector3.ZERO
 var _first := true
+var _seg := -1
 # fight bot
 var next_tap := 0.0
 var dodge_cd := 0.0
@@ -35,6 +36,8 @@ const CAPTIONS := {
 	"sun": "LIGHT  —  sun disc · glare · chromatic ghosts · diffraction",
 	"surfclose": "SAND SURFING  —  shield board · tagelmust veil · dust plume",
 	"glideclose": "GLIDE  —  daraa opens · hawli veil · slow fall",
+	"epic": "SAND SURFING  —  12 m dune · kicker lip · daraa glide",
+	"robe": "DARAA  —  cloth in the wind · hem lag and flutter",
 	"board": "SHIELD BOARD  —  groove in the sand · warm dust plume",
 }
 
@@ -79,9 +82,12 @@ func _ready() -> void:
 		"run":
 			_place(Vector3(10.0, 0.05, -40.0), PI * 0.5)
 			dur = 8.0
-		"surf", "surfclose", "glideclose", "board":
-			_place(Vector3(-28.5, 8.3, 46.0), -PI * 0.5)
-			dur = 8.5
+		"surf", "surfclose", "glideclose", "board", "epic":
+			_place(Vector3(-38.0, 12.4, 46.0), -PI * 0.5)
+			dur = 9.6 if shot == "epic" else 8.5
+		"robe":
+			_place(OASIS + Vector3(16, 0.05, 10), 0.4)
+			dur = 10.0
 		"fight":
 			_place(Vector3(0, 0.1, 7), 0.0)
 			dur = 26.0
@@ -125,11 +131,15 @@ func _physics_process(delta: float) -> void:
 			mv = Vector2(0, -1.0) if t > 0.4 and t < 7.6 else Vector2.ZERO
 			if t > 2.4 and fmod(t, 1.6) < delta and t < 7.0:
 				_tap("jump", 0.22)
-		"surf", "surfclose", "glideclose", "board":
+		"robe":
+			mv = Vector2(0, -0.5) if t > 1.0 and t < 4.0 else (Vector2(0.6, -1.0) if t > 5.5 and t < 7.5 else Vector2.ZERO)
+		"surf", "surfclose", "glideclose", "board", "epic":
 			mv = Vector2(sin(t * 1.3) * 0.25, -1.0) if t > 0.4 else Vector2.ZERO
 		"fight":
 			mv = _fight_bot(delta)
 	GameInput.touch_move = mv
+	if OS.get_cmdline_user_args().has("trace") and fmod(t, 0.25) < get_physics_process_delta_time():
+		print("t %.2f %s pos %s v %.1f vy %.1f" % [t, p.state_name(), p.global_position.snapped(Vector3.ONE * 0.1), Vector2(p.velocity.x, p.velocity.z).length(), p.velocity.y])
 	if OS.get_cmdline_user_args().has("stills") and fmod(t, 0.7) < get_physics_process_delta_time():
 		_still()
 	if t > dur:
@@ -235,6 +245,40 @@ func _process(delta: float) -> void:
 			look = pp + Vector3(0, 0.75, 0)
 			cam.fov = 45.0
 			smooth = 9.0
+		"epic":
+			var seg := 0 if t < 1.1 else (1 if t < 3.7 else (2 if t < 5.3 else 3))
+			if seg != _seg:
+				_seg = seg
+				_first = true                     # hard cut
+			match seg:
+				0:   # from the foot of the slip face, looking up at the crest
+					pos = Vector3(-21.0, 0.9, 37.0) + Vector3(lerpf(0.0, 1.5, t), 0, 0)
+					look = pp + Vector3(0, 1.0, 0)
+					cam.fov = 40.0
+					smooth = 30.0
+				1:   # fast low chase, wide lens
+					pos = pp - fwd * 3.0 + side * 1.6 + Vector3(0, 0.9, 0)
+					look = pp + fwd * 4.0 + Vector3(0, 0.2, 0)
+					cam.fov = 66.0
+					smooth = 12.0
+				2:   # ground camera at the lip: the rider launches overhead
+					pos = Vector3(9.5, 0.35, 48.2)
+					look = pp + Vector3(0, 0.8, 0)
+					cam.fov = 72.0
+					smooth = 30.0
+				_:   # alongside the glide, drifting round to the back
+					var a := lerpf(0.0, 1.0, clampf((t - 5.3) / 4.3, 0.0, 1.0))
+					pos = pp + side * lerpf(4.2, 2.6, a) - fwd * lerpf(0.5, 3.0, a) + Vector3(0, lerpf(0.4, 1.2, a), 0)
+					look = pp + fwd * 1.5 + Vector3(0, 0.6, 0)
+					cam.fov = 55.0
+					smooth = 10.0
+		"robe":
+			# orbit while the cat walks, stops (hem swings) and sprints off
+			var a := t * 0.45
+			pos = pp + Vector3(sin(a), 0, cos(a)) * 3.0 + Vector3(0, 0.9, 0)
+			look = pp + Vector3(0, 0.75, 0)
+			cam.fov = 44.0
+			smooth = 8.0
 		"board":
 			# low beside the board
 			pos = pp + side * 2.2 + fwd * 0.3 + Vector3(0, 0.35, 0)

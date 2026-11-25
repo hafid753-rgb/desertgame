@@ -16,7 +16,62 @@ uniform float pixel_detail_strength : hint_range(0.0, 1.0) = 0.0;
 varying vec3 obj_pos;
 varying vec3 obj_nrm;
 
+#ifdef CLOTH_WIND
+// Daraa sail as cloth (owner: "move with the wind, not stiff, fall a bit
+// downward"). Object space of each wing: x runs from the shoulder seam
+// (|x| ~ 0.22) to the cuff (|x| ~ 1.0), z front (-) to back (+).
+//   droop     the free edge hangs: a quadratic sag toward the cuff and the
+//             trailing edge, more when the wearer falls faster
+//   billow    travelling waves along the span and the chord, driven by the
+//             shared wind field (gusts) and the wearer's air speed
+//   trail     the back edge streams backward and lifts in the airflow
+#include "res://game/shaders/wind.gdshaderinc"
+uniform float cloth_droop = 0.32;
+uniform float cloth_flutter = 0.07;
+uniform float cloth_speed = 1.0;
+uniform float cloth_trail = 0.08;
+
+vec3 cloth_offset(vec3 v, mat4 model) {
+	float span = clamp((abs(v.x) - 0.2) / 0.82, 0.0, 1.0);
+	float back = clamp((v.z + 0.36) / 0.72, 0.0, 1.0);
+	float free_ = clamp(span * 0.75 + back * 0.45, 0.0, 1.0);
+	float t = wind_time * (6.0 + 5.0 * cloth_speed);
+	float gust = wind_gust * wind_gust_at((model * vec4(v, 1.0)).xyz);
+	float w1 = sin(t - abs(v.x) * 7.5 - v.z * 4.0);
+	float w2 = sin(t * 1.7 - abs(v.x) * 13.0 + v.z * 9.0 + 1.3);
+	vec3 o = vec3(0.0);
+	o.y -= cloth_droop * (span * span * 0.8 + back * back * 0.35);
+	o.y += (w1 * 0.7 + w2 * 0.3) * cloth_flutter * free_ * (1.0 + gust * 1.5 + cloth_speed * 0.5);
+	o.z += cloth_trail * back * span * (0.6 + 0.4 * w1) * (0.5 + cloth_speed);
+	o.x -= sign(v.x) * 0.06 * span * span * cloth_droop;        // sagging edge pulls in
+	return o;
+}
+#endif
+
+#ifdef ROBE_WIND
+#include "res://game/shaders/robe_cloth.gdshaderinc"
+#endif
+
 void vertex() {
+#ifdef ROBE_WIND
+	vec3 ro = robe_offset(VERTEX, MODEL_MATRIX);
+	vec3 rox = robe_offset(VERTEX + vec3(0.03, 0.0, 0.0), MODEL_MATRIX);
+	vec3 roz = robe_offset(VERTEX + vec3(0.0, 0.0, 0.03), MODEL_MATRIX);
+	vec3 roy = robe_offset(VERTEX + vec3(0.0, 0.03, 0.0), MODEL_MATRIX);
+	// fold shading: bend the normal by the deformation's Jacobian
+	vec3 jt = vec3(dot(rox - ro, NORMAL), dot(roy - ro, NORMAL), dot(roz - ro, NORMAL)) / 0.03;
+	NORMAL = normalize(NORMAL - jt + dot(NORMAL, jt) * NORMAL);
+	VERTEX += ro;
+#endif
+#ifdef CLOTH_WIND
+	vec3 o = cloth_offset(VERTEX, MODEL_MATRIX);
+	float e = 0.03;
+	vec3 ox = cloth_offset(VERTEX + vec3(e, 0.0, 0.0), MODEL_MATRIX);
+	vec3 oz = cloth_offset(VERTEX + vec3(0.0, 0.0, e), MODEL_MATRIX);
+	// tilt the normal by the deformation slope so the folds catch light
+	NORMAL = normalize(NORMAL + vec3(-(ox.y - o.y) / e, 0.0, -(oz.y - o.y) / e) * sign(NORMAL.y + 1e-4));
+	VERTEX += o;
+#endif
 	obj_pos = VERTEX;
 	obj_nrm = NORMAL;
 }

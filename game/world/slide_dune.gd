@@ -13,24 +13,29 @@ extends StaticBody3D
 var material: Material
 
 
-## height profile along the dune (u in metres from the back toe)
-func profile(u: float) -> float:
+## height profile along the dune (u in metres from the back toe); the
+## shape is authored for a 58 m / 8 m dune and scaled to length / crest_h
+func profile(u_m: float) -> float:
+	return _profile58(u_m * 58.0 / length) * crest_h / 8.0
+
+
+func _profile58(u: float) -> float:
 	if u < 0.0:
 		return 0.0
 	if u < 14.0:                         # windward back, smooth rise
 		var t := u / 14.0
-		return crest_h * t * t * (3.0 - 2.0 * t)
+		return 8.0 * t * t * (3.0 - 2.0 * t)
 	if u < 16.0:                         # rounded crest
-		return crest_h
+		return 8.0
 	if u < 44.0:                         # slip face: steep at the top, easing out
 		var t := (u - 16.0) / 28.0
-		return lerpf(crest_h, 0.7, 1.0 - pow(1.0 - t, 1.7))
+		return lerpf(8.0, 0.7, 1.0 - pow(1.0 - t, 1.7))
 	if u < 50.0:                         # kicker: concave rise to the lip
 		var t := (u - 44.0) / 6.0
-		return 0.7 + 2.5 * t * t
+		return 0.7 + 3.0 * t * t
 	if u < 53.5:                         # drop behind the lip
 		var t := (u - 50.0) / 3.5
-		return 3.2 * (1.0 - t * t * (3.0 - 2.0 * t))
+		return 3.7 * (1.0 - t * t * (3.0 - 2.0 * t))
 	return 0.0
 
 
@@ -42,7 +47,7 @@ func height_at(local_x: float, local_z: float) -> float:
 
 func _ready() -> void:
 	collision_layer = Combat.LAYER_WORLD
-	var nx := 140
+	var nx := int(length * 2.6)
 	var nz := 40
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)

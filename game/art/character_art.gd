@@ -34,7 +34,7 @@ static func fur_material(species: String) -> ShaderMaterial:
 ## Thin cloth: both faces lit correctly, no outline hull.
 static func cloth_material() -> ShaderMaterial:
 	var m := ShaderMaterial.new()
-	m.shader = TOON_DOUBLE
+	m.shader = preload("res://game/shaders/toon_cloth.gdshader")
 	preset(m, "fabric")
 	return m
 

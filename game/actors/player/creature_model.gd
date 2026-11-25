@@ -453,7 +453,19 @@ func _hand(parts: Dictionary, prefix: String, pos: Vector3, table: Dictionary) -
 ## Cloth reads matte with a velvet sheen, eyes glossy, boots leathery.
 func _apply_materials() -> void:
 	if body is MeshInstance3D:
-		(body as MeshInstance3D).material_override = _fabric_mat
+		# the daraa moves as cloth: robe shader + matching outline hull
+		_robe_mat = _fabric_mat.duplicate() as ShaderMaterial
+		_robe_mat.shader = load("res://game/shaders/toon_robe.gdshader")
+		if _fabric_mat.next_pass:
+			var o := (_fabric_mat.next_pass as ShaderMaterial).duplicate() as ShaderMaterial
+			o.shader = load("res://game/shaders/outline_robe.gdshader")
+			_robe_mat.next_pass = o
+		var bm := (body as MeshInstance3D).mesh
+		if bm:
+			var bb := bm.get_aabb()
+			_robe_set("robe_top", bb.position.y + bb.size.y * 0.82)
+			_robe_set("robe_bottom", bb.position.y)
+		(body as MeshInstance3D).material_override = _robe_mat
 	# Hawli/turban: matte cotton (no damask, no sheen streaks).
 	var cotton := CharacterArt.toon_material(_outline_color_cached, 0.007, "fabric")
 	cotton.set_shader_parameter("damask_strength", 0.0)
@@ -739,6 +751,27 @@ func _journey_robe(node: Node3D) -> void:
 ## Long hawli ribbon trailing from the back of the neck (see HawliScarf).
 var scarf: HawliScarf
 
+func _robe_set(param: String, value) -> void:
+	if _robe_mat == null:
+		return
+	_robe_mat.set_shader_parameter(param, value)
+	if _robe_mat.next_pass:
+		(_robe_mat.next_pass as ShaderMaterial).set_shader_parameter(param, value)
+
+
+## Spring-smoothed velocity for the robe cloth: lags behind changes, so the
+## hem trails when you set off and swings past when you stop.
+func _update_robe_cloth(delta: float, v: Vector3) -> void:
+	var steps := clampi(ceili(delta * 120.0), 1, 12)
+	var h := minf(delta, 0.1) / float(steps)
+	var target := Vector3(v.x, 0.0, v.z)
+	for i in steps:
+		var a := (target - _robe_lag) * 38.0 - _robe_lag_v * 7.0
+		_robe_lag_v += a * h
+		_robe_lag += _robe_lag_v * h
+	_robe_set("robe_lag", _robe_lag)
+
+
 ## The neck hawli's own cloth colour: the most common vertex colour of the
 ## Hawli (or Turban) part, so ribbon and wrap are the same fabric.
 func _hawli_color() -> Color:
@@ -777,6 +810,11 @@ var _surfing := false
 var _surf_dust: CPUParticles3D
 var _veil: MeshInstance3D
 var _veil_k := 0.0
+var _sail_roll := 0.0
+var _robe_mat: ShaderMaterial
+var _robe_lag := Vector3.ZERO
+var _robe_lag_v := Vector3.ZERO
+var _last_glide_yaw := 0.0
 var _surf_roll := 0.0
 var _last_yaw := 0.0
 
@@ -822,11 +860,23 @@ func _surf_and_veil(delta: float, state: String, info: Dictionary) -> void:
 	daraa.visible = gliding or daraa.scale.x > 0.25
 	daraa.scale = daraa.scale.lerp(Vector3(1.6, 1.15, 1.4) if gliding else Vector3(0.2, 1, 0.2), 1.0 - exp(-12.0 * delta))
 	if gliding:
-		daraa.rotation.x = sin(Wind.time * 9.0) * 0.06
+		# the whole sail rocks with the turn and the gusts; the cloth shader
+		# adds droop, billow and a streaming trailing edge
+		var air := Vector2(v.x, v.z).length()
+		var fall := maxf(-v.y, 0.0)
+		var yaw_rate := wrapf(global_rotation.y - _last_glide_yaw, -PI, PI) / maxf(delta, 0.001)
+		_last_glide_yaw = global_rotation.y
+		var gust := Wind.gust_at(global_position)
+		_sail_roll = lerpf(_sail_roll, clampf(-yaw_rate * 0.18, -0.4, 0.4) + sin(Wind.time * 2.3) * 0.05 * (1.0 + gust), 1.0 - exp(-4.0 * delta))
+		daraa.rotation = Vector3(-0.05 + sin(Wind.time * 3.1) * 0.04 + gust * 0.06, 0.0, _sail_roll)
+		_cloth_mat.set_shader_parameter("cloth_speed", clampf(air / 12.0, 0.0, 1.6))
+		_cloth_mat.set_shader_parameter("cloth_droop", 0.26 + clampf(fall / 4.0, 0.0, 1.0) * 0.18)
+		_cloth_mat.set_shader_parameter("cloth_flutter", 0.05 + clampf(air / 12.0, 0.0, 1.5) * 0.05 + gust * 0.03)
 		if _robe_pivot:
 			body.scale = body.scale.lerp(Vector3(1.25, 0.92, 1.25), 1.0 - exp(-8.0 * delta))
 	elif body.scale.x > 1.01:
 		body.scale = body.scale.lerp(Vector3.ONE, 1.0 - exp(-8.0 * delta))
+	_update_robe_cloth(delta, v)
 	# veil
 	var want := 1.0 if state in ["SURF", "GLIDE"] else 0.0
 	_veil_k = move_toward(_veil_k, want, delta * 4.0)

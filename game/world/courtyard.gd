@@ -76,14 +76,19 @@ func _outside() -> void:
 		[Vector3(0, 0, -34), Vector3(14, 3.2, 8)], [Vector3(-28, 0, -26), Vector3(9, 2.4, 9)],
 		# long low swells in the open desert (sand spec: flowing macro dunes)
 		[Vector3(10, 0, -50), Vector3(16, 2.2, 9)],
-		[Vector3(-50, 0, -40), Vector3(12, 1.8, 7)], [Vector3(48, 0, 44), Vector3(12, 1.8, 7)],
+		[Vector3(-50, 0, -40), Vector3(12, 1.8, 7)],
 	]:
 		_dune(d[0], d[1])
 	# The surfing dune (shield sand-surfing, owner request): climb the back
 	# from the west, surf east down the slip face, launch off the lip.
+	# Epic version: 74 m long, 12 m crest, ~5 m kicker; the lip throws you
+	# east over 40 m of open desert to glide across.
 	var slide := SlideDune.new()
 	slide.material = _sand_mat(SAND)
-	slide.position = Vector3(-14.0, 0.0, 46.0)
+	slide.length = 74.0
+	slide.crest_h = 12.0
+	slide.half_width = 10.0
+	slide.position = Vector3(-20.0, 0.0, 46.0)
 	add_child(slide)
 	# Invisible boundary.
 	for side in [Vector3(BOUND, 0, 0), Vector3(-BOUND, 0, 0), Vector3(0, 0, BOUND), Vector3(0, 0, -BOUND)]:
