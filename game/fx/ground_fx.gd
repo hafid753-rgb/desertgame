@@ -41,6 +41,12 @@ func step(pos: Vector3, yaw: float, right: bool, depth: float = 1.0) -> void:
 	for w in get_tree().get_nodes_in_group("water"):
 		if w.has_method("is_water") and w.is_water(pos):
 			return
+	# on sand the print is a real dent in the interaction mask (spec 06)
+	var sfx := get_tree().get_first_node_in_group("sand_fx")
+	if sfx:
+		sfx.footprint(pos, Vector3(-sin(yaw), 0, -cos(yaw)), depth)
+		count += 1
+		return
 	var basis := Basis(Vector3.UP, yaw + PI)
 	_mm.set_instance_transform(_i, Transform3D(basis, Vector3(pos.x, pos.y + 0.012, pos.z)))
 	_mm.set_instance_custom_data(_i, Color(maxf(Wind.time, 0.001), 0.0 if right else 1.0, depth, 0.0))

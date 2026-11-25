@@ -14,24 +14,7 @@ uniform float length = 2.3;
 void fragment() {
 	float u = floor(UV.x * PIXELS_PER_METRE);         // texel along the band
 	float v = floor(clamp(UV.y, 0.0, 0.999) * 5.0);   // 0..4 across (0.2 m ~ 6 texels, drawn as 5 bands)
-	vec3 c = base.rgb;
-	if (v == 0.0 || v == 4.0) {
-		c = gold.rgb;                                    // edge lines
-	}
-	// lozenge every 10 texels: rows 1-3 form a small diamond
-	float m = mod(u, 10.0);
-	float dx = abs(m - 5.0);
-	if (v >= 1.0 && v <= 3.0 && dx + abs(v - 2.0) <= 1.0) {
-		c = (dx + abs(v - 2.0)) < 0.5 ? pale.rgb : gold.rgb;
-	}
-	// tassel end: last texels fray into gold fringe
-	float end_t = length * PIXELS_PER_METRE - u;
-	if (end_t < 4.0) {
-		if (mod(v + u, 2.0) < 1.0 && end_t < 2.0) {
-			discard;
-		}
-		c = gold.rgb;
-	}
+	vec3 c = base.rgb;                                // plain cloth (owner: no trim)
 	ALBEDO = c;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;

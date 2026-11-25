@@ -48,6 +48,19 @@ lights_and_shadows/directional_shadow/size.mobile=1024
 
 [shader_globals]
 
+sand_mask={
+"type": "sampler2D",
+"value": ""
+}
+sand_mask_rect={
+"type": "vec4",
+"value": Vector4(0, 0, 16, 0)
+}
+sand_mask_now={
+"type": "float",
+"value": 0.0
+}
+
 soil_zone={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)

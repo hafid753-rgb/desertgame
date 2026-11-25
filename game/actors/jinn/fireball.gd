@@ -62,13 +62,12 @@ func _ready() -> void:
 	_trail = CPUParticles3D.new()
 	var pq := QuadMesh.new()
 	pq.size = Vector2(0.45, 0.45)
-	var pm := StandardMaterial3D.new()
-	pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	pm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	pm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	pm.vertex_color_use_as_albedo = true
-	pm.albedo_texture = JinnLook.glow_texture()
+	# Phase 4: pixel-art flame puffs (world-texel discs, dithered fade)
+	var pm := ShaderMaterial.new()
+	pm.shader = preload("res://game/shaders/dust_dither.gdshader")
+	pm.set_shader_parameter("lit", Color(1.0, 0.96, 0.72))
+	pm.set_shader_parameter("shade", Color(1.0, 0.52, 0.22))
+	pm.set_shader_parameter("quad_size", 0.45)
 	pq.material = pm
 	_trail.mesh = pq
 	_trail.amount = 24

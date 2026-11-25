@@ -41,6 +41,7 @@ func _ready() -> void:
 	far_sand.set_shader_parameter("lambert_gain", 2.2)
 	horizon.material_override = far_sand
 	add_child(horizon)
+	add_child(SandInteraction.new())
 	add_child(GroundFX.new())
 	var flare := LensFlare.new()
 	flare.sun = sun
@@ -49,6 +50,8 @@ func _ready() -> void:
 	add_child(dust)
 	dust.mask_water(OASIS_AT, oasis.pond_radius * 1.15)
 	dust.set_ground_half(Courtyard.BOUND + 5.0)
+	apply_quality.call_deferred()
+	Settings.changed.connect(apply_quality)
 
 	player = Player.new()
 	player.species_id = species_id
@@ -110,6 +113,31 @@ func _on_jinn_defeated(_j: Jinn) -> void:
 	await get_tree().create_timer(3.0).timeout
 	if is_inside_tree():
 		spawn_jinn()
+
+
+## Graphics presets (sand spec 09 / environment spec 07). Low: matte sand
+## (no glitter), no pond reflection, no glow, short shadows, sparse blown
+## sand. Balanced: glitter + glow, no reflection. High: everything.
+func apply_quality() -> void:
+	var q := Settings.quality
+	if env:
+		env.glow_enabled = q >= 1
+	if sun:
+		sun.directional_shadow_max_distance = [22.0, 34.0, 40.0][q]
+	for mi in find_children("*", "MeshInstance3D", true, false):
+		var m = mi.material_override
+		if m is ShaderMaterial and m.shader and m.shader.resource_path.ends_with("sand_ripple.gdshader"):
+			m.set_shader_parameter("glitter_strength", [0.0, 9.0, 9.0][q])
+			m.set_shader_parameter("ocean_strength", [0.2, 0.3, 0.3][q])
+	for o in get_children().filter(func(c): return c is Oasis):
+		if o.reflection:
+			o.reflection.set_process(q == 2)
+			o.reflection.vp.render_target_update_mode = SubViewport.UPDATE_DISABLED if q < 2 else o.reflection.vp.render_target_update_mode
+			if q < 2:
+				o.water_mat.set_shader_parameter("reflection_on", 0.0)
+				o.reflection.active = false
+	for d in get_children().filter(func(c): return c is WindDust):
+		d.visible = q >= 1
 
 
 func _build_environment() -> void:

@@ -6,8 +6,8 @@ extends Node3D
 ## motion, kept out of the robe and above the ground; drawn each frame as a
 ## flat strip with a pixel-art pattern (hawli_scarf.gdshader).
 
-@export var segments := 18
-@export var seg_len := 0.13
+@export var segments := 12
+@export var seg_len := 0.0975     # 1.17 m (owner: half the earlier 2.3 m)
 @export var width := 0.2
 @export var color := Color(0.2, 0.26, 0.55)
 var anchor: Node3D          # follows the neck
@@ -21,6 +21,10 @@ var _acc := 0.0
 var _t := 0.0
 
 
+var trim := Color(1.0, 0.82, 0.36)
+var _vertex_colors := false
+
+
 func _ready() -> void:
 	top_level = true
 	global_transform = Transform3D.IDENTITY
@@ -31,6 +35,15 @@ func _ready() -> void:
 	m.set_shader_parameter("base", color)
 	m.set_shader_parameter("length", seg_len * segments)
 	_mi.material_override = m
+
+
+## Use the wearer's own cloth material (same shader, lighting and colour
+## handling as the neck wrap); the pattern is carried in vertex colours.
+func set_cloth(mat: Material, cloth: Color, trim_color: Color) -> void:
+	color = cloth
+	trim = trim_color
+	_mi.material_override = mat
+	_vertex_colors = true
 	_mi.extra_cull_margin = 4.0
 	add_child(_mi)
 
@@ -107,13 +120,14 @@ func _step(h: float, root: Vector3, back: Vector3) -> void:
 
 func _draw() -> void:
 	_mesh.clear_surfaces()
-	_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	var total := seg_len * segments
 	var prev_side := anchor.global_transform.basis.x.normalized()
+	var lefts: Array[Vector3] = []
+	var rights: Array[Vector3] = []
+	var nrms: Array[Vector3] = []
 	for i in segments + 1:
 		var dir := (_p[mini(i + 1, segments)] - _p[maxi(i - 1, 0)]).normalized()
-		# flat ribbon: width roughly horizontal, carried along (parallel
-		# transport) so the band twists gently instead of flipping
+		# flat ribbon carried along by parallel transport (gentle twist, no flips)
 		var side := (prev_side - dir * prev_side.dot(dir)).normalized()
 		if side.length() < 0.1:
 			side = prev_side
@@ -121,12 +135,30 @@ func _draw() -> void:
 		prev_side = side
 		var k := float(i) / segments
 		var wdt := width * (1.0 - smoothstep(0.82, 1.0, k) * 0.55)
-		var nrm := side.cross(dir).normalized()
-		var u := k * total
-		_mesh.surface_set_normal(nrm)
-		_mesh.surface_set_uv(Vector2(u, 0.0))
-		_mesh.surface_add_vertex(_p[i] - side * wdt * 0.5)
-		_mesh.surface_set_normal(nrm)
-		_mesh.surface_set_uv(Vector2(u, 1.0))
-		_mesh.surface_add_vertex(_p[i] + side * wdt * 0.5)
+		lefts.append(_p[i] - side * wdt * 0.5)
+		rights.append(_p[i] + side * wdt * 0.5)
+		nrms.append(side.cross(dir).normalized())
+	if not _vertex_colors:
+		_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+		for i in segments + 1:
+			var u := float(i) / segments * total
+			_mesh.surface_set_normal(nrms[i])
+			_mesh.surface_set_uv(Vector2(u, 0.0))
+			_mesh.surface_add_vertex(lefts[i])
+			_mesh.surface_set_normal(nrms[i])
+			_mesh.surface_set_uv(Vector2(u, 1.0))
+			_mesh.surface_add_vertex(rights[i])
+		_mesh.surface_end()
+		return
+	# cloth material: one plain band, the wrap's own colour
+	_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in segments:
+		_quad(lefts[i], rights[i], lefts[i + 1], rights[i + 1], nrms[i], nrms[i + 1], color)
 	_mesh.surface_end()
+
+
+func _quad(a0: Vector3, a1: Vector3, b0: Vector3, b1: Vector3, n0: Vector3, n1: Vector3, c: Color) -> void:
+	for v in [[a0, n0], [b0, n1], [a1, n0], [a1, n0], [b0, n1], [b1, n1]]:
+		_mesh.surface_set_color(c)
+		_mesh.surface_set_normal(v[1])
+		_mesh.surface_add_vertex(v[0])

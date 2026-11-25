@@ -11,6 +11,7 @@ var t := 0.0
 
 
 func _ready() -> void:
+	Settings.quality = 2
 	movie = OS.get_cmdline_user_args().has("movie")
 	main = preload("res://game/main.tscn").instantiate()
 	add_child(main)
@@ -36,6 +37,25 @@ func _ready() -> void:
 	]
 	if OS.get_cmdline_user_args().has("probe"):
 		await _probe(o)
+		get_tree().quit()
+		return
+	if OS.get_cmdline_user_args().has("trackdbg"):
+		_place(o + Vector3(14.0, 0.05, 14.0), 0.0, -0.9)
+		main.camera_rig.distance = 4.0
+		await _wait(10)
+		GameInput.touch_move = Vector2(0, -0.45)
+		await _wait_s(2.0)
+		GameInput.touch_move = Vector2.ZERO
+		var sfx = get_tree().get_first_node_in_group("sand_fx")
+		print("stamps ", sfx.stamps, " origin ", sfx.origin, " px ", sfx.img.get_pixelv(Vector2i(sfx._texel(p.global_position + Vector3(0, 0, 0.6)))))
+		await _wait(20)
+		await _shot("track_plain")
+		for mi in main.find_children("*", "MeshInstance3D", true, false):
+			var m = mi.material_override
+			if m is ShaderMaterial and m.shader and m.shader.resource_path.ends_with("sand_ripple.gdshader"):
+				m.set_shader_parameter("debug_spec", 2.0)
+		await _wait(5)
+		await _shot("track_dbg")
 		get_tree().quit()
 		return
 	if OS.get_cmdline_user_args().has("sanddbg"):

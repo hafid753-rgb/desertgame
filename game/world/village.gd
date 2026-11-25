@@ -443,12 +443,41 @@ func _prism(pos: Vector3, s: float, parent: Node3D = null) -> void:
 	_batch.add(pm, Transform3D(Basis(), pos), MUD_DARK, p)
 
 
-func _mat(color: Color) -> StandardMaterial3D:
+## Phase 7: village architecture on the shared pixel-art texel grid
+## (pixel_world.gdshader, 32 px/m). Dark browns become wood, everything else
+## mud-brick sandstone or packed earth tinted to the authored colour;
+## strongly saturated accent colours (paint, cloth) stay flat.
+const PIXEL_SHADER := preload("res://game/shaders/pixel_world.gdshader")
+const FAMILY_AVG := {
+	"res://game/art/pixel/sandstone_128.png": Color(0.639, 0.549, 0.455),
+	"res://game/art/pixel/earth_128.png": Color(0.706, 0.529, 0.4),
+	"res://game/art/pixel/wood_64.png": Color(0.439, 0.294, 0.2),
+}
+
+func _mat(color: Color) -> Material:
 	var key := color.to_html()
 	if _mats.has(key):
 		return _mats[key]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.roughness = 1.0
+	var m: Material
+	if color.s > 0.62 and color.v > 0.5:
+		var sm := StandardMaterial3D.new()
+		sm.albedo_color = color
+		sm.roughness = 1.0
+		m = sm
+	else:
+		var tex := "res://game/art/pixel/sandstone_128.png"
+		var size := 128.0
+		if color.v < 0.5 and color.r > color.b:
+			tex = "res://game/art/pixel/wood_64.png"
+			size = 64.0
+		elif color.s > 0.42:
+			tex = "res://game/art/pixel/earth_128.png"
+		var avg: Color = FAMILY_AVG[tex]
+		var sh := ShaderMaterial.new()
+		sh.shader = PIXEL_SHADER
+		sh.set_shader_parameter("tex", load(tex))
+		sh.set_shader_parameter("tex_size", size)
+		sh.set_shader_parameter("tint", Color(color.r / avg.r, color.g / avg.g, color.b / avg.b))
+		m = sh
 	_mats[key] = m
 	return m

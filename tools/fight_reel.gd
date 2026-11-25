@@ -41,6 +41,7 @@ func _process(delta: float) -> void:
 
 
 func _ready() -> void:
+	Settings.quality = 2
 	process_priority = 1000  # run after the camera rig, then override the view
 	main = preload("res://game/main.tscn").instantiate()
 	add_child(main)

@@ -7,12 +7,12 @@ static var _sphere: SphereMesh
 static var _disc: CylinderMesh
 
 
-static func _mat(color: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = color
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+## Phase 4: effects are pixel art, not soft alpha: flat colour, transparency
+## through a 2x2-pixel ordered dither, a lighter core band (fx_dither).
+static func _mat(color: Color) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://game/shaders/fx_dither.gdshader")
+	m.set_shader_parameter("color", color)
 	return m
 
 
@@ -33,7 +33,7 @@ static func burst(parent: Node, pos: Vector3, color: Color, radius: float, durat
 	mi.scale = squash * 0.2
 	var tw := mi.create_tween().set_parallel(true)
 	tw.tween_property(mi, "scale", squash * radius, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(mat, "albedo_color:a", 0.0, duration)
+	tw.tween_method(func(a: float): mat.set_shader_parameter("alpha", a), 1.0, 0.0, duration)
 	tw.chain().tween_callback(mi.queue_free)
 
 
@@ -57,7 +57,7 @@ static func ring(parent: Node, pos: Vector3, color: Color, radius: float, durati
 	mi.scale = Vector3(0.2, 1, 0.2)
 	var tw := mi.create_tween().set_parallel(true)
 	tw.tween_property(mi, "scale", Vector3(radius, 1, radius), duration).set_ease(Tween.EASE_OUT)
-	tw.tween_property(mat, "albedo_color:a", 0.0, duration)
+	tw.tween_method(func(a: float): mat.set_shader_parameter("alpha", a), 1.0, 0.0, duration)
 	tw.chain().tween_callback(mi.queue_free)
 
 

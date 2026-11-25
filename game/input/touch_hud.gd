@@ -22,7 +22,7 @@ const TAP_MOVE := 14.0
 const TAP_TIME := 0.25
 const SPECIES_RECT := Rect2(24, 80, 230, 32)
 const PAUSE_R := 26.0
-const MENU_ROWS := ["resume", "left_handed", "button_size", "sound", "debug", "species", "reset_world"]
+const MENU_ROWS := ["resume", "left_handed", "button_size", "sound", "quality", "debug", "species", "reset_world"]
 
 var player: Player
 var jinn: Jinn
@@ -231,6 +231,9 @@ func _menu_tap(pos: Vector2) -> void:
 				"sound":
 					Settings.sound_on = not Settings.sound_on
 					Settings.save()
+				"quality":
+					Settings.quality = (Settings.quality + 1) % 3
+					Settings.save()
 				"debug":
 					Settings.show_debug = not Settings.show_debug
 					Settings.save()
@@ -377,6 +380,7 @@ func _draw_menu() -> void:
 		"left_handed": "Left-handed: %s" % ("On" if Settings.left_handed else "Off"),
 		"button_size": "Button size: %s" % ["Small", "Medium", "Large"][Settings.button_scale_index],
 		"sound": "Sound: %s" % ("On" if Settings.sound_on else "Off"),
+		"quality": "Graphics: %s" % Settings.QUALITY_NAMES[Settings.quality],
 		"debug": "Performance overlay: %s" % ("On" if Settings.show_debug else "Off"),
 		"species": "Species: %s (tap to change)" % (str(player.species["name"]) if player else "-"),
 		"reset_world": "Reset world (village, bricks)",

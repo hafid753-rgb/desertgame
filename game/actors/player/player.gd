@@ -15,7 +15,7 @@ signal stamina_changed(stamina: float, max_stamina: float)
 signal announced(text: String, color: Color)
 signal died
 
-enum State { MOVE, ATTACK, HEAVY_CHARGE, GUARD, DODGE, CAST, MOBILITY, DEFENSE, HITSTUN, DEAD, AIR, CLIMB, MANTLE, GLIDE }
+enum State { MOVE, ATTACK, HEAVY_CHARGE, GUARD, DODGE, CAST, MOBILITY, DEFENSE, HITSTUN, DEAD, AIR, CLIMB, MANTLE, GLIDE, SURF }
 
 const GRAVITY := 24.0
 const BASE_SPEED := 4.6
@@ -54,6 +54,14 @@ const MANTLE_TIME := 0.35
 const GLIDE_FALL := 1.6
 const GLIDE_SPEED := 6.0
 const GLIDE_COST := 7.0
+## Sand surfing on the shield (Journey style): starts by itself when running
+## downhill on a slope steeper than SURF_MIN_DEG; ramping off a crest opens
+## the daraa into a glide.
+const SURF_MIN_DEG := 13.0
+const SURF_EXIT_DEG := 5.0
+const SURF_MAX := 16.0
+const SURF_FRICTION := 0.22
+const SURF_STEER := 2.2
 
 const COMBO: Array[Dictionary] = [
 	{"windup": 0.10, "active": 0.10, "recovery": 0.26, "damage": 10.0, "range": 2.3, "arc": 110.0, "cost": 7.0, "lunge": 2.5, "stagger": 0},
@@ -134,6 +142,11 @@ var climb_velocity: Vector3 = Vector3.ZERO
 var mantle_from: Vector3 = Vector3.ZERO
 var mantle_to: Vector3 = Vector3.ZERO
 var air_horizontal: Vector3 = Vector3.ZERO
+var surf_vel := Vector3.ZERO
+var surf_vy := 0.0
+var air_from_surf := false
+var _surf_air_t := 0.0
+var _surf_groove := Vector3.INF
 var highest_y: float = 0.0
 
 ## Sword and shield come out for fights and go on the back after a calm spell.
@@ -420,6 +433,8 @@ func _physics_process(delta: float) -> void:
 			horizontal = _tick_air(delta)
 		State.GLIDE:
 			horizontal = _tick_glide(delta)
+		State.SURF:
+			horizontal = _tick_surf(delta)
 		State.CLIMB:
 			_tick_climb(delta)
 		State.MANTLE:
@@ -435,8 +450,10 @@ func _physics_process(delta: float) -> void:
 		velocity.x = horizontal.x + knock_velocity.x
 		velocity.z = horizontal.z + knock_velocity.z
 		if jump_requested:
-			velocity.y = JUMP_VELOCITY
+			velocity.y = JUMP_VELOCITY + (maxf(surf_vy, 0.0) if air_from_surf else 0.0)
 			jump_requested = false
+		elif state == State.SURF and is_on_floor():
+			velocity.y = surf_vy          # follow the slope; at a lip we fly on
 		elif is_on_floor() and velocity.y <= 0.0:
 			velocity.y = -0.5
 		else:
@@ -547,6 +564,10 @@ func _on_dodge_pressed() -> void:
 			_let_go(false)
 		State.GLIDE:
 			_enter(State.AIR)
+		State.SURF:
+			ground_vel = surf_vel * 0.6
+			floor_snap_length = 0.3
+			_enter(State.MOVE)
 		_:
 			buffered_dodge_t = now
 
@@ -572,6 +593,14 @@ func _on_special_pressed() -> void:
 
 func _on_jump_pressed() -> void:
 	match state:
+		State.SURF:
+			# hop off the board, carrying the speed (and the slope's lift)
+			jump_requested = true
+			air_horizontal = surf_vel
+			air_from_surf = true
+			last_floor_time = -10.0
+			_enter(State.AIR)
+			Juice.play("jump", global_position)
 		State.MOVE:
 			if now - last_floor_time <= COYOTE_TIME:
 				_jump()
@@ -616,6 +645,9 @@ func _tick_move(delta: float) -> Vector3:
 		air_horizontal = Combat.flat(velocity)
 		_enter(State.AIR)
 		return air_horizontal
+	if _can_surf(dir):
+		_start_surf()
+		return surf_vel
 	if input.length() > 0.92 and not is_charging() and lock_target == null:
 		sprint_time += delta
 	else:
@@ -748,8 +780,18 @@ func _start_dodge() -> void:
 	Juice.play("dodge", global_position)
 
 
+var _groove_from := Vector3.INF
+
 func _tick_dodge() -> Vector3:
 	var k := clampf(1.0 - state_time / DODGE_TIME, 0.0, 1.0)
+	# the roll ploughs a short groove through the sand
+	var sfx := get_tree().get_first_node_in_group("sand_fx")
+	if sfx and is_on_floor():
+		if _groove_from == Vector3.INF or state_time < 0.02:
+			_groove_from = global_position
+		elif global_position.distance_to(_groove_from) > 0.12:
+			sfx.groove(_groove_from, global_position, 0.26, 0.7 * k + 0.2)
+			_groove_from = global_position
 	var back := dodge_dir.dot(_forward()) < -0.7
 	var spd := DODGE_SPEED * (0.75 if back else 1.0) * sqrt(k)
 	if state_time >= DODGE_TIME:
@@ -980,6 +1022,12 @@ func _jump() -> void:
 
 func _tick_air(delta: float) -> Vector3:
 	var dir := _move_vector()
+	floor_snap_length = 0.3
+	# off a dune at speed: open the daraa and glide instead of dropping
+	if air_from_surf and velocity.y < -0.5 and state_time > 0.12 and stamina > 3.0:
+		air_from_surf = false
+		_start_glide()
+		return air_horizontal
 	var target := dir * move_speed
 	if air_horizontal.length() > target.length() and dir.dot(air_horizontal) > 0.0:
 		target = dir.normalized() * air_horizontal.length() if dir.length() > 0.1 else air_horizontal
@@ -994,10 +1042,18 @@ func _tick_air(delta: float) -> Vector3:
 
 
 func _land(fall_speed: float) -> void:
+	air_from_surf = false
 	if state == State.AIR or state == State.GLIDE:
+		ground_vel = air_horizontal
 		_enter(State.MOVE)
 	if fall_speed > 7.5:
 		land_lag = LAND_LAG
+	# landing impression + dust burst in the sand (spec 06/07)
+	var sfx := get_tree().get_first_node_in_group("sand_fx")
+	if sfx and fall_speed > 3.0:
+		sfx.crater(global_position, clampf(0.25 + fall_speed * 0.02, 0.25, 0.55), clampf(fall_speed / 10.0, 0.3, 1.0))
+	if model and model.has_method("puff") and fall_speed > 3.0:
+		model.puff(global_position + Vector3(0, 0.05, 0), clampi(int(8 + fall_speed * 1.5), 12, 24))
 	if fall_speed > 6.0:
 		Juice.play("land", global_position, 1.0, -4.0 + minf(6.0, fall_speed * 0.3))
 		Fx.ring(fx_parent, global_position, Color(0.9, 0.8, 0.6, 0.5), 1.2, 0.25)
@@ -1005,6 +1061,81 @@ func _land(fall_speed: float) -> void:
 	if fall_speed > 17.0:
 		var dmg := (fall_speed - 17.0) * 6.0
 		_take_damage(dmg, Vector3.ZERO, 0.5)
+
+
+# --- Sand surfing --------------------------------------------------------------
+
+func _slope_deg() -> float:
+	if not is_on_floor():
+		return 0.0
+	return rad_to_deg(acos(clampf(get_floor_normal().y, -1.0, 1.0)))
+
+
+func _downhill() -> Vector3:
+	var n := get_floor_normal()
+	return Combat.flat(Vector3.DOWN - n * Vector3.DOWN.dot(n)).normalized()
+
+
+func _can_surf(dir: Vector3) -> bool:
+	if not is_on_floor() or is_charging() or lock_target != null or _slope_deg() < SURF_MIN_DEG:
+		return false
+	var dh := _downhill()
+	var going := ground_vel if ground_vel.length() > 0.5 else dir
+	return going.length() > 0.3 and going.normalized().dot(dh) > 0.35
+
+
+func _start_surf() -> void:
+	surf_vel = ground_vel if ground_vel.length() > 1.0 else _downhill() * 3.0
+	_enter(State.SURF)
+	_surf_groove = global_position
+	if model and model.has_method("puff"):
+		model.puff(global_position, 12)
+	announced.emit("Sand surfing", Color(1.0, 0.85, 0.6))
+
+
+func _tick_surf(delta: float) -> Vector3:
+	var dir := _move_vector()
+	if not is_on_floor():
+		_surf_air_t += delta
+		if _surf_air_t > 0.08:
+			# flew off a crest or lip: keep the speed, the daraa will open
+			air_horizontal = surf_vel
+			air_from_surf = true
+			_enter(State.AIR)
+		return surf_vel
+	_surf_air_t = 0.0
+	# walls and collisions bleed speed off the board
+	var real := Combat.flat(get_real_velocity())
+	if is_on_wall() or real.length() < surf_vel.length() * 0.6:
+		surf_vel = surf_vel.lerp(real, 0.5)
+	var n := get_floor_normal()
+	var slope := acos(clampf(n.y, -1.0, 1.0))
+	var dh := _downhill()
+	# gravity along the slope, light friction, steer toward the stick
+	surf_vel += dh * GRAVITY * sin(slope) * 0.75 * delta
+	# sand drag: light on the slope, strong once the ground flattens out
+	surf_vel *= exp(-(SURF_FRICTION if slope > deg_to_rad(SURF_EXIT_DEG) else 1.6) * delta)
+	if dir.length() > 0.1 and surf_vel.length() > 0.5:
+		var heading := surf_vel.normalized().slerp(dir.normalized(), 1.0 - exp(-SURF_STEER * delta)).normalized()
+		surf_vel = heading * surf_vel.length()
+	if surf_vel.length() > SURF_MAX:
+		surf_vel = surf_vel.normalized() * SURF_MAX
+	# vertical speed that keeps us on the surface (and launches us at a lip)
+	surf_vy = -(n.x * surf_vel.x + n.z * surf_vel.z) / maxf(n.y, 0.2)
+	floor_snap_length = 0.0 if surf_vy > 0.5 else 0.6
+	_face_target_or(surf_vel, delta, 10.0)
+	stats["surf_s"] = float(stats.get("surf_s", 0.0)) + delta
+	# groove ploughed by the shield
+	var sfx := get_tree().get_first_node_in_group("sand_fx")
+	if sfx and global_position.distance_to(_surf_groove) > 0.15:
+		sfx.groove(_surf_groove, global_position, 0.42, 0.9)
+		_surf_groove = global_position
+	# run out of slope and speed: step off the shield
+	if slope < deg_to_rad(SURF_EXIT_DEG) and surf_vel.length() < 3.0 or surf_vel.length() < 0.8:
+		ground_vel = surf_vel
+		floor_snap_length = 0.3
+		_enter(State.MOVE)
+	return surf_vel
 
 
 func _start_glide() -> void:
@@ -1208,7 +1339,7 @@ func _update_armed() -> void:
 			near = true
 			break
 	var fighting := near or now - last_combat_time < SHEATHE_AFTER
-	var hands_busy := state in [State.CLIMB, State.MANTLE, State.GLIDE]
+	var hands_busy := state in [State.CLIMB, State.MANTLE, State.GLIDE, State.SURF]
 	if model:
 		model.set_enchant(Combat.harms_jinn(element), Combat.ELEMENT_COLORS[element])
 		# Celebrating puts the sword away so the hand is free to gesture.

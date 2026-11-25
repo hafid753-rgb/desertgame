@@ -266,11 +266,15 @@ func animate(delta: float, info: Dictionary) -> void:
 
 	if rig:
 		_animate_rig(delta, info, state, move, t, sprinting)
+		_surf_and_veil(delta, state, info)
 		if _spread:
 			var locomote := anim_name in ["Walking_A", "Walking_B", "Running_A", "Running_B"]
 			_spread.tuck = lerpf(_spread.tuck, clampf(move * 2.0, 0.0, 1.0) if locomote else 0.0, 1.0 - exp(-10.0 * delta))
 		_update_squash(delta, state, move)
 		rig.basis = Basis(Vector3.UP, PI).scaled(Vector3(1.0 - squash * 0.45, 1.0 + squash, 1.0 - squash * 0.45) * RIG_SCALE)
+		if _surfing:
+			# lean back a little and roll into the turn while riding the shield
+			rig.basis = Basis.from_euler(Vector3(0.12, 0.0, _surf_roll)) * rig.basis
 		_animate_face(delta, state)
 		var ga := clampf(charge / 3.0, 0.0, 1.0) * 0.8
 		_glow_mat.albedo_color = Color(ecol.r, ecol.g, ecol.b, ga)
@@ -454,6 +458,13 @@ func _apply_materials() -> void:
 	cotton.set_shader_parameter("damask_strength", 0.0)
 	cotton.set_shader_parameter("sheen_strength", 0.03)
 	cotton.set_shader_parameter("rim_strength", 0.06)
+	if scarf:
+		# the ribbon is the same cloth as the neck wrap: same material,
+		# double-sided, colours from the wrap's own vertex palette
+		var rib := cotton.duplicate() as ShaderMaterial
+		rib.shader = load("res://game/shaders/toon_double.gdshader")
+		rib.next_pass = null
+		scarf.set_cloth(rib, _hawli_color(), _hawli_trim())
 	for n in [hawli, turban]:
 		if n is MeshInstance3D:
 			(n as MeshInstance3D).material_override = cotton
@@ -687,6 +698,8 @@ func _build_rig() -> void:
 	_exag.setup(anim, "Idle")
 	_build_trail()
 	_build_dust()
+	_build_surf_fx()
+	_build_veil()
 	_play("Unarmed_Idle", 0.0)
 
 
@@ -749,6 +762,160 @@ func _hawli_color() -> Color:
 		if best_n > 0:
 			return best
 	return HAWLI_COLORS.get(_species_key, Color(0.2, 0.26, 0.55))
+
+
+## Trim colour for the ribbon: the brightest common colour in the wrap's
+## palette that is clearly lighter than the cloth (its embroidery), else gold.
+func _hawli_trim() -> Color:
+	return Color(1.0, 0.82, 0.36)
+
+
+# --- Sand surfing + face veil --------------------------------------------------
+
+var _surfing := false
+var _surf_dust: CPUParticles3D
+var _veil: MeshInstance3D
+var _veil_k := 0.0
+var _surf_roll := 0.0
+var _last_yaw := 0.0
+
+
+## Shield under the feet, crouch and lean into turns, a plume of dithered
+## sand behind; the hawli is pulled up over the face (tagelmust veil) while
+## surfing or gliding, like the owner's reference photo.
+func _surf_and_veil(delta: float, state: String, info: Dictionary) -> void:
+	var surf := state == "SURF"
+	if surf != _surfing:
+		_surfing = surf
+		if surf and shield:
+			if shield.get_parent():
+				shield.get_parent().remove_child(shield)
+			add_child(shield)
+			# lay the shield flat under the boots, nose forward
+			shield.transform = Transform3D(Basis(Vector3.RIGHT, -PI / 2).scaled(Vector3.ONE * 1.35), Vector3(0, 0.05, -0.02))
+		elif not surf:
+			set_armed(armed, true)
+			if rig:
+				rig.position.y = 0.0
+	if surf and rig:
+		var yaw := global_rotation.y
+		var turn := wrapf(yaw - _last_yaw, -PI, PI) / maxf(delta, 0.001)
+		_surf_roll = lerpf(_surf_roll, clampf(-turn * 0.12, -0.45, 0.45), 1.0 - exp(-6.0 * delta))
+		rig.position.y = 0.09
+	_last_yaw = global_rotation.y
+	# dust plume: surfing (dense) and sprinting (light)
+	var v: Vector3 = info.get("vel", Vector3.ZERO)
+	var spd := Vector2(v.x, v.z).length()
+	if _surf_dust:
+		var sprint: bool = info.get("sprinting", false)
+		_surf_dust.emitting = (surf and spd > 1.5) or (sprint and spd > 5.0 and state == "MOVE")
+		_surf_dust.speed_scale = clampf(0.6 + spd / 14.0, 0.6, 1.4) if surf else 0.7
+		_surf_dust.global_position = global_position + Vector3(0, 0.08, 0) - Vector3(v.x, 0, v.z).normalized() * 0.35
+		_surf_dust.direction = (-Vector3(v.x, 0, v.z).normalized() + Vector3(0, 0.8, 0)).normalized()
+	# veil
+	var want := 1.0 if state in ["SURF", "GLIDE"] else 0.0
+	_veil_k = move_toward(_veil_k, want, delta * 4.0)
+	if _veil:
+		_veil.visible = _veil_k > 0.02
+		_veil.scale = Vector3(1.0, maxf(_veil_k, 0.02), 1.0)
+
+
+func _build_surf_fx() -> void:
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://game/shaders/dust_dither.gdshader")
+	mat.set_shader_parameter("quad_size", 0.5)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.5, 0.5)
+	quad.material = mat
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0.85))
+	fade.set_color(1, Color(1, 1, 1, 0.0))
+	var grow := Curve.new()
+	grow.add_point(Vector2(0, 0.5))
+	grow.add_point(Vector2(1, 2.4))
+	_surf_dust = CPUParticles3D.new()
+	_surf_dust.mesh = quad
+	_surf_dust.amount = 70
+	_surf_dust.lifetime = 1.4
+	_surf_dust.local_coords = false
+	_surf_dust.emitting = false
+	_surf_dust.spread = 28.0
+	_surf_dust.initial_velocity_min = 1.0
+	_surf_dust.initial_velocity_max = 2.8
+	_surf_dust.gravity = Vector3(0, -0.6, 0)
+	_surf_dust.damping_min = 1.2
+	_surf_dust.damping_max = 2.0
+	_surf_dust.color_ramp = fade
+	_surf_dust.scale_amount_curve = grow
+	_surf_dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	_surf_dust.emission_sphere_radius = 0.18
+	_surf_dust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_surf_dust)
+
+
+## Tagelmust face veil: a cloth band wrapped round the lower face, from the
+## chin up to just under the eyes, slightly bigger than the head, with a
+## loose fold hanging at the front. Same cotton as the hawli (vertex colour).
+func _build_veil() -> void:
+	var hm := head as MeshInstance3D
+	if hm == null or hm.mesh == null:
+		return
+	var box := hm.mesh.get_aabb()
+	var eye_bottom := box.position.y + box.size.y * 0.42
+	if eyes is MeshInstance3D and (eyes as MeshInstance3D).mesh:
+		var eb := (eyes as MeshInstance3D).mesh.get_aabb()
+		eye_bottom = eyes.position.y + eb.position.y - 0.012
+	var c := box.get_center()
+	var r := box.size * 0.5 * 1.08
+	var col := _hawli_color()
+	var dark := col.darkened(0.25)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var y0 := box.position.y + box.size.y * 0.06
+	var y1 := minf(eye_bottom, box.position.y + box.size.y * 0.62)
+	var rings := 6
+	var segs := 28
+	var pts := []
+	for i in rings + 1:
+		var y := lerpf(y0, y1, float(i) / rings)
+		var ny := clampf((y - c.y) / r.y, -0.99, 0.99)
+		var k := sqrt(1.0 - ny * ny)
+		var row := []
+		for j in segs + 1:
+			var a := TAU * float(j) / segs
+			# wrap folds: a slight ripple in the radius
+			var fold := 1.0 + 0.025 * sin(a * 7.0 + float(i) * 1.3)
+			row.append(Vector3(c.x + sin(a) * r.x * k * fold, y, c.z - cos(a) * r.z * k * fold))
+		pts.append(row)
+	for i in rings:
+		for j in segs:
+			var shade := col if (i + j / 3) % 4 != 0 else dark
+			var q := [pts[i][j], pts[i + 1][j], pts[i][j + 1], pts[i][j + 1], pts[i + 1][j], pts[i + 1][j + 1]]
+			for v in q:
+				st.set_color(shade)
+				st.set_normal((v - Vector3(c.x, v.y, c.z)).normalized())
+				st.add_vertex(v)
+	# loose fold hanging under the chin at the front
+	var f0: Vector3 = pts[0][0]
+	var w := r.x * 0.45
+	var drop := box.size.y * 0.32
+	var fl := [f0 + Vector3(-w, 0, -0.02), f0 + Vector3(w, 0, -0.02), f0 + Vector3(-w * 0.7, -drop, -0.05),
+		f0 + Vector3(w * 0.7, -drop, -0.05)]
+	for v in [fl[0], fl[2], fl[1], fl[1], fl[2], fl[3]]:
+		st.set_color(dark)
+		st.set_normal(Vector3(0, 0, -1))
+		st.add_vertex(v)
+	_veil = MeshInstance3D.new()
+	_veil.mesh = st.commit()
+	_veil.name = "Veil"
+	var m := CharacterArt.toon_material(_outline_color_cached, 0.0, "fabric")
+	m.shader = load("res://game/shaders/toon_double.gdshader")
+	m.next_pass = null
+	m.set_shader_parameter("damask_strength", 0.0)
+	m.set_shader_parameter("sheen_strength", 0.03)
+	_veil.material_override = m
+	_veil.visible = false
+	head.add_child(_veil)
 
 
 func _build_scarf() -> void:
@@ -877,6 +1044,9 @@ func _animate_rig(delta: float, info: Dictionary, state: String, move: float, t:
 					_play("Jump_Idle", 0.15)
 			"GLIDE":
 				_play("Jump_Idle", 0.2, 0.5)
+			"SURF":
+				# crouched on the shield, knees bent (tucked jump pose, slowed)
+				_play("Jump_Idle", 0.15, 0.25)
 			"CLIMB":
 				_play("Running_A", 0.15, clampf(absf(t) * 0.5, 0.0, 1.2))
 			"MANTLE":

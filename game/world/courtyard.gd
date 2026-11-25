@@ -71,14 +71,20 @@ func _outside() -> void:
 	_palm(Vector3(-13, MESA_H, 31), 0.05)  # a lone palm on the mesa as a goal
 	# Dunes.
 	for d in [
-		[Vector3(18, 0, 40), Vector3(9, 2.2, 6)], [Vector3(-2, 0, 44), Vector3(12, 3.0, 7)],
+		
 		[Vector3(-30, 0, 12), Vector3(7, 2.0, 10)], [Vector3(34, 0, -40), Vector3(8, 2.6, 12)],
 		[Vector3(0, 0, -34), Vector3(14, 3.2, 8)], [Vector3(-28, 0, -26), Vector3(9, 2.4, 9)],
 		# long low swells in the open desert (sand spec: flowing macro dunes)
-		[Vector3(-46, 0, 34), Vector3(14, 2.0, 8)], [Vector3(10, 0, -50), Vector3(16, 2.2, 9)],
+		[Vector3(10, 0, -50), Vector3(16, 2.2, 9)],
 		[Vector3(-50, 0, -40), Vector3(12, 1.8, 7)], [Vector3(48, 0, 44), Vector3(12, 1.8, 7)],
 	]:
 		_dune(d[0], d[1])
+	# The surfing dune (shield sand-surfing, owner request): climb the back
+	# from the west, surf east down the slip face, launch off the lip.
+	var slide := SlideDune.new()
+	slide.material = _sand_mat(SAND)
+	slide.position = Vector3(-14.0, 0.0, 46.0)
+	add_child(slide)
 	# Invisible boundary.
 	for side in [Vector3(BOUND, 0, 0), Vector3(-BOUND, 0, 0), Vector3(0, 0, BOUND), Vector3(0, 0, -BOUND)]:
 		var col := CollisionShape3D.new()

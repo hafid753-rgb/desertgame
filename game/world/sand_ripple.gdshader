@@ -54,6 +54,14 @@ uniform vec4 glitter_color : source_color = vec4(1.0, 0.96, 0.88, 1.0);
 uniform vec4 soil : source_color = vec4(0.68, 0.52, 0.42, 1.0);
 uniform vec4 moss : source_color = vec4(0.66, 0.6, 0.42, 1.0);
 global uniform vec4 soil_zone;
+// interaction mask (SandInteraction): R height (0.5 = none), G compaction,
+// B stamp time; rect = origin x, z, size, enabled; now = current stamp time
+global uniform sampler2D sand_mask : filter_linear, repeat_disable;
+global uniform vec4 sand_mask_rect;
+global uniform float sand_mask_now;
+uniform float track_depth = 0.06;         // metres at full dent
+uniform float track_fade_start = 25.0;    // seconds
+uniform float track_fade_end = 55.0;
 // kept for older materials (ignored unless > 0)
 uniform float mottle = 0.0;
 uniform vec4 tone_dark : source_color = vec4(0.95, 0.93, 0.92, 1.0);
@@ -71,6 +79,18 @@ varying vec3 v_macro;      // macro+ripple normal, world space (fragment -> ligh
 varying vec3 v_micro;      // grain normal, world space
 varying float v_grain;     // 0..1 grain visibility (sub-pixel fade)
 varying float v_wet;
+
+// height (m) and compaction of the interaction mask at a world point
+vec2 track_at(vec2 xz) {
+	vec2 uv = (xz - sand_mask_rect.xy) / sand_mask_rect.z;
+	if (sand_mask_rect.w < 0.5 || uv.x <= 0.0 || uv.y <= 0.0 || uv.x >= 1.0 || uv.y >= 1.0) {
+		return vec2(0.0);
+	}
+	vec3 m = texture(sand_mask, uv).rgb;
+	float age = mod(sand_mask_now - floor(m.b * 255.0 + 0.5) + 256.0, 256.0) * 0.5;
+	float fade = 1.0 - smoothstep(track_fade_start, track_fade_end, age);
+	return vec2((m.r - 0.5) * 2.0 * track_depth, m.g) * fade;
+}
 
 float hash12(vec2 p) {
 	vec3 q = fract(vec3(p.xyx) * 0.1031);
@@ -127,6 +147,16 @@ void fragment() {
 	float ripple_vis = 1.0 - smoothstep(wl * 0.1, wl * 0.3, fp);
 	g *= ripple_strength * ripple_vis * (1.0 - wet) * (0.35 + 0.65 * smoothstep(0.55, 0.85, n.y));
 	vec3 mn = normalize(n + vec3(-g.x, 0.0, -g.y) * 0.5);
+	// footprints / grooves / craters: normal from the mask's height gradient
+	float e = sand_mask_rect.z / 256.0;
+	vec2 tr = track_at(world_p.xz);
+	float comp = 0.0;
+	if (tr != vec2(0.0) || track_at(world_p.xz + vec2(e, 0.0)).x != 0.0) {
+		float hx = track_at(world_p.xz + vec2(e, 0.0)).x - track_at(world_p.xz - vec2(e, 0.0)).x;
+		float hz = track_at(world_p.xz + vec2(0.0, e)).x - track_at(world_p.xz - vec2(0.0, e)).x;
+		mn = normalize(mn + vec3(-hx, 0.0, -hz) / (2.0 * e) * 2.6);
+		comp = tr.y;
+	}
 	v_macro = mn;
 	// grains: stable world cells; tilt the normal inside the tangent plane
 	vec3 t = normalize(cross(vec3(0.0, 0.0, 1.0), mn) + vec3(1e-4));
@@ -135,7 +165,7 @@ void fragment() {
 	vec3 j = hash33(cell) * 2.0 - 1.0;
 	v_micro = normalize(mn + (t * j.x + b * j.y) * grain_spread);
 	float footprint = length(fwidth(world_p)) * grains_per_metre;
-	v_grain = (1.0 - smoothstep(1.0, 2.6, footprint)) * (1.0 - wet);
+	v_grain = (1.0 - smoothstep(1.0, 2.6, footprint)) * (1.0 - wet) * (1.0 - comp);
 	// albedo: smooth warm sand, faint pixel micro-detail, broad soft drifts
 	vec3 base = sand_color.rgb;
 	if (pixel_mode) {
@@ -158,6 +188,11 @@ void fragment() {
 				base = lp.y < 0.0 ? pebble_light.rgb : pebble_dark.rgb;
 			}
 		}
+	}
+	// compacted sand in prints is a touch darker and smoother
+	base *= 1.0 - 0.2 * comp;
+	if (debug_spec > 1.5) {
+		base = vec3(tr.y, 0.5 + tr.x * 12.0, sand_mask_rect.w);
 	}
 	ALBEDO = base;
 	NORMAL = normalize((VIEW_MATRIX * vec4(mn, 0.0)).xyz);
