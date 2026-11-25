@@ -573,3 +573,25 @@ docs/garment/DARAA.md.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
 
+## 6194aee  2026-11-25 10:04:46 +0000
+Version 3.5.1 (code 37): hands only when used; daraa showcase; media, logs and APK
+
+Floating hands pop in for combat and emotes and are hidden while walking,
+running, climbing and gliding (hand collision proxies off while hidden).
+Daraa showcase cinematic (tools/cinematic.tscn -- shot=showcase). All
+session videos and stills under media/, APK under releases/, logs and
+media index under docs/logs/.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+
+## 908fb78  2026-11-25 10:07:13 +0000
+Initial commit
+
+
+## f307645  2026-11-25 10:08:04 +0000
+Merge GitHub repo initial commit (keep the game's README)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FJKj7YND72GBSTHM8TTJ61
+

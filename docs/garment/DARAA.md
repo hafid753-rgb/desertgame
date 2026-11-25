@@ -149,6 +149,13 @@ visibility change. While they're hidden, the daraa's hand collision proxies
 are switched off.
 `CreatureModel.hands_wanted()` / `_update_hand_visibility()`.
 
+## 5c. v3.5.2 tweaks
+- Taubin smoothing (3 iterations, λ 0.5 / μ −0.53) on the drape and every
+  shape key. It removes the small crumples the coarse sim leaves, which
+  aliased into pixel noise, while keeping the big folds and the volume.
+- The feet are now small babouches, so the leg proxies are short capsules
+  over the toes.
+
 ## 6. Validation
 
 | Check | Output |

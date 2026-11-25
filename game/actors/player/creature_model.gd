@@ -16,8 +16,9 @@ const ART_DIR := "res://game/art/characters/"
 # Adventurer proportions (~1.75 m), see tools/blender/build_characters.py.
 const HEAD_Y := 1.28
 ## Head size relative to the authored chibi head (owner: smaller head).
-const HEAD_SHRINK := 0.8
-const HEAD_DROP := 0.09
+const HEAD_SHRINK := 0.64
+## lowered with the shrink so the chin still sits in the daraa's neckline
+const HEAD_DROP := 0.12
 ## Mittens slightly smaller (owner: smaller arms).
 const HAND_SHRINK := 0.82
 ## Hawli ribbon colour per species (indigo tagelmust cloth).
@@ -101,6 +102,10 @@ func build(data: Dictionary) -> void:
 	hand_l = _hand(parts, "HandL", Vector3(-HAND.x, HAND.y, HAND.z), _poses_l)
 	foot_r = _take(parts, "FootR", FOOT)
 	foot_l = _take(parts, "FootL", Vector3(-FOOT.x, FOOT.y, FOOT.z))
+	# owner: simple feet instead of the bulky boots + sirwal cuffs
+	for f in [foot_r, foot_l]:
+		if f is MeshInstance3D:
+			(f as MeshInstance3D).mesh = _simple_shoe()
 	# Face parts ride on the head so blinks and ear twitches follow it.
 	eyes = _attach_to_head(parts, "Eyes")
 	eyes_closed = _attach_to_head(parts, "EyesClosed")
@@ -903,6 +908,49 @@ func _surf_and_veil(delta: float, state: String, info: Dictionary) -> void:
 	if _veil:
 		_veil.visible = _veil_k > 0.02
 		_veil.scale = Vector3(1.0, maxf(_veil_k, 0.02), 1.0)
+
+
+## Simple leather babouche: a low rounded slipper with a flat sole and a
+## slightly pointed toe (model front is -Z). Vertex colours carry the
+## leather, a darker sole band and the AO the toon shader reads from alpha.
+const SHOE_LEATHER := Color(0.55, 0.33, 0.19)
+static var _shoe_cache: ArrayMesh
+
+static func _simple_shoe() -> ArrayMesh:
+	if _shoe_cache:
+		return _shoe_cache
+	var sm := SphereMesh.new()
+	sm.radius = 0.06
+	sm.height = 0.14
+	sm.is_hemisphere = true
+	sm.radial_segments = 20
+	sm.rings = 8
+	var a := sm.get_mesh_arrays()
+	var verts: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+	var norms: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+	var cols := PackedColorArray()
+	cols.resize(verts.size())
+	for i in verts.size():
+		var v := verts[i]
+		# stretch along z, toe forward and a little pointed, heel rounder
+		var z := v.z * 1.75
+		if z < 0.0:
+			z *= 1.0 + 0.25 * clampf(-z / 0.1, 0.0, 1.0)
+			v.x *= 1.0 - 0.25 * clampf(-z / 0.13, 0.0, 1.0)
+		v.y *= 0.95
+		verts[i] = Vector3(v.x, v.y, z - 0.02)
+		var sole := v.y < 0.008
+		var c := SHOE_LEATHER.darkened(0.45) if sole else SHOE_LEATHER.lerp(Color(0.68, 0.45, 0.27), clampf(v.y / 0.07, 0.0, 1.0) * 0.5)
+		cols[i] = Color(c.r, c.g, c.b, 0.75 if sole else 1.0)
+		norms[i] = Vector3(norms[i].x, norms[i].y * 1.2, norms[i].z / 1.75).normalized()
+	a[Mesh.ARRAY_VERTEX] = verts
+	a[Mesh.ARRAY_NORMAL] = norms
+	a[Mesh.ARRAY_COLOR] = cols
+	a[Mesh.ARRAY_TANGENT] = null
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
+	_shoe_cache = m
+	return m
 
 
 ## Floating hands only appear when they are used (owner: walking and

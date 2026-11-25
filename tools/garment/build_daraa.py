@@ -227,6 +227,30 @@ def snap_seams(pos, seams):
     return pos
 
 
+def taubin(pos, faces, iters=3, lam=0.5, mu=-0.53):
+    """Taubin smoothing: removes the small crumples the coarse sim leaves
+    (they alias into pixel noise in the toon shading) while keeping the big
+    folds and the volume (no shrinkage)."""
+    nb = [set() for _ in pos]
+    for f in faces:
+        for i in range(len(f)):
+            a, b = f[i], f[(i + 1) % len(f)]
+            nb[a].add(b)
+            nb[b].add(a)
+    p = [list(v) for v in pos]
+    for _ in range(iters):
+        for k in (lam, mu):
+            q = []
+            for i, v in enumerate(p):
+                if not nb[i]:
+                    q.append(v)
+                    continue
+                avg = [sum(p[j][c] for j in nb[i]) / len(nb[i]) for c in range(3)]
+                q.append([v[c] + k * (avg[c] - v[c]) for c in range(3)])
+            p = q
+    return [tuple(v) for v in p]
+
+
 def set_group(o, name, weights):
     vg = o.vertex_groups.new(name=name)
     for i, w in enumerate(weights):
@@ -328,7 +352,11 @@ def main():
     sp = spread_targets(left, -1)
     sp.update(spread_targets(right, 1))
     cfg["Spread"] = sim_config(base, faces, uvs, cols, seams, flat, yoke, sp, frames=60, ramp=24)
-    # 3) final object: draped base + shape keys, no loose seam edges
+    # 3) smooth out sim crumples, then the final object: draped base +
+    #    shape keys, no loose seam edges
+    base = snap_seams(taubin(base, faces), seams)
+    for name in cfg:
+        cfg[name] = snap_seams(taubin(cfg[name], faces), seams)
     clear_scene()
     body_proxies()
     o = garment_object(base, faces, uvs, cols, [], "Daraa")

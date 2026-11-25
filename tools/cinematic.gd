@@ -254,7 +254,7 @@ func _showcase_input(delta: float) -> Vector2:
 			3:    # courtyard: a shadow jinn in front, sword drawn
 				_place(Vector3(-3.0, 0.1, 2.0), -PI * 0.5)
 				if main.jinn:
-					main.jinn.global_position = Vector3(-1.2, 0.1, 2.0)
+					main.jinn.global_position = Vector3(-0.7, 0.1, 2.0)
 					main.jinn.look_at(Vector3(-3.0, 0.1, 2.0), Vector3.UP)
 			4:    # the east wall; the jinn sent away so the sword is put up
 				_place(Vector3(8.6, 0.1, 2.0), -PI * 0.5)
@@ -439,7 +439,7 @@ func _process(delta: float) -> void:
 					cam.fov = 44.0
 					smooth = 7.0
 				3:   # combat, profile from the cat's open side: cat and jinn both in frame
-					pos = pp - side * 3.0 + fwd * 0.9 - Vector3(0, 0, 0) + Vector3(0, 1.0, 0)
+					pos = pp - side * 3.6 + fwd * 1.1 + Vector3(0, 1.1, 0)
 					look = pp + fwd * 0.7 + Vector3(0, 0.8, 0)
 					cam.fov = 42.0
 					smooth = 6.0

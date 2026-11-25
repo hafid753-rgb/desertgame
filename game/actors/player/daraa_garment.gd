@@ -200,14 +200,13 @@ func update(delta: float, model: Node3D, state: String, vel: Vector3, armed: boo
 		_set_param("col_hand_r", _sphere(ctr * (hands[0] as Vector3), rad[0]))
 		_set_param("col_hand_l", _sphere(ctr * (hands[1] as Vector3), rad[1]))
 	if feet.size() > 1:
-		# legs: the boot part is a rigid 0.42 m boot + puffed sirwal leg
-		# (0.26 wide); a capsule from the ankle to the sirwal top keeps the
-		# front panel outside it when striding
+		# feet: small babouches; a short capsule over each keeps the hem
+		# riding over the toe when striding
 		for i in 2:
 			var f: Vector3 = ctr * (feet[i] as Vector3)
 			var up := ctr.basis * (feet_up[i] as Vector3) if feet_up.size() > i else Vector3.UP
-			_set_param("col_foot_r" if i == 0 else "col_foot_l", _sphere(f + up * 0.07, 0.17))
-			_set_param("hip_r" if i == 0 else "hip_l", f + up * 0.34)
+			_set_param("col_foot_r" if i == 0 else "col_foot_l", _sphere(f + up * 0.04, 0.09))
+			_set_param("hip_r" if i == 0 else "hip_l", f + up * 0.14)
 
 
 func _arm_support(hand: Vector3, rest: Vector3, side: float) -> Vector3:
